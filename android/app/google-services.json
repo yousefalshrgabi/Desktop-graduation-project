@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "79772205925",
+    "project_id": "academic-management-syst-5e9d8",
+    "storage_bucket": "academic-management-syst-5e9d8.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:79772205925:android:590686c16b9603dcd6578c",
+        "android_client_info": {
+          "package_name": "com.example.academic_affairs_management"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDyVXB0nmfWw2pmry1S_Vf6CAVppo-P_O8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:79772205925:android:9ef96eb24275fd88d6578c",
+        "android_client_info": {
+          "package_name": "com.example.academic_management_system"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDyVXB0nmfWw2pmry1S_Vf6CAVppo-P_O8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
