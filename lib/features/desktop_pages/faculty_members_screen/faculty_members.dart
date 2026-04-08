@@ -1,10 +1,53 @@
-import 'package:academic_affairs_management/features/desktop_pages/add_user_dialog.dart';
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'faculty_members_view_model.dart';
+import 'faculty_member_model.dart';
+import 'add_faculty_member_dialog.dart';
 
-class Users extends StatelessWidget {
-  const Users({super.key});
+class FacultyMembers extends StatefulWidget {
+  const FacultyMembers({super.key});
+
+  @override
+  State<FacultyMembers> createState() => _FacultyMembersState();
+}
+
+class _FacultyMembersState extends State<FacultyMembers> {
+  // تعريف الـ ViewModel
+  final FacultyMembersViewModel _viewModel = FacultyMembersViewModel();
+
+  String _searchQuery = '';
+  String? _selectedDepartment;
+  String? _selectedDegree;
+  String? _selectedStatus;
+
+  final List<String> _departments = [
+    'علوم الحاسوب',
+    'نظم المعلومات',
+    'تقنية المعلومات',
+    'هندسة البرمجيات'
+  ];
+
+  final List<String> _degrees = [
+    'أستاذ',
+    'أستاذ مشارك',
+    'أستاذ مساعد',
+    'معيد'
+  ];
+
+  final List<String> _statuses = [
+    'نشط',
+    'متفرغ',
+    'منتدب',
+    'غير نشط'
+  ];
+
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -17,16 +60,16 @@ class Users extends StatelessWidget {
           children: [
             _buildHeader(),
             const SizedBox(height: DesktopSpacing.lg),
-            _buildFiltersAndActions(
-                context), // تمرير context لاستخدام النافذة المنبثقة لاحقاً
+            _buildFiltersAndActions(context),
             const SizedBox(height: DesktopSpacing.md),
-            _buildUsersTableStream(), // تم تغيير الدالة هنا لاستخدام Stream
+            _buildFacultyMembersTableStream(),
           ],
         ),
       ),
     );
   }
 
+  // 1. دالة الـ AppBar
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       title: Row(
@@ -53,17 +96,18 @@ class Users extends StatelessWidget {
     );
   }
 
+  // 2. دالة الـ Header
   Widget _buildHeader() {
     return Row(
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('إدارة المستخدمين والصلاحيات',
+            const Text('إدارة أعضاء هيئة التدريس',
                 style: DesktopTextStyles.heading1),
             const SizedBox(height: DesktopSpacing.xs / 2),
             Text(
-              'إضافة المستخدمين وتعيين صلاحياتهم وأدوارهم في النظام',
+              'إضافة وتعديل وحذف أعضاء هيئة التدريس في الأقسام الأكاديمية',
               style: DesktopTextStyles.caption,
             ),
             const SizedBox(height: DesktopSpacing.xs),
@@ -73,6 +117,7 @@ class Users extends StatelessWidget {
     );
   }
 
+  // 3. دالة الفلاتر وزر الإضافة
   Widget _buildFiltersAndActions(BuildContext context) {
     return Column(
       children: [
@@ -81,8 +126,14 @@ class Users extends StatelessWidget {
             Expanded(
               flex: 3,
               child: TextField(
+                controller: _searchController,
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val;
+                  });
+                },
                 decoration: InputDecoration(
-                  hintText: 'ابحث بالاسم، الرقم الوظيفي، البريد، الكلية...',
+                  hintText: 'ابحث بالاسم، القسم، أو الدرجة العلمية...',
                   prefixIcon: const Icon(Icons.search),
                   enabledBorder:
                       DesktopInputTheme.inputDecorationTheme.enabledBorder,
@@ -96,19 +147,20 @@ class Users extends StatelessWidget {
               onPressed: () {
                 showDialog(
                   context: context,
-                  barrierDismissible: false, 
-                  builder: (context) => const AddUserDialog(),
+                  barrierDismissible: false,
+                  builder: (context) => const AddFacultyMemberDialog(),
                 );
               },
               style: DesktopButtonTheme.elevatedButtonTheme.style,
               child: Row(
                 children: [
-                  Icon(
+                  const Icon(
                     Icons.add,
                     color: DesktopColors.surface,
                   ),
-                  Text(
-                    'أضافة مستخدم جديد',
+                  const SizedBox(width: 8),
+                  const Text(
+                    'إضافة عضو جديد',
                   )
                 ],
               ),
@@ -118,16 +170,22 @@ class Users extends StatelessWidget {
         const SizedBox(height: DesktopSpacing.sm),
         Row(
           children: [
-            _buildDropdownFilter('كل الكليات'),
+            _buildDropdownFilter('كل الأقسام', _selectedDepartment, _departments, (val) => setState(() => _selectedDepartment = val)),
             const SizedBox(width: 10),
-            _buildDropdownFilter('كل الأقسام'),
+            _buildDropdownFilter('الدرجة العلمية', _selectedDegree, _degrees, (val) => setState(() => _selectedDegree = val)),
             const SizedBox(width: 10),
-            _buildDropdownFilter('كل المستويات'),
-            const SizedBox(width: 10),
-            _buildDropdownFilter('كل الحالات'),
+            _buildDropdownFilter('الحالة', _selectedStatus, _statuses, (val) => setState(() => _selectedStatus = val)),
             const SizedBox(width: 10),
             TextButton(
-              onPressed: () {},
+              onPressed: () {
+                setState(() {
+                  _searchQuery = '';
+                  _searchController.clear();
+                  _selectedDepartment = null;
+                  _selectedDegree = null;
+                  _selectedStatus = null;
+                });
+              },
               child: const Text('مسح المرشحات',
                   style: TextStyle(color: DesktopColors.primary)),
             ),
@@ -137,7 +195,7 @@ class Users extends StatelessWidget {
     );
   }
 
-  Widget _buildDropdownFilter(String label) {
+  Widget _buildDropdownFilter(String label, String? selectedValue, List<String> items, void Function(String?) onChanged) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: DesktopSpacing.xs + 4),
@@ -149,28 +207,27 @@ class Users extends StatelessWidget {
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String>(
             hint: Text(label, style: DesktopTextStyles.caption),
+            value: selectedValue,
             isExpanded: true,
-            items: const [],
-            onChanged: (val) {},
+            items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+            onChanged: onChanged,
           ),
         ),
       ),
     );
   }
 
-  // 4. جدول البيانات المربوط بـ Firestore (Data Table Stream)
-  Widget _buildUsersTableStream() {
+  // 4. جدول البيانات باستخدام ViewModel
+  Widget _buildFacultyMembersTableStream() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: DesktopColors.border),
       ),
-      child: StreamBuilder<QuerySnapshot>(
-        // الاستماع للتغييرات في كولكشن 'users'
-        stream: FirebaseFirestore.instance.collection('users').snapshots(),
+      child: StreamBuilder<List<FacultyMemberModel>>(
+        stream: _viewModel.getFacultyMembersStream(),
         builder: (context, snapshot) {
-          // حالة التحميل
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(
                 child: Padding(
@@ -179,79 +236,71 @@ class Users extends StatelessWidget {
             ));
           }
 
-          // حالة الخطأ
           if (snapshot.hasError) {
             return Center(child: Text('حدث خطأ: ${snapshot.error}'));
           }
 
-          // حالة عدم وجود بيانات
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
             return const Center(
                 child: Padding(
               padding: EdgeInsets.all(DesktopSpacing.lg),
-              child: Text('لا يوجد مستخدمين مسجلين حالياً'),
+              child: Text('لا يوجد أعضاء هيئة تدريس مسجلين حالياً'),
             ));
           }
 
-          // بناء الجدول عند توفر البيانات
-          final users = snapshot.data!.docs;
+          final allMembers = snapshot.data!;
+          
+          // تفعيل الفلاتر محلياً
+          final members = allMembers.where((m) {
+            final matchesSearch = _searchQuery.isEmpty ||
+                m.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                m.department.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                m.academicDegree.toLowerCase().contains(_searchQuery.toLowerCase());
+
+            final matchesDept = _selectedDepartment == null || m.department == _selectedDepartment;
+            final matchesDegree = _selectedDegree == null || m.academicDegree == _selectedDegree;
+            final matchesStatus = _selectedStatus == null || m.status == _selectedStatus;
+
+            return matchesSearch && matchesDept && matchesDegree && matchesStatus;
+          }).toList();
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              DataTable(
-                headingRowColor:
-                    WidgetStatePropertyAll(DesktopColors.background),
-                horizontalMargin: DesktopSpacing.xs,
-                columnSpacing:
-                    DesktopSpacing.sm, // تم تقليل المسافة لتناسب العرض
+              CustomDataTable(
                 columns: const [
                   DataColumn(
-                      label: Text('المعرف',
-                          style: DesktopTextStyles
-                              .caption)), // بدلاً من Checkbox مؤقتاً
+                      label: Text('المعرف', style: DesktopTextStyles.caption)),
                   DataColumn(
-                      label: Text(
-                    'الاسم',
-                    style: DesktopTextStyles.caption,
-                  )),
+                      label: Text('الاسم', style: DesktopTextStyles.caption)),
                   DataColumn(
-                      label: Text('البريد الإلكتروني',
+                      label: Text('القسم', style: DesktopTextStyles.caption)),
+                  DataColumn(
+                      label: Text('الدرجة العلمية', style: DesktopTextStyles.caption)),
+                  DataColumn(
+                      label: Text('تاريخ الإضافة',
                           style: DesktopTextStyles.caption)),
                   DataColumn(
-                      label: Text('الدور', style: DesktopTextStyles.caption)),
-                  DataColumn(
-                      label: Text('تاريخ الإنشاء',
-                          style: DesktopTextStyles.caption)),
+                      label: Text('الحالة', style: DesktopTextStyles.caption)),
                   DataColumn(
                       label: Text('إجراءات', style: DesktopTextStyles.caption)),
                 ],
-                rows: users.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  // معالجة البيانات بأمان (تجنب القيم الفارغة null)
-                  final name = data['name'] ?? 'غير معروف';
-                  final email = data['email'] ?? 'غير معروف';
-                  final role = data['role'] ?? 'غير محدد';
-                  final createdAtTimestamp = data['createAt'] as Timestamp?;
-                  final createdAt = createdAtTimestamp != null
-                      ? createdAtTimestamp.toDate().toString().split(' ')[0]
-                      : '-';
-
+                rows: members.map((member) {
                   return DataRow(cells: [
-                    // عرض أول 5 حروف من الـ ID كمعرف مختصر
-                    DataCell(Text('#${doc.id.substring(0, 5)}...',
+                    DataCell(Text('#${member.id.substring(0, 5)}...',
                         style: DesktopTextStyles.caption)),
-                    DataCell(Text(name, style: DesktopTextStyles.body)),
-                    DataCell(Text(email, style: DesktopTextStyles.body)),
-                    DataCell(_buildRoleBadge(role)), // دالة مساعدة لتلوين الدور
-                    DataCell(Text(createdAt, style: DesktopTextStyles.caption)),
+                    DataCell(Text(member.name, style: DesktopTextStyles.body)),
+                    DataCell(Text(member.department, style: DesktopTextStyles.body)),
+                    DataCell(Text(member.academicDegree, style: DesktopTextStyles.body)),
+                    DataCell(
+                        Text(member.createdAt, style: DesktopTextStyles.caption)),
+                    DataCell(_buildStatusBadge(member.status)),
                     DataCell(
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert, color: Colors.grey),
                         onSelected: (value) {
-                          // هنا تضع أكواد الحذف أو التعديل
                           if (value == 'delete') {
-                            _deleteUser(doc.id);
+                            _viewModel.deleteFacultyMember(member.id);
                           }
                         },
                         itemBuilder: (context) => [
@@ -277,29 +326,20 @@ class Users extends StatelessWidget {
     );
   }
 
-  // دالة مساعدة لحذف المستخدم (للتوضيح)
-  Future<void> _deleteUser(String userId) async {
-    await FirebaseFirestore.instance.collection('users').doc(userId).delete();
-  }
-
-  // تصميم الشارة للدور (Role Badge)
-  Widget _buildRoleBadge(String role) {
+  // 5. دالة تلوين الشارة الخاصة بالحالة (نشط، غير نشط، متفرغ، الخ)
+  Widget _buildStatusBadge(String status) {
     Color color;
-    switch (role) {
-      case 'super_admin':
-        color = Colors.red;
-        break;
-      case 'Public Prosecution':
-        color = Colors.blue;
-        break;
-      case 'Deputy Dean':
+    switch (status) {
+      case 'نشط':
+      case 'متفرغ':
         color = Colors.green;
         break;
-      case 'Head of department':
-        color = Colors.yellow;
+      case 'غير نشط':
+      case 'منتدب':
+        color = Colors.orange;
         break;
       default:
-        color = Colors.grey;
+        color = Colors.blue;
     }
 
     return Container(
@@ -311,7 +351,7 @@ class Users extends StatelessWidget {
         border: Border.all(color: color.withOpacity(0.5)),
       ),
       child: Text(
-        role,
+        status,
         style:
             TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
       ),

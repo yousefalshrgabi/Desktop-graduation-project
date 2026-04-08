@@ -1,38 +1,51 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:academic_affairs_management/core/theme/desktop_theme.dart'; // تأكد من المسار
+import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'users_view_model.dart';
+import 'user_model.dart';
 
-class AddUserDialog extends StatefulWidget {
-  const AddUserDialog({super.key});
+class EditUserDialog extends StatefulWidget {
+  final UserModel user;
+  final UsersViewModel viewModel;
+  const EditUserDialog({super.key, required this.user, required this.viewModel});
 
   @override
-  State<AddUserDialog> createState() => _AddUserDialogState();
+  State<EditUserDialog> createState() => _EditUserDialogState();
 }
 
-class _AddUserDialogState extends State<AddUserDialog> {
+class _EditUserDialogState extends State<EditUserDialog> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
-  // يمكنك إضافة حقل كلمة مرور إذا كنت تنشئ حساب Auth أيضاً
-  
+  late final TextEditingController _nameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _phoneController;
+
   String? _selectedRole;
   bool _isLoading = false;
 
   final List<String> _roles = [
-    'super_admin',
     'Public Prosecution',
     'Deputy Dean',
     'Head of department',
+    'super_admin',
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _nameController = TextEditingController(text: widget.user.name);
+    _emailController = TextEditingController(text: widget.user.email);
+    _phoneController = TextEditingController(text: widget.user.phone);
+    _selectedRole = _roles.contains(widget.user.role) ? widget.user.role : null;
+  }
 
   @override
   void dispose() {
     _nameController.dispose();
     _emailController.dispose();
+    _phoneController.dispose();
     super.dispose();
   }
 
-  Future<void> _saveUser() async {
+  Future<void> _updateUser() async {
     if (!_formKey.currentState!.validate()) return;
     if (_selectedRole == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -44,18 +57,19 @@ class _AddUserDialogState extends State<AddUserDialog> {
     setState(() => _isLoading = true);
 
     try {
-      // إضافة البيانات إلى Firestore
-      await FirebaseFirestore.instance.collection('users').add({
+      await widget.viewModel.updateUser(widget.user.id, {
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
+        'phone': _phoneController.text.trim(),
         'role': _selectedRole,
-        'createAt': FieldValue.serverTimestamp(), // استخدام توقيت السيرفر
       });
 
       if (mounted) {
-        Navigator.of(context).pop(); // إغلاق النافذة
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إضافة المستخدم بنجاح'), backgroundColor: Colors.green),
+          const SnackBar(
+              content: Text('تم تحديث بيانات المستخدم بنجاح'),
+              backgroundColor: Colors.green),
         );
       }
     } catch (e) {
@@ -78,7 +92,7 @@ class _AddUserDialogState extends State<AddUserDialog> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             backgroundColor: Colors.white,
             child: Container(
-              width: 500, // عرض ثابت مناسب للشاشات الكبيرة
+              width: 500,
               padding: const EdgeInsets.all(DesktopSpacing.lg),
               child: Form(
                 key: _formKey,
@@ -86,11 +100,10 @@ class _AddUserDialogState extends State<AddUserDialog> {
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // --- العنوان ---
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('إضافة مستخدم جديد', style: DesktopTextStyles.heading1),
+                        const Text('تعديل بيانات المستخدم', style: DesktopTextStyles.heading1),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close),
@@ -98,8 +111,7 @@ class _AddUserDialogState extends State<AddUserDialog> {
                       ],
                     ),
                     const SizedBox(height: DesktopSpacing.md),
-          
-                    // --- الحقول ---
+
                     _buildLabel('الاسم الكامل'),
                     _buildTextField(
                       controller: _nameController,
@@ -108,43 +120,61 @@ class _AddUserDialogState extends State<AddUserDialog> {
                       validator: (val) => val!.isEmpty ? 'هذا الحقل مطلوب' : null,
                     ),
                     const SizedBox(height: DesktopSpacing.sm),
-          
+
                     _buildLabel('البريد الإلكتروني'),
                     _buildTextField(
                       controller: _emailController,
                       hint: 'example@domain.com',
                       icon: Icons.email_outlined,
-                      validator: (val) => !val!.contains('@') ? 'بريد غير صالح' : null,
+                      validator: (val) {
+                        if (val == null || val.isEmpty) return 'هذا الحقل مطلوب';
+                        final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+                        if (!emailRegex.hasMatch(val)) return 'بريد إلكتروني غير صالح باللغة الإنجليزية';
+                        return null;
+                      },
                     ),
                     const SizedBox(height: DesktopSpacing.sm),
-          
+
+                    _buildLabel('رقم الجوال'),
+                    _buildTextField(
+                      controller: _phoneController,
+                      hint: '77xxxxxxx',
+                      icon: Icons.phone_outlined,
+                      validator: (val) {
+                        if (val == null || val.isEmpty) return 'هذا الحقل مطلوب';
+                        if (!RegExp(r'^[0-9]+$').hasMatch(val)) return 'يجب إدخال أرقام فقط';
+                        if (val.length != 9) return 'رقم الجوال يجب أن يتكون من 9 أرقام';
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: DesktopSpacing.sm),
+
                     _buildLabel('الدور والصلاحية'),
                     _buildRoleDropdown(),
-          
+
                     const SizedBox(height: DesktopSpacing.lg),
-          
-                    // --- أزرار التحكم ---
+
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
                           style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                            padding: const EdgeInsets.symmetric(horizontal: DesktopSpacing.md, vertical: DesktopSpacing.sm),
                           ),
                           child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
                         ),
                         const SizedBox(width: DesktopSpacing.xs),
                         ElevatedButton(
-                          onPressed: _isLoading ? null : _saveUser,
-                          style: DesktopButtonTheme.elevatedButtonTheme.style, // استخدام نفس الثيم
+                          onPressed: _isLoading ? null : _updateUser,
+                          style: DesktopButtonTheme.elevatedButtonTheme.style,
                           child: _isLoading
                               ? const SizedBox(
-                                  width: 20,
-                                  height: 20,
+                                  width: DesktopSpacing.md,
+                                  height: DesktopSpacing.md,
                                   child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                 )
-                              : const Text('حفظ البيانات'),
+                              : const Text('حفظ التعديلات'),
                         ),
                       ],
                     ),
@@ -158,7 +188,6 @@ class _AddUserDialogState extends State<AddUserDialog> {
     );
   }
 
-  // ويدجت مساعدة لبناء الحقول بنفس ستايل البحث الموجود عندك
   Widget _buildTextField({
     required TextEditingController controller,
     required String hint,
@@ -171,7 +200,6 @@ class _AddUserDialogState extends State<AddUserDialog> {
       decoration: InputDecoration(
         hintText: hint,
         prefixIcon: Icon(icon, color: Colors.grey),
-        // استخدام نفس حدود حقل البحث في صفحتك الرئيسية
         enabledBorder: DesktopInputTheme.inputDecorationTheme.enabledBorder,
         focusedBorder: DesktopInputTheme.inputDecorationTheme.focusedBorder,
         errorBorder: OutlineInputBorder(

@@ -10,7 +10,6 @@ class DesktopColors {
   static const border = Color(0xFFE5E7EB);
 }
 
-
 class DesktopTextStyles {
   static const heading1 = TextStyle(
     fontSize: 30,
@@ -35,11 +34,8 @@ class DesktopTextStyles {
   );
 }
 
-
-
 class DesktopButtonTheme {
-  static ElevatedButtonThemeData elevatedButtonTheme =
-  ElevatedButtonThemeData(
+  static ElevatedButtonThemeData elevatedButtonTheme = ElevatedButtonThemeData(
     style: ElevatedButton.styleFrom(
       backgroundColor: DesktopColors.primary,
       foregroundColor: Colors.white,
@@ -55,14 +51,11 @@ class DesktopButtonTheme {
   );
 }
 
-
-
 class DesktopInputTheme {
   static InputDecorationTheme inputDecorationTheme = InputDecorationTheme(
     filled: true,
     fillColor: Colors.white,
-    contentPadding:
-    const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
     border: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
       borderSide: const BorderSide(color: DesktopColors.border),
@@ -73,13 +66,10 @@ class DesktopInputTheme {
     ),
     focusedBorder: OutlineInputBorder(
       borderRadius: BorderRadius.circular(8),
-      borderSide:
-      const BorderSide(color: DesktopColors.primary, width: 2),
+      borderSide: const BorderSide(color: DesktopColors.primary, width: 2),
     ),
   );
 }
-
-
 
 class DesktopSpacing {
   static const xs = 8.0;
@@ -92,9 +82,7 @@ class DesktopSpacing {
 class DesktopTheme {
   static ThemeData lightTheme = ThemeData(
     useMaterial3: true,
-
     scaffoldBackgroundColor: DesktopColors.background,
-
     colorScheme: const ColorScheme(
       brightness: Brightness.light,
       primary: DesktopColors.primary,
@@ -108,24 +96,43 @@ class DesktopTheme {
       surface: DesktopColors.surface,
       onSurface: DesktopColors.textPrimary,
     ),
-
     textTheme: const TextTheme(
       displayLarge: DesktopTextStyles.heading1,
       headlineMedium: DesktopTextStyles.heading2,
       bodyLarge: DesktopTextStyles.body,
       bodySmall: DesktopTextStyles.caption,
     ),
-
-    inputDecorationTheme:
-    DesktopInputTheme.inputDecorationTheme,
-
-    elevatedButtonTheme:
-    DesktopButtonTheme.elevatedButtonTheme,
-
+    inputDecorationTheme: DesktopInputTheme.inputDecorationTheme,
+    elevatedButtonTheme: DesktopButtonTheme.elevatedButtonTheme,
     appBarTheme: const AppBarTheme(
       backgroundColor: DesktopColors.surface,
       foregroundColor: DesktopColors.textPrimary,
       elevation: 0,
     ),
   );
+}
+
+class CustomDataTable extends StatelessWidget {
+  final List<DataColumn> columns;
+  final List<DataRow> rows;
+
+  const CustomDataTable({
+    super.key,
+    required this.columns,
+    required this.rows,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DataTable(
+      // التصميم الثابت لجميع جداول النظام
+      headingRowColor: const WidgetStatePropertyAll(DesktopColors.background),
+      horizontalMargin: DesktopSpacing.xs,
+      columnSpacing: DesktopSpacing.sm,
+
+      // البيانات الديناميكية التي يتم تمريرها
+      columns: columns,
+      rows: rows,
+    );
+  }
 }

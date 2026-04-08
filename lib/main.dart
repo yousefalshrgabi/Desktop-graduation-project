@@ -1,9 +1,9 @@
-import 'package:academic_affairs_management/features/users.dart';
+import 'package:academic_affairs_management/features/authentiction/login_view.dart';
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart'; // 1. تأكد من استيراد هذه المكتبة
-import 'firebase_options.dart'; // 2. تأكد من استيراد ملف الإعدادات المولد
+import 'package:firebase_core/firebase_core.dart';
+import 'firebase_options.dart';
 
-void main() async { // 3. يجب أن تكون الدالة async
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
@@ -23,9 +23,9 @@ class MyApp extends StatelessWidget {
       theme: ThemeData(
         primarySwatch: Colors.blue,
       ),
-      // تأكد أنك تستدعي صفحتك هنا أو داخل التوجيه (Routes)
-      home: const Users(), 
-      builder: (context, child) => Directionality(textDirection: TextDirection.rtl, child: child!),
+      home: const LoginView(),
+      builder: (context, child) =>
+          Directionality(textDirection: TextDirection.rtl, child: child!),
     );
   }
 }
