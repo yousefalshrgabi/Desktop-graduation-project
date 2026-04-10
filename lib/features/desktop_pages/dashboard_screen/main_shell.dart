@@ -1,3 +1,4 @@
+import 'package:academic_affairs_management/features/authentiction/login_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/dashboard_view.dart';
@@ -21,6 +22,7 @@ class _MainShellState extends State<MainShell>
   late final AnimationController _animController;
   late final Animation<double> _widthAnimation;
 
+  final LoginViewModel _loginViewModel = LoginViewModel();
 
   @override
   void initState() {
@@ -101,7 +103,8 @@ class _MainShellState extends State<MainShell>
 
   Widget _buildToggleButton() {
     return Tooltip(
-      message: _sidebarVisible ? 'إخفاء القائمة الجانبية' : 'إظهار القائمة الجانبية',
+      message:
+          _sidebarVisible ? 'إخفاء القائمة الجانبية' : 'إظهار القائمة الجانبية',
       child: Material(
         elevation: 3,
         borderRadius: BorderRadius.circular(10),
@@ -176,8 +179,8 @@ class _MainShellState extends State<MainShell>
   Widget _buildSidebarItem(int index, String title, IconData icon) {
     final isSelected = _selectedIndex == index;
     return Padding(
-      padding:
-          const EdgeInsets.symmetric(horizontal: DesktopSpacing.sm, vertical: 4),
+      padding: const EdgeInsets.symmetric(
+          horizontal: DesktopSpacing.sm, vertical: 4),
       child: InkWell(
         onTap: () => setState(() => _selectedIndex = index),
         borderRadius: BorderRadius.circular(8),
@@ -255,8 +258,7 @@ class _MainShellState extends State<MainShell>
                 children: const [
                   Text(
                     'المدير العام',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -271,7 +273,10 @@ class _MainShellState extends State<MainShell>
             ),
             IconButton(
               icon: const Icon(Icons.logout, size: 20, color: Colors.redAccent),
-              onPressed: () {},
+              onPressed: () {
+                // قمنا بإضافة context داخل الأقواس هنا
+                _loginViewModel.logout(context);
+              },
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(),
             ),

@@ -24,31 +24,44 @@ class _LoginViewState extends State<LoginView> {
     super.dispose();
   }
 
+  // في ملف LoginView.dart، ابحث عن دالة _handleLogin وقم بتحديثها كالتالي:
+
   Future<void> _handleLogin() async {
-    debugPrint('[LOGIN DEBUG] _handleLogin START');
+    FocusScope.of(context).unfocus(); // إغلاق الكيبورد
+
     try {
       await _viewModel.login(
         email: _emailController.text,
         password: _passwordController.text,
+        rememberMe: _rememberMe, // تمرير حالة "تذكرني"
       );
-      debugPrint(
-          '[LOGIN DEBUG] _handleLogin - ViewModel returned. Status: ${_viewModel.status}');
 
-      if (!mounted) {
-        debugPrint('[LOGIN DEBUG] Widget not mounted - aborting navigation');
-        return;
-      }
+      if (!mounted) return;
 
       if (_viewModel.status == LoginStatus.success) {
-        debugPrint('[LOGIN DEBUG] Navigating to MainShell...');
-        try {
-          Navigator.of(context).pushReplacement(
-            MaterialPageRoute(builder: (_) => const MainShell()),
-          );
-          debugPrint('[LOGIN DEBUG] Navigation triggered successfully');
-        } catch (navError) {
-          debugPrint('[LOGIN DEBUG] NAVIGATION ERROR: $navError');
+        // توجيه المستخدم حسب الصلاحية (Role)
+        Widget nextScreen;
+
+        switch (_viewModel.currentUserRole) {
+          case 'admin':
+            // قم بتغييرها لصفحة الإدمن الخاصة بك
+            nextScreen = const MainShell();
+            break;
+          case 'faculty_member':
+            // قم بتغييرها لصفحة عضو هيئة التدريس
+            nextScreen = const MainShell();
+            break;
+          case 'student':
+            // قم بتغييرها لصفحة الطالب
+            nextScreen = const MainShell();
+            break;
+          default:
+            nextScreen = const MainShell(); // الواجهة الافتراضية
         }
+
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => nextScreen),
+        );
       }
     } catch (e) {
       debugPrint('[LOGIN DEBUG] _handleLogin TOP LEVEL ERROR: $e');
