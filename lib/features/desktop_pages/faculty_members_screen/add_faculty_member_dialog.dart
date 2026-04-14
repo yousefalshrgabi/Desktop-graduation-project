@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'faculty_members_view_model.dart';
+import 'faculty_member_model.dart';
 
 class AddFacultyMemberDialog extends StatefulWidget {
-  const AddFacultyMemberDialog({super.key});
+  final FacultyMembersViewModel viewModel;
+  final FacultyMemberModel? memberToEdit; // 👈 المتغير الجديد
+
+  const AddFacultyMemberDialog({
+    super.key,
+    required this.viewModel,
+    this.memberToEdit, // إذا كان null يعني إضافة، وإذا كان به بيانات يعني تعديل
+  });
 
   @override
   State<AddFacultyMemberDialog> createState() => _AddFacultyMemberDialogState();
@@ -13,10 +21,10 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
   final _formKey = GlobalKey<FormState>();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
-  
+
   String? _selectedDepartment;
   String? _selectedDegree;
-  String? _selectedStatus = 'نشط'; // افتراضي
+  String? _selectedStatus = 'نشط';
   bool _isLoading = false;
 
   final List<String> _departments = [
@@ -26,19 +34,33 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
     'هندسة البرمجيات'
   ];
 
-  final List<String> _degrees = [
-    'أستاذ',
-    'أستاذ مشارك',
-    'أستاذ مساعد',
-    'معيد'
-  ];
+  final List<String> _degrees = ['أستاذ', 'أستاذ مشارك', 'أستاذ مساعد', 'معيد'];
 
-  final List<String> _statuses = [
-    'نشط',
-    'متفرغ',
-    'منتدب',
-    'غير نشط'
-  ];
+  final List<String> _statuses = ['نشط', 'متفرغ', 'منتدب', 'غير نشط'];
+
+  @override
+  void initState() {
+    super.initState();
+
+    if (widget.memberToEdit != null) {
+      _nameController.text = widget.memberToEdit!.name;
+      _emailController.text = widget.memberToEdit!.email;
+
+      // 🛑 الحل هنا: التأكد من وجود القيمة في القائمة قبل تعيينها
+      _selectedDepartment =
+          _departments.contains(widget.memberToEdit!.department)
+              ? widget.memberToEdit!.department
+              : null;
+
+      _selectedDegree = _degrees.contains(widget.memberToEdit!.academicDegree)
+          ? widget.memberToEdit!.academicDegree
+          : null;
+
+      _selectedStatus = _statuses.contains(widget.memberToEdit!.status)
+          ? widget.memberToEdit!.status
+          : 'نشط'; // وضعنا 'نشط' كحالة افتراضية آمنة
+    }
+  }
 
   @override
   void dispose() {
@@ -49,9 +71,11 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
 
   Future<void> _saveFacultyMember() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedDepartment == null || _selectedDegree == null || _selectedStatus == null) {
+    if (_selectedDepartment == null ||
+        _selectedDegree == null ||
+        _selectedStatus == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرجاء تعبئة جميع الحقول المطلوبة (القسم، الدرجة، الحالة)')),
+        const SnackBar(content: Text('الرجاء تعبئة جميع الحقول المطلوبة')),
       );
       return;
     }
@@ -59,20 +83,30 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
     setState(() => _isLoading = true);
 
     try {
-      // إضافة البيانات إلى Firestore
-      await FirebaseFirestore.instance.collection('faculty_members').add({
+      final data = {
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'department': _selectedDepartment,
-        'academicDegree': _selectedDegree,
+        'academic_degree': _selectedDegree,
         'status': _selectedStatus,
-        'createdAt': FieldValue.serverTimestamp(),
-      });
+      };
+
+      // 👈 تحديد العملية بناءً على حالة memberToEdit
+      if (widget.memberToEdit == null) {
+        await widget.viewModel.addFacultyMember(data); // إضافة جديد
+      } else {
+        await widget.viewModel
+            .updateFacultyMember(widget.memberToEdit!.id, data); // تعديل الحالي
+      }
 
       if (mounted) {
-        Navigator.of(context).pop(); // إغلاق النافذة
+        Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إضافة عضو هيئة التدريس بنجاح'), backgroundColor: Colors.green),
+          SnackBar(
+              content: Text(widget.memberToEdit == null
+                  ? 'تمت الإضافة بنجاح'
+                  : 'تم التعديل بنجاح'),
+              backgroundColor: Colors.green),
         );
       }
     } catch (e) {
@@ -88,11 +122,17 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // تحديد عنوان النافذة بناءً على نوع العملية
+    final String dialogTitle = widget.memberToEdit == null
+        ? 'إضافة عضو هيئة تدريس'
+        : 'تعديل عضو هيئة تدريس';
+
     return SingleChildScrollView(
       child: Column(
         children: [
           Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             backgroundColor: Colors.white,
             child: Container(
               width: 500,
@@ -106,7 +146,7 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('إضافة عضو هيئة تدريس', style: DesktopTextStyles.heading1),
+                        Text(dialogTitle, style: DesktopTextStyles.heading1),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close),
@@ -114,25 +154,24 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                       ],
                     ),
                     const SizedBox(height: DesktopSpacing.md),
-          
                     _buildLabel('الاسم الكامل'),
                     _buildTextField(
                       controller: _nameController,
                       hint: 'أدخل اسم العضو رباعياً',
                       icon: Icons.person_outline,
-                      validator: (val) => val!.isEmpty ? 'هذا الحقل مطلوب' : null,
+                      validator: (val) =>
+                          val!.isEmpty ? 'هذا الحقل مطلوب' : null,
                     ),
                     const SizedBox(height: DesktopSpacing.sm),
-          
                     _buildLabel('البريد الإلكتروني'),
                     _buildTextField(
                       controller: _emailController,
                       hint: 'example@domain.com',
                       icon: Icons.email_outlined,
-                      validator: (val) => !val!.contains('@') ? 'بريد غير صالح' : null,
+                      validator: (val) =>
+                          !val!.contains('@') ? 'بريد غير صالح' : null,
                     ),
                     const SizedBox(height: DesktopSpacing.sm),
-          
                     Row(
                       children: [
                         Expanded(
@@ -145,7 +184,8 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                                 items: _departments,
                                 hint: 'اختر القسم',
                                 icon: Icons.category_outlined,
-                                onChanged: (val) => setState(() => _selectedDepartment = val),
+                                onChanged: (val) =>
+                                    setState(() => _selectedDepartment = val),
                               ),
                             ],
                           ),
@@ -161,7 +201,8 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                                 items: _degrees,
                                 hint: 'اختر الدرجة',
                                 icon: Icons.school_outlined,
-                                onChanged: (val) => setState(() => _selectedDegree = val),
+                                onChanged: (val) =>
+                                    setState(() => _selectedDegree = val),
                               ),
                             ],
                           ),
@@ -169,7 +210,6 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                       ],
                     ),
                     const SizedBox(height: DesktopSpacing.sm),
-
                     _buildLabel('الحالة الوظيفية'),
                     _buildDropdown(
                       value: _selectedStatus,
@@ -178,18 +218,19 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                       icon: Icons.work_outline,
                       onChanged: (val) => setState(() => _selectedStatus = val),
                     ),
-          
                     const SizedBox(height: DesktopSpacing.lg),
-          
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
                           style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: DesktopSpacing.md, vertical: DesktopSpacing.sm),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: DesktopSpacing.md,
+                                vertical: DesktopSpacing.sm),
                           ),
-                          child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+                          child: const Text('إلغاء',
+                              style: TextStyle(color: Colors.grey)),
                         ),
                         const SizedBox(width: DesktopSpacing.xs),
                         ElevatedButton(
@@ -197,9 +238,10 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                           style: DesktopButtonTheme.elevatedButtonTheme.style,
                           child: _isLoading
                               ? const SizedBox(
-                                  width:DesktopSpacing.md,
+                                  width: DesktopSpacing.md,
                                   height: DesktopSpacing.md,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white, strokeWidth: 2),
                                 )
                               : const Text('حفظ البيانات'),
                         ),
@@ -215,65 +257,56 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-    required IconData icon,
-    String? Function(String?)? validator,
-  }) {
+  // (دوال _buildTextField و _buildDropdown و _buildLabel تبقى كما هي تماماً بدون تغيير)
+  Widget _buildTextField(
+      {required TextEditingController controller,
+      required String hint,
+      required IconData icon,
+      String? Function(String?)? validator}) {
     return TextFormField(
-      controller: controller,
-      validator: validator,
-      decoration: InputDecoration(
-        hintText: hint,
-        prefixIcon: Icon(icon, color: Colors.grey),
-        enabledBorder: DesktopInputTheme.inputDecorationTheme.enabledBorder,
-        focusedBorder: DesktopInputTheme.inputDecorationTheme.focusedBorder,
-        errorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.red),
-        ),
-        focusedErrorBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(8),
-          borderSide: const BorderSide(color: Colors.red),
-        ),
-        filled: true,
-        fillColor: Colors.grey[50],
-      ),
-    );
+        controller: controller,
+        validator: validator,
+        decoration: InputDecoration(
+            hintText: hint,
+            prefixIcon: Icon(icon, color: Colors.grey),
+            enabledBorder: DesktopInputTheme.inputDecorationTheme.enabledBorder,
+            focusedBorder: DesktopInputTheme.inputDecorationTheme.focusedBorder,
+            errorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Colors.red)),
+            focusedErrorBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(8),
+                borderSide: const BorderSide(color: Colors.red)),
+            filled: true,
+            fillColor: Colors.grey[50]));
   }
 
-  Widget _buildDropdown({
-    required String? value,
-    required List<String> items,
-    required String hint,
-    required IconData icon,
-    required void Function(String?) onChanged,
-  }) {
+  Widget _buildDropdown(
+      {required String? value,
+      required List<String> items,
+      required String hint,
+      required IconData icon,
+      required void Function(String?) onChanged}) {
     return DropdownButtonFormField<String>(
-      value: value,
-      decoration: InputDecoration(
-        enabledBorder: DesktopInputTheme.inputDecorationTheme.enabledBorder,
-        focusedBorder: DesktopInputTheme.inputDecorationTheme.focusedBorder,
-        filled: true,
-        fillColor: Colors.grey[50],
-        prefixIcon: Icon(icon, color: Colors.grey),
-      ),
-      hint: Text(hint),
-      items: items.map((item) {
-        return DropdownMenuItem(
-          value: item,
-          child: Text(item),
-        );
-      }).toList(),
-      onChanged: onChanged,
-    );
+        value: value,
+        decoration: InputDecoration(
+            enabledBorder: DesktopInputTheme.inputDecorationTheme.enabledBorder,
+            focusedBorder: DesktopInputTheme.inputDecorationTheme.focusedBorder,
+            filled: true,
+            fillColor: Colors.grey[50],
+            prefixIcon: Icon(icon, color: Colors.grey)),
+        hint: Text(hint),
+        items: items.map((item) {
+          return DropdownMenuItem(value: item, child: Text(item));
+        }).toList(),
+        onChanged: onChanged);
   }
 
   Widget _buildLabel(String text) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(text, style: DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
-    );
+        padding: const EdgeInsets.only(bottom: 8.0),
+        child: Text(text,
+            style:
+                DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)));
   }
 }

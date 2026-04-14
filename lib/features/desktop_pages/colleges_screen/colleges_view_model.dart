@@ -1,17 +1,15 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
+import 'package:academic_affairs_management/features/desktop_pages/colleges_screen/college_model.dart';
 import 'package:flutter/material.dart';
-import 'college_model.dart';
 
 class CollegesViewModel extends ChangeNotifier {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   List<CollegeModel> allColleges = [];
   List<CollegeModel> filteredColleges = [];
 
-  // خريطة لتخزين أسماء العمداء لتسهيل عرضها في الواجهة بدل المعرفات (ID -> Name)
+  // خريطة لتخزين أسماء العمداء لتسهيل عرضها في الواجهة
   Map<String, String> deanNames = {};
 
-  // قائمة المستخدمين المتاحين لاختيار العميد في نماذج الإضافة والتعديل
+  // قائمة المستخدمين المتاحين لاختيار العميد
   List<Map<String, dynamic>> potentialDeans = [];
 
   bool isLoading = true;
@@ -19,64 +17,90 @@ class CollegesViewModel extends ChangeNotifier {
   String searchQuery = '';
 
   CollegesViewModel() {
-    _initStream();
+    fetchColleges();
   }
 
-  void _initStream() {
-    _firestore.collection('colleges').snapshots().listen((snapshot) async {
-      isLoading = true;
-      notifyListeners();
-      
-      allColleges = snapshot.docs.map((doc) => CollegeModel.fromFirestore(doc)).toList();
-      
-      // جلب أسماء العمداء بمجرد الحصول على القائمة
-      await _fetchDeanNames();
-      
-      _applyFilters();
-    }, onError: (error) {
+  // ==========================================
+  // 1. جلب البيانات (مع التحميل المتوازي)
+  // ==========================================
+
+  Future<void> fetchColleges() async {
+    isLoading = true;
+    notifyListeners(); // إظهار مؤشر التحميل
+
+    try {
+      final db = await DatabaseHelper.instance.database;
+
+      // 1. جلب البيانات الأساسية من جدول الكليات
+      final List<Map<String, dynamic>> result = await db.query('colleges');
+      allColleges = result.map((map) => CollegeModel.fromMap(map)).toList();
+
+      // 2. التحميل المتوازي: جلب الأسماء وقائمة اختيار العمداء معاً في نفس اللحظة
+      await Future.wait([
+        _fetchDeanNames(),
+        fetchPotentialDeans(), // تحميل قائمة المستخدمين للقائمة المنسدلة مسبقاً
+      ]);
+
+      _applyFilters(); // تقوم بتعطيل isLoading وتحديث الواجهة
+    } catch (error) {
       errorMessage = error.toString();
+      debugPrint('Error fetching colleges: $error');
       isLoading = false;
       notifyListeners();
-    });
+    }
   }
 
-  // الاستعلام عن أسماء المستخدمين (العمداء) من جدول users
   Future<void> _fetchDeanNames() async {
-    final Set<String> deanIds = allColleges
-        .map((c) => c.deanId)
-        .where((id) => id.isNotEmpty)
-        .toSet();
-        
+    final Set<String> deanIds =
+        allColleges.map((c) => c.deanId).where((id) => id.isNotEmpty).toSet();
+
+    final db = await DatabaseHelper.instance.database;
+
     for (String deanId in deanIds) {
       if (!deanNames.containsKey(deanId)) {
         try {
-          final userDoc = await _firestore.collection('users').doc(deanId).get();
-          if (userDoc.exists) {
-             final userName = userDoc.data()?['name'] ?? 'غير معروف';
-             deanNames[deanId] = userName.toString();
+          final List<Map<String, dynamic>> userResult = await db.query(
+            'users',
+            where: 'id = ?',
+            whereArgs: [deanId],
+            limit: 1,
+          );
+
+          if (userResult.isNotEmpty) {
+            final userName = userResult.first['name'] ?? 'غير معروف';
+            deanNames[deanId] = userName.toString();
           } else {
-             deanNames[deanId] = 'مستخدم محذوف/غير موجود';
+            deanNames[deanId] = 'غير موجود';
           }
         } catch (e) {
-          deanNames[deanId] = 'خطأ في جلب الاسم';
+          deanNames[deanId] = 'خطأ';
         }
       }
     }
   }
 
-  // جلب قائمة المستخدمين المتاحين لاختيارهم كعمداء (للاستخدام في نماذج الإضافة والتعديل)
   Future<void> fetchPotentialDeans() async {
     try {
-      final snapshot = await _firestore.collection('users').get();
-      potentialDeans = snapshot.docs.map((doc) => {
-        'id': doc.id,
-        'name': doc.data()['name']?.toString() ?? 'بدون اسم',
-      }).toList();
-      notifyListeners();
+      final db = await DatabaseHelper.instance.database;
+      // لجلب المستخدمين لعرضهم كخيارات في الـ Dropdown
+      final List<Map<String, dynamic>> snapshot = await db.query('users');
+
+      potentialDeans = snapshot
+          .map((doc) => {
+                'id': doc['id'].toString(),
+                'name': doc['name']?.toString() ?? 'بدون اسم',
+              })
+          .toList();
+
+      // ❌ تم إزالة notifyListeners() من هنا لتجنب إعادة رسم الشاشة مرتين
     } catch (e) {
       debugPrint('Error fetching potential deans: $e');
     }
   }
+
+  // ==========================================
+  // 2. البحث والفلترة
+  // ==========================================
 
   void updateSearchQuery(String query) {
     searchQuery = query.toLowerCase();
@@ -87,41 +111,85 @@ class CollegesViewModel extends ChangeNotifier {
     filteredColleges = allColleges.where((c) {
       final deanName = deanNames[c.deanId]?.toLowerCase() ?? '';
       final matchesSearch = c.arName.toLowerCase().contains(searchQuery) ||
-                            c.enName.toLowerCase().contains(searchQuery) ||
-                            c.code.toLowerCase().contains(searchQuery) ||
-                            deanName.contains(searchQuery);
-                            
+          c.enName.toLowerCase().contains(searchQuery) ||
+          c.code.toLowerCase().contains(searchQuery) ||
+          deanName.contains(searchQuery);
+
       return matchesSearch;
     }).toList();
     isLoading = false;
     notifyListeners();
   }
 
-  // 1. إضافة كلية جديدة
+  // ==========================================
+  // 3. العمليات الأساسية (إضافة، تعديل، حذف)
+  // ==========================================
+
   Future<void> addCollege(Map<String, dynamic> data) async {
     try {
-      data['createdAt'] = FieldValue.serverTimestamp();
-      await _firestore.collection('colleges').add(data);
+      final db = await DatabaseHelper.instance.database;
+
+      data['id'] =
+          data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
+      data['created_at'] = DateTime.now().toIso8601String();
+
+      if (data.containsKey('arName')) data['ar_name'] = data.remove('arName');
+      if (data.containsKey('enName')) data['en_name'] = data.remove('enName');
+      if (data.containsKey('deanId')) data['dean_id'] = data.remove('deanId');
+
+      data.remove('createdAt');
+
+      data['dean_id'] = data['dean_id'] ?? '';
+      data['ar_name'] = data['ar_name'] ?? 'بدون اسم';
+      data['en_name'] = data['en_name'] ?? 'No Name';
+      data['code'] = data['code'] ?? '';
+
+      await db.insert('colleges', data);
+      await fetchColleges();
+      debugPrint('College added successfully: ${data['ar_name']}');
     } catch (e) {
       debugPrint('Error adding college: $e');
       rethrow;
     }
   }
 
-  // 2. تعديل بيانات كلية
-  Future<void> updateCollege(String collegeId, Map<String, dynamic> data) async {
+  Future<void> updateCollege(
+      String collegeId, Map<String, dynamic> data) async {
     try {
-      await _firestore.collection('colleges').doc(collegeId).update(data);
+      final db = await DatabaseHelper.instance.database;
+
+      if (data.containsKey('arName')) data['ar_name'] = data.remove('arName');
+      if (data.containsKey('enName')) data['en_name'] = data.remove('enName');
+      if (data.containsKey('deanId')) data['dean_id'] = data.remove('deanId');
+
+      data.remove('createdAt');
+
+      await db.update(
+        'colleges',
+        data,
+        where: 'id = ?',
+        whereArgs: [collegeId],
+      );
+
+      await fetchColleges();
+      debugPrint('College updated successfully: $collegeId');
     } catch (e) {
       debugPrint('Error updating college: $e');
       rethrow;
     }
   }
 
-  // 3. حذف كلية
   Future<void> deleteCollege(String collegeId) async {
     try {
-      await _firestore.collection('colleges').doc(collegeId).delete();
+      final db = await DatabaseHelper.instance.database;
+      await db.delete(
+        'colleges',
+        where: 'id = ?',
+        whereArgs: [collegeId],
+      );
+
+      await fetchColleges();
+      debugPrint('College deleted successfully: $collegeId');
     } catch (e) {
       debugPrint('Error deleting college: $e');
       rethrow;

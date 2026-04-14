@@ -27,19 +27,9 @@ class _FacultyMembersState extends State<FacultyMembers> {
     'هندسة البرمجيات'
   ];
 
-  final List<String> _degrees = [
-    'أستاذ',
-    'أستاذ مشارك',
-    'أستاذ مساعد',
-    'معيد'
-  ];
+  final List<String> _degrees = ['أستاذ', 'أستاذ مشارك', 'أستاذ مساعد', 'معيد'];
 
-  final List<String> _statuses = [
-    'نشط',
-    'متفرغ',
-    'منتدب',
-    'غير نشط'
-  ];
+  final List<String> _statuses = ['نشط', 'متفرغ', 'منتدب', 'غير نشط'];
 
   final TextEditingController _searchController = TextEditingController();
 
@@ -62,7 +52,7 @@ class _FacultyMembersState extends State<FacultyMembers> {
             const SizedBox(height: DesktopSpacing.lg),
             _buildFiltersAndActions(context),
             const SizedBox(height: DesktopSpacing.md),
-            _buildFacultyMembersTableStream(),
+            _buildFacultyMembersTableLocal(),
           ],
         ),
       ),
@@ -148,7 +138,8 @@ class _FacultyMembersState extends State<FacultyMembers> {
                 showDialog(
                   context: context,
                   barrierDismissible: false,
-                  builder: (context) => const AddFacultyMemberDialog(),
+                  builder: (context) =>
+                      AddFacultyMemberDialog(viewModel: _viewModel),
                 );
               },
               style: DesktopButtonTheme.elevatedButtonTheme.style,
@@ -170,11 +161,17 @@ class _FacultyMembersState extends State<FacultyMembers> {
         const SizedBox(height: DesktopSpacing.sm),
         Row(
           children: [
-            _buildDropdownFilter('كل الأقسام', _selectedDepartment, _departments, (val) => setState(() => _selectedDepartment = val)),
+            _buildDropdownFilter(
+                'كل الأقسام',
+                _selectedDepartment,
+                _departments,
+                (val) => setState(() => _selectedDepartment = val)),
             const SizedBox(width: 10),
-            _buildDropdownFilter('الدرجة العلمية', _selectedDegree, _degrees, (val) => setState(() => _selectedDegree = val)),
+            _buildDropdownFilter('الدرجة العلمية', _selectedDegree, _degrees,
+                (val) => setState(() => _selectedDegree = val)),
             const SizedBox(width: 10),
-            _buildDropdownFilter('الحالة', _selectedStatus, _statuses, (val) => setState(() => _selectedStatus = val)),
+            _buildDropdownFilter('الحالة', _selectedStatus, _statuses,
+                (val) => setState(() => _selectedStatus = val)),
             const SizedBox(width: 10),
             TextButton(
               onPressed: () {
@@ -195,7 +192,8 @@ class _FacultyMembersState extends State<FacultyMembers> {
     );
   }
 
-  Widget _buildDropdownFilter(String label, String? selectedValue, List<String> items, void Function(String?) onChanged) {
+  Widget _buildDropdownFilter(String label, String? selectedValue,
+      List<String> items, void Function(String?) onChanged) {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: DesktopSpacing.xs + 4),
@@ -209,7 +207,9 @@ class _FacultyMembersState extends State<FacultyMembers> {
             hint: Text(label, style: DesktopTextStyles.caption),
             value: selectedValue,
             isExpanded: true,
-            items: items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+            items: items
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
             onChanged: onChanged,
           ),
         ),
@@ -217,18 +217,19 @@ class _FacultyMembersState extends State<FacultyMembers> {
     );
   }
 
-  // 4. جدول البيانات باستخدام ViewModel
-  Widget _buildFacultyMembersTableStream() {
+  // 4. جدول البيانات المحلي (بدون Stream)
+  Widget _buildFacultyMembersTableLocal() {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: DesktopColors.border),
       ),
-      child: StreamBuilder<List<FacultyMemberModel>>(
-        stream: _viewModel.getFacultyMembersStream(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+      // 👈 استخدام ListenableBuilder لربط الواجهة بالـ ViewModel
+      child: ListenableBuilder(
+        listenable: _viewModel,
+        builder: (context, child) {
+          if (_viewModel.isLoading) {
             return const Center(
                 child: Padding(
               padding: EdgeInsets.all(DesktopSpacing.lg),
@@ -236,11 +237,11 @@ class _FacultyMembersState extends State<FacultyMembers> {
             ));
           }
 
-          if (snapshot.hasError) {
-            return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+          if (_viewModel.errorMessage.isNotEmpty) {
+            return Center(child: Text('حدث خطأ: ${_viewModel.errorMessage}'));
           }
 
-          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+          if (_viewModel.allMembers.isEmpty) {
             return const Center(
                 child: Padding(
               padding: EdgeInsets.all(DesktopSpacing.lg),
@@ -248,26 +249,37 @@ class _FacultyMembersState extends State<FacultyMembers> {
             ));
           }
 
-          final allMembers = snapshot.data!;
-          
+          final allMembers = _viewModel.allMembers;
+
           // تفعيل الفلاتر محلياً
           final members = allMembers.where((m) {
             final matchesSearch = _searchQuery.isEmpty ||
                 m.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                m.department.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                m.academicDegree.toLowerCase().contains(_searchQuery.toLowerCase());
+                m.department
+                    .toLowerCase()
+                    .contains(_searchQuery.toLowerCase()) ||
+                m.academicDegree
+                    .toLowerCase()
+                    .contains(_searchQuery.toLowerCase());
 
-            final matchesDept = _selectedDepartment == null || m.department == _selectedDepartment;
-            final matchesDegree = _selectedDegree == null || m.academicDegree == _selectedDegree;
-            final matchesStatus = _selectedStatus == null || m.status == _selectedStatus;
+            final matchesDept = _selectedDepartment == null ||
+                m.department == _selectedDepartment;
+            final matchesDegree =
+                _selectedDegree == null || m.academicDegree == _selectedDegree;
+            final matchesStatus =
+                _selectedStatus == null || m.status == _selectedStatus;
 
-            return matchesSearch && matchesDept && matchesDegree && matchesStatus;
+            return matchesSearch &&
+                matchesDept &&
+                matchesDegree &&
+                matchesStatus;
           }).toList();
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               CustomDataTable(
+                // نفس الجدول الذي صممته تماماً
                 columns: const [
                   DataColumn(
                       label: Text('المعرف', style: DesktopTextStyles.caption)),
@@ -276,7 +288,8 @@ class _FacultyMembersState extends State<FacultyMembers> {
                   DataColumn(
                       label: Text('القسم', style: DesktopTextStyles.caption)),
                   DataColumn(
-                      label: Text('الدرجة العلمية', style: DesktopTextStyles.caption)),
+                      label: Text('الدرجة العلمية',
+                          style: DesktopTextStyles.caption)),
                   DataColumn(
                       label: Text('تاريخ الإضافة',
                           style: DesktopTextStyles.caption)),
@@ -290,26 +303,46 @@ class _FacultyMembersState extends State<FacultyMembers> {
                     DataCell(Text('#${member.id.substring(0, 5)}...',
                         style: DesktopTextStyles.caption)),
                     DataCell(Text(member.name, style: DesktopTextStyles.body)),
-                    DataCell(Text(member.department, style: DesktopTextStyles.body)),
-                    DataCell(Text(member.academicDegree, style: DesktopTextStyles.body)),
                     DataCell(
-                        Text(member.createdAt, style: DesktopTextStyles.caption)),
+                        Text(member.department, style: DesktopTextStyles.body)),
+                    DataCell(Text(member.academicDegree,
+                        style: DesktopTextStyles.body)),
+                    DataCell(Text(member.createdAt,
+                        style: DesktopTextStyles.caption)),
                     DataCell(_buildStatusBadge(member.status)),
                     DataCell(
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert, color: Colors.grey),
                         onSelected: (value) {
-                          if (value == 'delete') {
+                          if (value == 'edit') {
+                            // 👈 استدعاء نافذة الإضافة وتمرير العضو ليتم التعديل عليه
+                            showDialog(
+                              context: context,
+                              barrierDismissible: false,
+                              builder: (context) => AddFacultyMemberDialog(
+                                viewModel: _viewModel,
+                                memberToEdit: member, // هنا نمرر البيانات
+                              ),
+                            );
+                          } else if (value == 'delete') {
                             _viewModel.deleteFacultyMember(member.id);
                           }
                         },
                         itemBuilder: (context) => [
                           const PopupMenuItem(
+                            value: 'edit',
+                            child: Row(children: [
+                              Icon(Icons.edit, color: Colors.blue, size: 16),
+                              SizedBox(width: 8),
+                              Text('تعديل',
+                                  style: TextStyle(color: Colors.blue))
+                            ]),
+                          ),
+                          const PopupMenuItem(
                             value: 'delete',
                             child: Row(children: [
-                              Icon(Icons.delete,
-                                  color: Colors.red, size: DesktopSpacing.sm),
-                              SizedBox(width: DesktopSpacing.xs),
+                              Icon(Icons.delete, color: Colors.red, size: 16),
+                              SizedBox(width: 8),
                               Text('حذف', style: TextStyle(color: Colors.red))
                             ]),
                           ),

@@ -27,12 +27,18 @@ class UserModel {
 
   // دالة مساعدة لتحويل بيانات Firestore إلى Object
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>;
+    final data = doc.data() as Map<String, dynamic>? ?? {};
 
-    final createdAtTimestamp = data['createAt'] as Timestamp?;
-    final createdAtString = createdAtTimestamp != null
-        ? createdAtTimestamp.toDate().toString().split(' ')[0]
-        : '-';
+    // 1. استلام القيمة كـ dynamic أولاً (بدون تحديد نوع)
+    final rawDate = data['createAt'] ?? data['createdAt'];
+
+    // 2. التحقق من النوع قبل التحويل
+    String createdAtString = '-';
+    if (rawDate is Timestamp) {
+      createdAtString = rawDate.toDate().toString().split(' ')[0];
+    } else if (rawDate is String) {
+      createdAtString = rawDate.split(' ')[0];
+    }
 
     return UserModel(
       id: doc.id,
@@ -40,7 +46,7 @@ class UserModel {
       email: data['email']?.toString() ?? 'غير معروف',
       phone: data['phone']?.toString() ?? 'غير معروف',
       role: data['role']?.toString() ?? 'غير محدد',
-      createdAt: createdAtString,
+      createdAt: createdAtString, // السطر 32 الآن أصبح آمناً
       faculty: data['faculty']?.toString(),
       department: data['department']?.toString(),
       level: data['level']?.toString(),

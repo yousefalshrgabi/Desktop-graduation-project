@@ -1,10 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
+import 'package:academic_affairs_management/features/desktop_pages/departments_screen/department_model.dart';
 import 'package:flutter/material.dart';
-import 'department_model.dart';
 
 class DepartmentsViewModel extends ChangeNotifier {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-
   List<DepartmentModel> allDepartments = [];
   List<DepartmentModel> filteredDepartments = [];
 
@@ -25,26 +23,37 @@ class DepartmentsViewModel extends ChangeNotifier {
   String searchQuery = '';
 
   DepartmentsViewModel() {
-    _initStream();
+    fetchDepartments();
   }
 
-  // ── Stream رئيسي ────────────────────────────────────────────────────────────
-  void _initStream() {
-    _firestore.collection('departments').snapshots().listen((snapshot) async {
-      isLoading = true;
-      notifyListeners();
+  // ── جلب الأقسام (بديلاً عن Stream) ──────────────────────────────────────────
+  // ── جلب الأقسام والبيانات المرتبطة ──────────────────────────────────────────
+  Future<void> fetchDepartments() async {
+    isLoading = true;
+    notifyListeners(); // إظهار مؤشر التحميل العام للشاشة
 
-      allDepartments =
-          snapshot.docs.map((d) => DepartmentModel.fromFirestore(d)).toList();
+    try {
+      final db = await DatabaseHelper.instance.database;
 
-      await Future.wait([_fetchCollegeNames(), _fetchHodNames()]);
+      // 1. جلب البيانات من جدول الأقسام
+      final List<Map<String, dynamic>> result = await db.query('departments');
+      allDepartments = result.map((d) => DepartmentModel.fromMap(d)).toList();
 
-      _applyFilters();
-    }, onError: (e) {
+      // 2. التحميل المتوازي: جلب الأسماء وقوائم الاختيار في نفس اللحظة (لتقليل وقت الانتظار)
+      await Future.wait([
+        _fetchCollegeNames(),
+        _fetchHodNames(),
+        fetchAvailableColleges(), // تحميل قائمة الكليات للقوائم المنسدلة
+        fetchAvailableUsers(), // تحميل قائمة المستخدمين للقوائم المنسدلة
+      ]);
+
+      _applyFilters(); // هذه الدالة تحتوي على isLoading = false و notifyListeners()
+    } catch (e) {
       errorMessage = e.toString();
+      debugPrint('Error fetching departments: $e');
       isLoading = false;
       notifyListeners();
-    });
+    }
   }
 
   // ── جلب أسماء الكليات ───────────────────────────────────────────────────────
@@ -54,16 +63,21 @@ class DepartmentsViewModel extends ChangeNotifier {
         .where((id) => id.isNotEmpty)
         .toSet();
 
+    final db = await DatabaseHelper.instance.database;
+
     for (final id in ids) {
       if (!collegeNames.containsKey(id)) {
         try {
-          final doc = await _firestore.collection('colleges').doc(id).get();
-          if (doc.exists) {
-            final data = doc.data()!;
-            collegeNames[id] =
-                data['ar_name']?.toString() ?? 'غير معروف';
+          final doc = await db.query(
+            'colleges',
+            where: 'id = ?',
+            whereArgs: [id],
+            limit: 1,
+          );
+          if (doc.isNotEmpty) {
+            collegeNames[id] = doc.first['ar_name']?.toString() ?? 'غير معروف';
           } else {
-            collegeNames[id] = 'كلية محذوفة';
+            collegeNames[id] = 'كلية غير موجودة';
           }
         } catch (_) {
           collegeNames[id] = 'خطأ في الجلب';
@@ -74,17 +88,22 @@ class DepartmentsViewModel extends ChangeNotifier {
 
   // ── جلب أسماء رؤساء الأقسام ─────────────────────────────────────────────────
   Future<void> _fetchHodNames() async {
-    final ids = allDepartments
-        .map((d) => d.hodId)
-        .where((id) => id.isNotEmpty)
-        .toSet();
+    final ids =
+        allDepartments.map((d) => d.hodId).where((id) => id.isNotEmpty).toSet();
+
+    final db = await DatabaseHelper.instance.database;
 
     for (final id in ids) {
       if (!hodNames.containsKey(id)) {
         try {
-          final doc = await _firestore.collection('users').doc(id).get();
-          if (doc.exists) {
-            hodNames[id] = doc.data()?['name']?.toString() ?? 'غير معروف';
+          final doc = await db.query(
+            'users',
+            where: 'id = ?',
+            whereArgs: [id],
+            limit: 1,
+          );
+          if (doc.isNotEmpty) {
+            hodNames[id] = doc.first['name']?.toString() ?? 'غير معروف';
           } else {
             hodNames[id] = 'مستخدم غير موجود';
           }
@@ -95,35 +114,39 @@ class DepartmentsViewModel extends ChangeNotifier {
     }
   }
 
-  // ── جلب قوائم الاختيار (للnماذج) ────────────────────────────────────────────
+  // ── جلب قوائم الاختيار (للنماذج) ────────────────────────────────────────────
+  // ── جلب قوائم الاختيار (للنماذج) ────────────────────────────────────────────
   Future<void> fetchAvailableColleges() async {
     try {
-      final snapshot = await _firestore.collection('colleges').get();
-      availableColleges = snapshot.docs.map((doc) {
-        final data = doc.data();
+      final db = await DatabaseHelper.instance.database;
+      final snapshot = await db.query('colleges');
+
+      availableColleges = snapshot.map((doc) {
         return <String, dynamic>{
-          'id': doc.id,
-          'name': data['ar_name']?.toString() ?? 'بدون اسم',
+          'id': doc['id'].toString(),
+          'name': doc['ar_name']?.toString() ?? 'بدون اسم',
         };
       }).toList();
-      notifyListeners();
+      // تم إزالة notifyListeners() من هنا لأن _applyFilters ستتكفل بها في النهاية
     } catch (e) {
-      debugPrint('Error fetching colleges: $e');
+      debugPrint('Error fetching available colleges: $e');
     }
   }
 
   Future<void> fetchAvailableUsers() async {
     try {
-      final snapshot = await _firestore.collection('users').get();
-      availableUsers = snapshot.docs.map((doc) {
+      final db = await DatabaseHelper.instance.database;
+      final snapshot = await db.query('users');
+
+      availableUsers = snapshot.map((doc) {
         return <String, dynamic>{
-          'id': doc.id,
-          'name': doc.data()['name']?.toString() ?? 'بدون اسم',
+          'id': doc['id'].toString(),
+          'name': doc['name']?.toString() ?? 'بدون اسم',
         };
       }).toList();
-      notifyListeners();
+      // تم إزالة notifyListeners() من هنا أيضاً
     } catch (e) {
-      debugPrint('Error fetching users: $e');
+      debugPrint('Error fetching available users: $e');
     }
   }
 
@@ -149,8 +172,29 @@ class DepartmentsViewModel extends ChangeNotifier {
 
   Future<void> addDepartment(Map<String, dynamic> data) async {
     try {
-      data['createdAt'] = FieldValue.serverTimestamp();
-      await _firestore.collection('departments').add(data);
+      final db = await DatabaseHelper.instance.database;
+
+      // 1. توليد المفاتيح الأساسية
+      data['id'] =
+          data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
+      data['created_at'] = DateTime.now().toIso8601String();
+
+      // 2. تحويل المفاتيح القديمة (Firebase) إلى الجديدة (SQLite) بأمان
+      if (data.containsKey('collegeId'))
+        data['college_id'] = data.remove('collegeId');
+      if (data.containsKey('hodId')) data['hod_id'] = data.remove('hodId');
+      if (data.containsKey('HODId'))
+        data['hod_id'] = data.remove('HODId'); // احتياط للـ UI
+      data.remove('createdAt');
+
+      // 3. تأكيد وجود القيم المطلوبة لمنع خطأ NOT NULL constraint
+      data['name'] = data['name'] ?? 'بدون اسم';
+      data['college_id'] = data['college_id'] ?? '';
+      data['hod_id'] = data['hod_id'] ?? '';
+
+      await db.insert('departments', data);
+      await fetchDepartments();
+      debugPrint('Department added successfully: ${data['name']}');
     } catch (e) {
       debugPrint('Error adding department: $e');
       rethrow;
@@ -160,7 +204,24 @@ class DepartmentsViewModel extends ChangeNotifier {
   Future<void> updateDepartment(
       String departmentId, Map<String, dynamic> data) async {
     try {
-      await _firestore.collection('departments').doc(departmentId).update(data);
+      final db = await DatabaseHelper.instance.database;
+
+      // تحويل المفاتيح القديمة إلى الجديدة
+      if (data.containsKey('collegeId'))
+        data['college_id'] = data.remove('collegeId');
+      if (data.containsKey('hodId')) data['hod_id'] = data.remove('hodId');
+      if (data.containsKey('HODId')) data['hod_id'] = data.remove('HODId');
+      data.remove('createdAt');
+
+      await db.update(
+        'departments',
+        data,
+        where: 'id = ?',
+        whereArgs: [departmentId],
+      );
+
+      await fetchDepartments();
+      debugPrint('Department updated successfully: $departmentId');
     } catch (e) {
       debugPrint('Error updating department: $e');
       rethrow;
@@ -169,7 +230,14 @@ class DepartmentsViewModel extends ChangeNotifier {
 
   Future<void> deleteDepartment(String departmentId) async {
     try {
-      await _firestore.collection('departments').doc(departmentId).delete();
+      final db = await DatabaseHelper.instance.database;
+      await db.delete(
+        'departments',
+        where: 'id = ?',
+        whereArgs: [departmentId],
+      );
+      await fetchDepartments();
+      debugPrint('Department deleted successfully: $departmentId');
     } catch (e) {
       debugPrint('Error deleting department: $e');
       rethrow;

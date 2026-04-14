@@ -1,29 +1,44 @@
-import 'dart:io'; // نحتاجه لمعرفة نوع النظام
-import 'package:academic_affairs_management/features/authentiction/login_view.dart';
-import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/main_shell.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart'; // أضف هذا السطر
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // سطر مهم جداً
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 
-// ... باقي الاستيرادات
+// استيراد شاشاتك
+import 'package:academic_affairs_management/features/authentiction/login_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/main_shell.dart';
 
 void main() async {
+  // 1. ضمان تهيئة الروابط مع نظام التشغيل
   WidgetsFlutterBinding.ensureInitialized();
 
-  // 1. تهيئة SQLite للعمل على سطح المكتب (Windows/Linux)
+  // 2. تهيئة SQLite لسطح المكتب (حل مشكلة الـ Database Crash)
   if (Platform.isWindows || Platform.isLinux) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
 
-  // 2. تهيئة فايربيس
+  // 3. تهيئة فايربيس
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // 3. قراءة حالة تسجيل الدخول
+  // 🛑 حل مشكلة الـ Debug في Windows (Firestore Threading Fix)
+  // هذا السطر يمنع الـ Crash في وضع الـ Debug على ويندوز
+  if (Platform.isWindows) {
+    try {
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+      );
+    } catch (e) {
+      debugPrint("Firestore settings already initialized: $e");
+    }
+  }
+
+  // 4. قراءة حالة تسجيل الدخول
   final prefs = await SharedPreferences.getInstance();
   final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
   final String? userRole = prefs.getString('userRole');
@@ -46,24 +61,19 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 3. تحديد الشاشة الافتراضية (الشاشة الأولى)
-    Widget initialScreen;
-
-    if (isLoggedIn && userRole != null) {
-      // إذا كان مسجل الدخول، نوجهه للوحة التحكم (ويمكنك لاحقاً توجيهه لشاشات مختلفة حسب الـ role هنا أيضاً)
-      initialScreen = const MainShell();
-    } else {
-      // إذا لم يكن مسجل الدخول، نوجهه لصفحة تسجيل الدخول
-      initialScreen = const LoginView();
-    }
+    // تحديد الشاشة الابتدائية
+    Widget initialScreen = (isLoggedIn && userRole != null)
+        ? const MainShell()
+        : const LoginView(); // تم تصحيحها هنا لتوجه للـ Login إذا لم يسجل الدخول
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'نظام الإدارة الأكاديمية',
       theme: ThemeData(
         primarySwatch: Colors.blue,
+        fontFamily: 'Cairo', // يفضل استخدامه لدعم العربية بشكل جميل
       ),
-      home: initialScreen, // استخدام المتغير هنا
+      home: initialScreen,
       builder: (context, child) =>
           Directionality(textDirection: TextDirection.rtl, child: child!),
     );

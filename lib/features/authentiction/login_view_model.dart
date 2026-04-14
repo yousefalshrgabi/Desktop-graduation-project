@@ -74,7 +74,7 @@ class LoginViewModel extends ChangeNotifier {
       }
 
       // 4. حفظ حالة تسجيل الدخول في SharedPreferences
-      if (syncSuccess && rememberMe) {
+      if (rememberMe) {
         final prefs = await SharedPreferences.getInstance();
         await prefs.setBool('isLoggedIn', true);
         await prefs.setString('userId', uid);
@@ -308,5 +308,4 @@ class LoginViewModel extends ChangeNotifier {
     final dt = timestamp.toDate();
     return '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
   }
-
 }

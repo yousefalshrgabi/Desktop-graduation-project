@@ -13,7 +13,7 @@ class DatabaseHelper {
 
     debugPrint(
         '[SQLITE DEBUG] 🟡 لم يتم العثور على قاعدة بيانات نشطة، جاري التهيئة...');
-    _database = await _initDB('academic_affairs.db');
+    _database = await _initDB('academic_affairss.db');
     return _database!;
   }
 
