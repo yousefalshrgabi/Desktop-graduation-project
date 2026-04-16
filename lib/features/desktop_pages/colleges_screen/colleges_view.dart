@@ -1,5 +1,7 @@
+import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'package:academic_affairs_management/core/services/sync_service.dart';
 import 'colleges_view_model.dart';
 import 'add_college_dialog.dart';
 import 'edit_college_dialog.dart';
@@ -14,6 +16,7 @@ class Colleges extends StatefulWidget {
 
 class _CollegesState extends State<Colleges> {
   final CollegesViewModel _viewModel = CollegesViewModel();
+  final SyncService _syncService = SyncService();
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -61,6 +64,21 @@ class _CollegesState extends State<Colleges> {
       ),
       actions: [
         TextButton(onPressed: () {}, child: const Text('العربية | EN')),
+
+        // 👈 إضافة زر المزامنة هنا
+        IconButton(
+          tooltip: 'مزامنة السحابة', // يظهر كنص توضيحي عند تمرير الماوس
+          icon: const Icon(Icons.cloud_sync_outlined,
+              color: DesktopColors.primary),
+          onPressed: () {
+            showDialog(
+              context: context,
+              barrierDismissible: false, // لمنع الإغلاق بالخطأ أثناء المزامنة
+              builder: (context) => SyncDialog(),
+            );
+          },
+        ),
+
         IconButton(
             icon: const Icon(Icons.notifications_none), onPressed: () {}),
         IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () {}),

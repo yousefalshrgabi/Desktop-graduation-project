@@ -1,3 +1,4 @@
+import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'departments_view_model.dart';
@@ -25,6 +26,7 @@ class _DepartmentsViewState extends State<DepartmentsView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: _buildAppBar(),
       backgroundColor: DesktopColors.background,
       body: AnimatedBuilder(
         animation: _viewModel,
@@ -44,6 +46,48 @@ class _DepartmentsViewState extends State<DepartmentsView> {
           );
         },
       ),
+    );
+  }
+
+  PreferredSizeWidget _buildAppBar() {
+    return AppBar(
+      title: Row(
+        children: [
+          const Icon(Icons.school, color: DesktopColors.primary),
+          const SizedBox(width: DesktopSpacing.xs),
+          Text('نظام الشؤون الأكاديمية',
+              style:
+                  DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
+        ],
+      ),
+      actions: [
+        TextButton(onPressed: () {}, child: const Text('العربية | EN')),
+
+        // 👈 إضافة زر المزامنة هنا
+        IconButton(
+          tooltip: 'مزامنة السحابة', // يظهر كنص توضيحي عند تمرير الماوس
+          icon: const Icon(Icons.cloud_sync_outlined,
+              color: DesktopColors.primary),
+          onPressed: () {
+            showDialog(
+              context: context,
+              barrierDismissible: false, // لمنع الإغلاق بالخطأ أثناء المزامنة
+              builder: (context) => SyncDialog(),
+            );
+          },
+        ),
+
+        IconButton(
+            icon: const Icon(Icons.notifications_none), onPressed: () {}),
+        IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () {}),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16.0),
+          child: CircleAvatar(
+            backgroundColor: Color.fromARGB(255, 219, 215, 220),
+            child: Text('أ'),
+          ),
+        ),
+      ],
     );
   }
 
@@ -150,8 +194,7 @@ class _DepartmentsViewState extends State<DepartmentsView> {
               DataColumn(
                   label: Text('الكلية', style: DesktopTextStyles.caption)),
               DataColumn(
-                  label:
-                      Text('رئيس القسم', style: DesktopTextStyles.caption)),
+                  label: Text('رئيس القسم', style: DesktopTextStyles.caption)),
               DataColumn(
                   label:
                       Text('تاريخ الإنشاء', style: DesktopTextStyles.caption)),
@@ -161,8 +204,7 @@ class _DepartmentsViewState extends State<DepartmentsView> {
             rows: _viewModel.filteredDepartments.map((dept) {
               final collegeName =
                   _viewModel.collegeNames[dept.collegeId] ?? 'غير محدد';
-              final hodName =
-                  _viewModel.hodNames[dept.hodId] ?? 'غير محدد';
+              final hodName = _viewModel.hodNames[dept.hodId] ?? 'غير محدد';
 
               return DataRow(cells: [
                 DataCell(Text(
@@ -208,8 +250,7 @@ class _DepartmentsViewState extends State<DepartmentsView> {
                         child: Row(children: [
                           Icon(Icons.edit, color: Colors.orange, size: 18),
                           SizedBox(width: 8),
-                          Text('تعديل',
-                              style: TextStyle(color: Colors.orange)),
+                          Text('تعديل', style: TextStyle(color: Colors.orange)),
                         ]),
                       ),
                       PopupMenuItem(
@@ -252,8 +293,7 @@ class _DepartmentsViewState extends State<DepartmentsView> {
               );
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child:
-                const Text('حذف', style: TextStyle(color: Colors.white)),
+            child: const Text('حذف', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),

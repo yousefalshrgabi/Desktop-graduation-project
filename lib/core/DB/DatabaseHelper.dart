@@ -83,6 +83,14 @@ class DatabaseHelper {
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول subjects');
 
+      await db.execute('''
+        CREATE TABLE deleted_records (
+          id TEXT PRIMARY KEY,
+          table_name TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول deleted_records');
+
       debugPrint('[SQLITE DEBUG] 🎉 اكتمل بناء قاعدة البيانات المحلية بنجاح!');
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ خطأ فادح أثناء إنشاء الجداول: $e');

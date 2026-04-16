@@ -1,3 +1,4 @@
+import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/features/desktop_pages/users_screen/add_user_dialog.dart';
 import 'package:academic_affairs_management/features/desktop_pages/users_screen/edit_user_dialog.dart';
@@ -54,21 +55,37 @@ class _UsersState extends State<Users> {
         children: [
           const Icon(Icons.school, color: DesktopColors.primary),
           const SizedBox(width: DesktopSpacing.xs),
-          Text('النيابة العامة',
+          Text('نظام الشؤون الأكاديمية',
               style:
                   DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
         ],
       ),
       actions: [
         TextButton(onPressed: () {}, child: const Text('العربية | EN')),
+
+        // 👈 إضافة زر المزامنة هنا
+        IconButton(
+          tooltip: 'مزامنة السحابة', // يظهر كنص توضيحي عند تمرير الماوس
+          icon: const Icon(Icons.cloud_sync_outlined,
+              color: DesktopColors.primary),
+          onPressed: () {
+            showDialog(
+              context: context,
+              barrierDismissible: false, // لمنع الإغلاق بالخطأ أثناء المزامنة
+              builder: (context) => SyncDialog(),
+            );
+          },
+        ),
+
         IconButton(
             icon: const Icon(Icons.notifications_none), onPressed: () {}),
         IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () {}),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.0),
           child: CircleAvatar(
-              backgroundColor: Color.fromARGB(255, 219, 215, 220),
-              child: Text('أ')),
+            backgroundColor: Color.fromARGB(255, 219, 215, 220),
+            child: Text('أ'),
+          ),
         ),
       ],
     );
@@ -172,11 +189,13 @@ class _UsersState extends State<Users> {
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String>(
             value: _viewModel.selectedRole,
-            hint: Text('كل الأدوار (الصلاحيات)', style: DesktopTextStyles.caption),
+            hint: Text('كل الأدوار (الصلاحيات)',
+                style: DesktopTextStyles.caption),
             isExpanded: true,
             items: [
               const DropdownMenuItem(value: null, child: Text('الكل')),
-              ..._viewModel.availableRoles.map((e) => DropdownMenuItem(value: e, child: Text(e))),
+              ..._viewModel.availableRoles
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e))),
             ],
             onChanged: (val) => _viewModel.updateRoleFilter(val),
           ),
@@ -264,7 +283,8 @@ class _UsersState extends State<Users> {
                             showDialog(
                               context: context,
                               barrierDismissible: false,
-                              builder: (context) => EditUserDialog(user: user, viewModel: _viewModel),
+                              builder: (context) => EditUserDialog(
+                                  user: user, viewModel: _viewModel),
                             );
                           } else if (value == 'delete') {
                             _viewModel.deleteUser(user.id);
@@ -274,7 +294,8 @@ class _UsersState extends State<Users> {
                           const PopupMenuItem(
                             value: 'view',
                             child: Row(children: [
-                              Icon(Icons.visibility, color: Colors.blue, size: DesktopSpacing.sm),
+                              Icon(Icons.visibility,
+                                  color: Colors.blue, size: DesktopSpacing.sm),
                               SizedBox(width: DesktopSpacing.xs),
                               Text('عرض', style: TextStyle(color: Colors.blue))
                             ]),
@@ -282,15 +303,19 @@ class _UsersState extends State<Users> {
                           const PopupMenuItem(
                             value: 'edit',
                             child: Row(children: [
-                              Icon(Icons.edit, color: Colors.orange, size: DesktopSpacing.sm),
+                              Icon(Icons.edit,
+                                  color: Colors.orange,
+                                  size: DesktopSpacing.sm),
                               SizedBox(width: DesktopSpacing.xs),
-                              Text('تعديل', style: TextStyle(color: Colors.orange))
+                              Text('تعديل',
+                                  style: TextStyle(color: Colors.orange))
                             ]),
                           ),
                           const PopupMenuItem(
                             value: 'delete',
                             child: Row(children: [
-                              Icon(Icons.delete, color: Colors.red, size: DesktopSpacing.sm),
+                              Icon(Icons.delete,
+                                  color: Colors.red, size: DesktopSpacing.sm),
                               SizedBox(width: DesktopSpacing.xs),
                               Text('حذف', style: TextStyle(color: Colors.red))
                             ]),

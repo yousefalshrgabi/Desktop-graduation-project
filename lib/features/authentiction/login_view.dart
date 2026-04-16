@@ -68,6 +68,125 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
+  // دالة لفتح نافذة تفعيل الحساب
+  void _showActivationDialog() {
+    final TextEditingController actEmailController = TextEditingController();
+    final TextEditingController actPasswordController = TextEditingController();
+    bool isActivating = false;
+    String? activationError;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            return AlertDialog(
+              title: const Text('تفعيل حساب جديد',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              content: SizedBox(
+                width: 400,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text(
+                      'أدخل بريدك الإلكتروني المعتمد من الإدارة، ثم اختر كلمة مرور جديدة لحسابك.',
+                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                    ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: actEmailController,
+                      decoration: InputDecoration(
+                        labelText: 'البريد الإلكتروني',
+                        prefixIcon: const Icon(Icons.email_outlined),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    TextField(
+                      controller: actPasswordController,
+                      obscureText: true,
+                      decoration: InputDecoration(
+                        labelText: 'كلمة المرور الجديدة (6 أحرف على الأقل)',
+                        prefixIcon: const Icon(Icons.lock_outline),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
+                      ),
+                    ),
+                    if (activationError != null) ...[
+                      const SizedBox(height: 12),
+                      Text(activationError!,
+                          style:
+                              const TextStyle(color: Colors.red, fontSize: 13)),
+                    ]
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: isActivating ? null : () => Navigator.pop(context),
+                  child:
+                      const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: isActivating
+                      ? null
+                      : () async {
+                          setDialogState(() {
+                            isActivating = true;
+                            activationError = null;
+                          });
+
+                          try {
+                            // استدعاء دالة التفعيل من الـ ViewModel
+                            await _viewModel.activateAccount(
+                              email: actEmailController.text,
+                              newPassword: actPasswordController.text,
+                            );
+
+                            if (_viewModel.status == LoginStatus.success) {
+                              if (context.mounted) {
+                                Navigator.pop(context);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(_viewModel.errorMessage),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                              }
+                            } else {
+                              setDialogState(() {
+                                activationError = _viewModel.errorMessage;
+                                isActivating = false;
+                              });
+                            }
+                          } catch (e) {
+                            setDialogState(() {
+                              activationError = 'حدث خطأ: $e';
+                              isActivating = false;
+                            });
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                      backgroundColor: DesktopColors.primary),
+                  child: isActivating
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : const Text('تفعيل الحساب',
+                          style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final size = MediaQuery.of(context).size;
@@ -323,6 +442,28 @@ class _LoginViewState extends State<LoginView> {
                             ),
                           ),
                           const SizedBox(height: 20),
+
+                          // 👈 التعديل هنا: زر تفعيل الحساب الجديد
+                          Center(
+                            child: OutlinedButton.icon(
+                              onPressed: _showActivationDialog,
+                              icon:
+                                  const Icon(Icons.person_add_alt_1, size: 18),
+                              label: const Text(
+                                  'أول مرة تستخدم النظام؟ فعّل حسابك هنا'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: DesktopColors.primary,
+                                side: const BorderSide(
+                                    color: DesktopColors.primary),
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 24, vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
 
                           // الدعم الفني
                           Center(

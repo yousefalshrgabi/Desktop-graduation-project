@@ -119,13 +119,17 @@ class _AddUserDialogState extends State<AddUserDialog> {
                       controller: _emailController,
                       hint: 'example@domain.com',
                       icon: Icons.email_outlined,
+                      keyboardType:
+                          TextInputType.emailAddress, // 👈 التعديل الطفيف هنا
                       validator: (val) {
                         if (val == null || val.isEmpty)
                           return 'هذا الحقل مطلوب';
+                        // التحقق من الصيغة
                         final emailRegex = RegExp(
                             r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
-                        if (!emailRegex.hasMatch(val))
+                        if (!emailRegex.hasMatch(val.trim())) {
                           return 'بريد إلكتروني غير صالح باللغة الإنجليزية';
+                        }
                         return null;
                       },
                     ),
@@ -136,6 +140,8 @@ class _AddUserDialogState extends State<AddUserDialog> {
                       controller: _phoneController,
                       hint: '77xxxxxxx',
                       icon: Icons.phone_outlined,
+                      keyboardType:
+                          TextInputType.phone, // 👈 التعديل الطفيف هنا
                       validator: (val) {
                         if (val == null || val.isEmpty)
                           return 'هذا الحقل مطلوب';
@@ -192,20 +198,21 @@ class _AddUserDialogState extends State<AddUserDialog> {
     );
   }
 
-  // ويدجت مساعدة لبناء الحقول بنفس ستايل البحث الموجود عندك
+  // ويدجت مساعدة لبناء الحقول
   Widget _buildTextField({
     required TextEditingController controller,
     required String hint,
     required IconData icon,
     String? Function(String?)? validator,
+    TextInputType? keyboardType, // 👈 إضافة البارامتر هنا
   }) {
     return TextFormField(
       controller: controller,
       validator: validator,
+      keyboardType: keyboardType, // 👈 وتمريره هنا
       decoration: InputDecoration(
         hintText: hint,
         prefixIcon: Icon(icon, color: Colors.grey),
-        // استخدام نفس حدود حقل البحث في صفحتك الرئيسية
         enabledBorder: DesktopInputTheme.inputDecorationTheme.enabledBorder,
         focusedBorder: DesktopInputTheme.inputDecorationTheme.focusedBorder,
         errorBorder: OutlineInputBorder(

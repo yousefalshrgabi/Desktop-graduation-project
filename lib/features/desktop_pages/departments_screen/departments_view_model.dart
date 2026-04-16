@@ -231,13 +231,18 @@ class DepartmentsViewModel extends ChangeNotifier {
   Future<void> deleteDepartment(String departmentId) async {
     try {
       final db = await DatabaseHelper.instance.database;
-      await db.delete(
-        'departments',
-        where: 'id = ?',
-        whereArgs: [departmentId],
-      );
-      await fetchDepartments();
-      debugPrint('Department deleted successfully: $departmentId');
+
+      await db.transaction((txn) async {
+        // 1. الحذف من الجدول الأساسي
+        await txn
+            .delete('departments', where: 'id = ?', whereArgs: [departmentId]);
+        // 2. التسجيل في سلة المهملات
+        await txn.insert('deleted_records',
+            {'id': departmentId, 'table_name': 'departments'});
+      });
+
+      await fetchDepartments(); // تحديث الواجهة
+      debugPrint('تم حذف القسم وتسجيله في سلة المهملات: $departmentId');
     } catch (e) {
       debugPrint('Error deleting department: $e');
       rethrow;

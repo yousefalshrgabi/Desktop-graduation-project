@@ -180,19 +180,17 @@ class CollegesViewModel extends ChangeNotifier {
   }
 
   Future<void> deleteCollege(String collegeId) async {
-    try {
-      final db = await DatabaseHelper.instance.database;
-      await db.delete(
-        'colleges',
-        where: 'id = ?',
-        whereArgs: [collegeId],
-      );
+    final db = await DatabaseHelper.instance.database;
 
-      await fetchColleges();
-      debugPrint('College deleted successfully: $collegeId');
-    } catch (e) {
-      debugPrint('Error deleting college: $e');
-      rethrow;
-    }
+    await db.transaction((txn) async {
+      // 1. حذف الكلية فعلياً من جدولها (ليختفي من الواجهة فوراً)
+      await txn.delete('colleges', where: 'id = ?', whereArgs: [collegeId]);
+
+      // 2. تسجيل عملية الحذف في سلة المهملات للمزامنة لاحقاً
+      await txn.insert(
+          'deleted_records', {'id': collegeId, 'table_name': 'colleges'});
+    });
+
+    fetchColleges(); // تحديث الواجهة
   }
 }

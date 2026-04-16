@@ -53,4 +53,31 @@ class UserModel {
       status: data['status']?.toString(),
     );
   }
+  // دالة مساعدة لتحويل بيانات SQLite إلى Object
+  factory UserModel.fromMap(Map<String, dynamic> map) {
+    String parsedDate = '-';
+    // الانتباه لاسم الحقل الدقيق في جدول SQLite
+    if (map['created_at'] != null) {
+      DateTime? dt = DateTime.tryParse(map['created_at'].toString());
+      if (dt != null) {
+        parsedDate =
+            '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
+      } else {
+        parsedDate = map['created_at'].toString();
+      }
+    }
+
+    return UserModel(
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? 'غير معروف',
+      email: map['email']?.toString() ?? 'غير معروف',
+      phone: map['phone']?.toString() ?? 'غير متوفر',
+      role: map['role']?.toString() ?? 'غير محدد',
+      createdAt: parsedDate,
+      faculty: map['faculty']?.toString(),
+      department: map['department']?.toString(),
+      level: map['level']?.toString(),
+      status: map['status']?.toString(),
+    );
+  }
 }

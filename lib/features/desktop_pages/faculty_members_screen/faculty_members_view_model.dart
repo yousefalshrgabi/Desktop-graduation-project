@@ -62,13 +62,18 @@ class FacultyMembersViewModel extends ChangeNotifier {
   Future<void> deleteFacultyMember(String memberId) async {
     try {
       final db = await DatabaseHelper.instance.database;
-      await db.delete(
-        'faculty_members',
-        where: 'id = ?',
-        whereArgs: [memberId],
-      );
-      await fetchFacultyMembers(); // تحديث الواجهة فوراً
-      debugPrint('Faculty member deleted successfully: $memberId');
+
+      await db.transaction((txn) async {
+        // 1. الحذف من الجدول الأساسي
+        await txn
+            .delete('faculty_members', where: 'id = ?', whereArgs: [memberId]);
+        // 2. التسجيل في سلة المهملات
+        await txn.insert('deleted_records',
+            {'id': memberId, 'table_name': 'faculty_members'});
+      });
+
+      await fetchFacultyMembers(); // تحديث الواجهة
+      debugPrint('تم حذف عضو هيئة التدريس وتسجيله في سلة المهملات: $memberId');
     } catch (e) {
       debugPrint('Error deleting faculty member: $e');
       rethrow;
