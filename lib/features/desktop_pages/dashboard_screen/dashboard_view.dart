@@ -398,3 +398,4 @@ class _ModuleCard {
     required this.gradient,
   });
 }
+

@@ -1,3 +1,4 @@
+import 'package:academic_affairs_management/features/authentiction/login_view.dart';
 import 'package:academic_affairs_management/features/authentiction/login_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
@@ -272,19 +273,65 @@ class _MainShellState extends State<MainShell>
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.logout, size: 20, color: Colors.redAccent),
-              onPressed: () {
-                // قمنا بإضافة context داخل الأقواس هنا
-                _loginViewModel.logout(context);
+              icon: const Icon(Icons.logout, color: Colors.red),
+              tooltip: 'تسجيل الخروج',
+              onPressed: () async {
+                // 1. إظهار مؤشر التحميل
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) =>
+                      const Center(child: CircularProgressIndicator()),
+                );
+
+                // 2. استدعاء دالة تسجيل الخروج وانتظار النتيجة (true أو false)
+                // لاحظ أننا لم نعد نمرر context للدالة
+                bool success = await _loginViewModel.logout();
+
+                // 3. إغلاق مؤشر التحميل بأمان (قبل أي توجيه آخر)
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+
+                // 4. التحقق من النتيجة لتوجيه المستخدم
+                if (success) {
+                  // إذا نجح الخروج والرفع، ننتقل لصفحة الدخول
+                  if (context.mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const LoginView()),
+                      (route) => false,
+                    );
+                  }
+                } else {
+                  // إذا فشل (بسبب انقطاع النت)، نظهر رسالة الخطأ
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.wifi_off, color: Colors.white),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _loginViewModel.errorMessage,
+                                style: const TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                          ],
+                        ),
+                        backgroundColor: Colors.red[700],
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 5),
+                      ),
+                    );
+                  }
+                }
               },
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            ),
+            )
           ],
         ),
       ),
     );
   }
 }
-
-

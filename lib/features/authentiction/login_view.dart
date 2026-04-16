@@ -68,21 +68,20 @@ class _LoginViewState extends State<LoginView> {
     }
   }
 
-  // دالة لفتح نافذة تفعيل الحساب
+  // دالة نافذة طلب رابط التفعيل
   void _showActivationDialog() {
     final TextEditingController actEmailController = TextEditingController();
-    final TextEditingController actPasswordController = TextEditingController();
     bool isActivating = false;
     String? activationError;
 
     showDialog(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: false, // لا يغلق عند الضغط خارج النافذة أثناء التحميل
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
-              title: const Text('تفعيل حساب جديد',
+              title: const Text('تفعيل حسابك',
                   style: TextStyle(fontWeight: FontWeight.bold)),
               content: SizedBox(
                 width: 400,
@@ -90,35 +89,41 @@ class _LoginViewState extends State<LoginView> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Text(
-                      'أدخل بريدك الإلكتروني المعتمد من الإدارة، ثم اختر كلمة مرور جديدة لحسابك.',
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                      'أدخل بريدك الإلكتروني المسجل لدينا. سنرسل لك رابطاً آمناً لإنشاء كلمة مرور خاصة بك.',
+                      style: TextStyle(
+                          fontSize: 13, color: Colors.grey, height: 1.5),
                     ),
                     const SizedBox(height: 20),
                     TextField(
                       controller: actEmailController,
+                      keyboardType: TextInputType.emailAddress,
                       decoration: InputDecoration(
                         labelText: 'البريد الإلكتروني',
-                        prefixIcon: const Icon(Icons.email_outlined),
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: actPasswordController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        labelText: 'كلمة المرور الجديدة (6 أحرف على الأقل)',
-                        prefixIcon: const Icon(Icons.lock_outline),
+                        prefixIcon: const Icon(Icons.mark_email_read_outlined),
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                     if (activationError != null) ...[
                       const SizedBox(height: 12),
-                      Text(activationError!,
-                          style:
-                              const TextStyle(color: Colors.red, fontSize: 13)),
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                            color: Colors.red[50],
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: Colors.red[200]!)),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline,
+                                color: Colors.red, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                                child: Text(activationError!,
+                                    style: const TextStyle(
+                                        color: Colors.red, fontSize: 12))),
+                          ],
+                        ),
+                      ),
                     ]
                   ],
                 ),
@@ -138,32 +143,33 @@ class _LoginViewState extends State<LoginView> {
                             activationError = null;
                           });
 
-                          try {
-                            // استدعاء دالة التفعيل من الـ ViewModel
-                            await _viewModel.activateAccount(
-                              email: actEmailController.text,
-                              newPassword: actPasswordController.text,
-                            );
+                          await _viewModel
+                              .sendActivationLink(actEmailController.text);
 
-                            if (_viewModel.status == LoginStatus.success) {
-                              if (context.mounted) {
-                                Navigator.pop(context);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(_viewModel.errorMessage),
-                                    backgroundColor: Colors.green,
+                          if (_viewModel.status == LoginStatus.success) {
+                            if (context.mounted) {
+                              Navigator.pop(context); // إغلاق النافذة
+                              // إظهار رسالة النجاح الخضراء
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Row(
+                                    children: [
+                                      const Icon(Icons.check_circle,
+                                          color: Colors.white),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                          child: Text(_viewModel.errorMessage)),
+                                    ],
                                   ),
-                                );
-                              }
-                            } else {
-                              setDialogState(() {
-                                activationError = _viewModel.errorMessage;
-                                isActivating = false;
-                              });
+                                  backgroundColor: Colors.green,
+                                  duration: const Duration(seconds: 5),
+                                ),
+                              );
                             }
-                          } catch (e) {
+                          } else {
+                            // إظهار الخطأ داخل النافذة
                             setDialogState(() {
-                              activationError = 'حدث خطأ: $e';
+                              activationError = _viewModel.errorMessage;
                               isActivating = false;
                             });
                           }
@@ -176,7 +182,7 @@ class _LoginViewState extends State<LoginView> {
                           height: 20,
                           child: CircularProgressIndicator(
                               color: Colors.white, strokeWidth: 2))
-                      : const Text('تفعيل الحساب',
+                      : const Text('إرسال رابط التفعيل',
                           style: TextStyle(color: Colors.white)),
                 ),
               ],

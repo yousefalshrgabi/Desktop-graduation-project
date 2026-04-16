@@ -96,35 +96,48 @@ class LoginViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> logout(BuildContext context) async {
+  // 👈 تعديل: إرجاع bool لمعرفة هل نجح الخروج أم فشل
+  Future<bool> logout() async {
     status = LoginStatus.loading;
     notifyListeners();
 
     try {
+      debugPrint(
+          '[LOGOUT DEBUG] جاري تأمين ورفع البيانات المحلية قبل الخروج...');
+      try {
+        await _syncService.syncDeletionsFirst();
+        await _syncService.pushToFirebase();
+      } catch (syncError) {
+        throw Exception(
+            'لا يمكن تسجيل الخروج الآن. يوجد تعديلات محلية لم تُرفع للسحابة ولا يوجد اتصال بالإنترنت.');
+      }
+
+      // 1. تسجيل الخروج من Firebase
       await _auth.signOut();
 
+      // 2. مسح بيانات الجلسة من SharedPreferences
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('isLoggedIn');
       await prefs.remove('userId');
       await prefs.remove('userRole');
 
+      // 3. مسح البيانات المحلية من SQLite
       await DatabaseHelper.instance.clearAllData();
 
+      // 4. تصفير المتغيرات
       currentUserRole = null;
       status = LoginStatus.idle;
-      notifyListeners();
 
-      if (context.mounted) {
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const LoginView()),
-          (route) => false,
-        );
-      }
+      // 🛑 (تم حذف كود الـ Navigator من هنا)
+
+      notifyListeners();
+      return true; // 👈 إرجاع "نجاح"
     } catch (e) {
       debugPrint('[LOGOUT DEBUG] ❌ حدث خطأ أثناء تسجيل الخروج: $e');
       status = LoginStatus.error;
-      errorMessage = 'فشل تسجيل الخروج، يرجى المحاولة لاحقاً';
+      errorMessage = e.toString().replaceAll('Exception: ', '');
       notifyListeners();
+      return false; // 👈 إرجاع "فشل"
     }
   }
 
@@ -196,19 +209,12 @@ class LoginViewModel extends ChangeNotifier {
   // =================================================================
   // دالة جديدة: تفعيل حساب لمستخدم تم إضافته مسبقاً من قبل الإدارة
   // =================================================================
-  Future<void> activateAccount({
-    required String email,
-    required String newPassword,
-  }) async {
-    if (email.isEmpty || newPassword.isEmpty) {
-      errorMessage = 'يرجى إدخال البريد الإلكتروني وكلمة المرور الجديدة';
-      status = LoginStatus.error;
-      notifyListeners();
-      return;
-    }
-
-    if (newPassword.length < 6) {
-      errorMessage = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل';
+  // =================================================================
+  // دالة إرسال رابط التفعيل (حسب الفكرة الجديدة)
+  // =================================================================
+  Future<void> sendActivationLink(String email) async {
+    if (email.isEmpty) {
+      errorMessage = 'يرجى إدخال البريد الإلكتروني';
       status = LoginStatus.error;
       notifyListeners();
       return;
@@ -219,7 +225,7 @@ class LoginViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // 1. التحقق هل البريد مسجل مسبقاً في Firestore (هل الإدارة أضافته؟)
+      // 1. التحقق: هل الإدارة أضافت هذا البريد في قاعدة البيانات؟
       QuerySnapshot userQuery = await _firestore
           .collection('users')
           .where('email', isEqualTo: email.trim())
@@ -227,39 +233,41 @@ class LoginViewModel extends ChangeNotifier {
           .get();
 
       if (userQuery.docs.isEmpty) {
-        throw Exception(
-            'هذا البريد غير معتمد من قبل الإدارة. يرجى مراجعة شؤون الموظفين.');
+        throw Exception('هذا البريد غير مسجل في النظام. يرجى مراجعة الإدارة.');
       }
 
-      // 2. إذا كان معتمداً، نقوم بإنشاء حساب له في Firebase Auth
-      await _auth.createUserWithEmailAndPassword(
-        email: email.trim(),
-        password: newPassword.trim(),
-      );
+      // 2. توليد كلمة مرور عشوائية قوية جداً ومعقدة (لن يعرفها أحد)
+      String tempPassword =
+          '${DateTime.now().millisecondsSinceEpoch}#XyZ@9!${email.length}';
 
-      // 3. (اختياري) يمكننا تحديث حالة المستخدم في Firestore إلى "نشط"
-      // String docId = userQuery.docs.first.id;
-      // await _firestore.collection('users').doc(docId).update({'status': 'نشط'});
+      // 3. إنشاء الحساب بصمت في Firebase Auth
+      try {
+        await _auth.createUserWithEmailAndPassword(
+          email: email.trim(),
+          password: tempPassword,
+        );
+      } on FirebaseAuthException catch (authError) {
+        // إذا كان الحساب موجوداً مسبقاً، لا مشكلة، سنتجاهل الخطأ
+        // وننتقل للخطوة التالية (إرسال رابط إعادة التعيين) كنوع من استعادة الحساب
+        if (authError.code != 'email-already-in-use') {
+          rethrow; // إعادة رمي الخطأ إذا كان لسبب آخر غير التكرار
+        }
+      }
+
+      // 4. إرسال رابط "إعادة تعيين كلمة المرور" للبريد الخاص به
+      await _auth.sendPasswordResetEmail(email: email.trim());
 
       status = LoginStatus.success;
-      errorMessage = 'تم تفعيل حسابك بنجاح! يمكنك الآن تسجيل الدخول.';
-      notifyListeners();
-
-      // ملاحظة: createUserWithEmailAndPassword يقوم بتسجيل الدخول تلقائياً،
-      // لذا يمكنك تسجيل خروجه فوراً وطلب تسجيل الدخول منه، أو تنفيذ كود تسجيل الدخول مباشرة.
-      await _auth.signOut();
-    } on FirebaseAuthException catch (e) {
-      status = LoginStatus.error;
-      // إذا كان الإيميل مستخدم في Auth مسبقاً (أي أنه فعل حسابه من قبل)
-      if (e.code == 'email-already-in-use') {
-        errorMessage = 'هذا الحساب مفعل مسبقاً! يرجى العودة لتسجيل الدخول.';
-      } else {
-        errorMessage = _mapFirebaseError(e.code);
-      }
+      errorMessage =
+          'تم إرسال رابط تفعيل الحساب إلى بريدك. يرجى التحقق من صندوق الوارد (أو البريد المزعج/Spam).';
       notifyListeners();
     } catch (e) {
       status = LoginStatus.error;
-      errorMessage = e.toString().replaceAll('Exception: ', '');
+      // تنظيف رسالة الخطأ لتكون مقروءة
+      errorMessage = e
+          .toString()
+          .replaceAll('Exception: ', '')
+          .replaceAll('[firebase_auth/invalid-email]', 'صيغة البريد غير صحيحة');
       notifyListeners();
     }
   }
