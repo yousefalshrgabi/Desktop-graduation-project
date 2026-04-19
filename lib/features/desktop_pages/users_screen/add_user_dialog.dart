@@ -23,6 +23,7 @@ class _AddUserDialogState extends State<AddUserDialog> {
     'Public Prosecution',
     'Deputy Dean',
     'Head of department',
+    'Faculty Member',
   ];
 
   @override

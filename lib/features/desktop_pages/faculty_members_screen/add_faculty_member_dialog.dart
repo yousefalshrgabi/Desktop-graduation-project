@@ -1,16 +1,18 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'faculty_members_view_model.dart';
 import 'faculty_member_model.dart';
 
 class AddFacultyMemberDialog extends StatefulWidget {
   final FacultyMembersViewModel viewModel;
-  final FacultyMemberModel? memberToEdit; // 👈 المتغير الجديد
+  final FacultyMemberModel? memberToEdit;
 
   const AddFacultyMemberDialog({
     super.key,
     required this.viewModel,
-    this.memberToEdit, // إذا كان null يعني إضافة، وإذا كان به بيانات يعني تعديل
+    this.memberToEdit,
   });
 
   @override
@@ -19,9 +21,11 @@ class AddFacultyMemberDialog extends StatefulWidget {
 
 class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
   final _formKey = GlobalKey<FormState>();
-  final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _emailController = TextEditingController();
 
+  final Map<String, TextEditingController> _controllers = {};
+
+  List<Map<String, dynamic>> _usersList = [];
+  String? _selectedUserId;
   String? _selectedDepartment;
   String? _selectedDegree;
   String? _selectedStatus = 'نشط';
@@ -33,87 +37,251 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
     'تقنية المعلومات',
     'هندسة البرمجيات'
   ];
-
-  final List<String> _degrees = ['أستاذ', 'أستاذ مشارك', 'أستاذ مساعد', 'معيد'];
-
+  final List<String> _degrees = [
+    'أستاذ',
+    'أستاذ مشارك',
+    'أستاذ مساعد',
+    'معيد',
+    'غير محدد'
+  ];
   final List<String> _statuses = ['نشط', 'متفرغ', 'منتدب', 'غير نشط'];
+
+  // متغيرات الجداول التفاعلية للإجازات والتفرغ
+  List<Map<String, String>> _sabbaticalList = [];
+  List<Map<String, String>> _unpaidList = [];
+
+  final TextEditingController _sabStartCtrl = TextEditingController();
+  final TextEditingController _sabEndCtrl = TextEditingController();
+  final TextEditingController _sabUnivCtrl = TextEditingController();
+
+  final TextEditingController _unpStartCtrl = TextEditingController();
+  final TextEditingController _unpEndCtrl = TextEditingController();
+  final TextEditingController _unpNotesCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _initControllers();
+    _loadUsers();
+  }
+
+  Future<void> _loadUsers() async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final users = await db.query('users');
+      setState(() {
+        _usersList = users;
+        if (widget.memberToEdit != null) {
+          _selectedUserId = widget.memberToEdit!.userId;
+        }
+      });
+    } catch (e) {
+      debugPrint('Error loading users: $e');
+    }
+  }
+
+  void _initControllers() {
+    final fields = [
+      'name',
+      'email',
+      'idCardNumber',
+      'jobNumber',
+      'birthPlace',
+      'birthDate',
+      'firstAppointmentDate',
+      'univAppointmentDate',
+      'bscDegree',
+      'bscDate',
+      'bscUniversity',
+      'bscCountry',
+      'bscAcademicTitle',
+      'bscTitleTransferDate',
+      'bscSpecialization',
+      'mscDegree',
+      'mscDate',
+      'mscUniversity',
+      'mscCountry',
+      'mscAcademicTitle',
+      'mscTitleTransferDate',
+      'mscDecisionNumber',
+      'mscExactSpecialization',
+      'currentDegree',
+      'currentDegreeDate',
+      'currentUniversity',
+      'currentCountry',
+      'assistantProfDate',
+      'assistantProfDecision',
+      'assocProfDate',
+      'assocProfDecision',
+      'titleTransferDate',
+      'generalSpecialization',
+      'exactSpecialization',
+    ];
+
+    for (var f in fields) {
+      _controllers[f] = TextEditingController();
+    }
 
     if (widget.memberToEdit != null) {
-      _nameController.text = widget.memberToEdit!.name;
-      _emailController.text = widget.memberToEdit!.email;
+      final m = widget.memberToEdit!;
+      _controllers['name']?.text = m.name;
+      _controllers['email']?.text = m.email;
+      _controllers['idCardNumber']?.text = m.idCardNumber ?? '';
+      _controllers['jobNumber']?.text = m.jobNumber ?? '';
+      _controllers['birthPlace']?.text = m.birthPlace ?? '';
+      _controllers['birthDate']?.text = m.birthDate ?? '';
+      _controllers['firstAppointmentDate']?.text = m.firstAppointmentDate ?? '';
+      _controllers['univAppointmentDate']?.text = m.univAppointmentDate ?? '';
 
-      // 🛑 الحل هنا: التأكد من وجود القيمة في القائمة قبل تعيينها
+      _controllers['bscDegree']?.text = m.bscDegree ?? '';
+      _controllers['bscDate']?.text = m.bscDate ?? '';
+      _controllers['bscUniversity']?.text = m.bscUniversity ?? '';
+      _controllers['bscCountry']?.text = m.bscCountry ?? '';
+      _controllers['bscAcademicTitle']?.text = m.bscAcademicTitle ?? '';
+      _controllers['bscTitleTransferDate']?.text = m.bscTitleTransferDate ?? '';
+      _controllers['bscSpecialization']?.text = m.bscSpecialization ?? '';
+
+      _controllers['mscDegree']?.text = m.mscDegree ?? '';
+      _controllers['mscDate']?.text = m.mscDate ?? '';
+      _controllers['mscUniversity']?.text = m.mscUniversity ?? '';
+      _controllers['mscCountry']?.text = m.mscCountry ?? '';
+      _controllers['mscAcademicTitle']?.text = m.mscAcademicTitle ?? '';
+      _controllers['mscTitleTransferDate']?.text = m.mscTitleTransferDate ?? '';
+      _controllers['mscDecisionNumber']?.text = m.mscDecisionNumber ?? '';
+      _controllers['mscExactSpecialization']?.text =
+          m.mscExactSpecialization ?? '';
+
+      _controllers['currentDegree']?.text = m.currentDegree ?? '';
+      _controllers['currentDegreeDate']?.text = m.currentDegreeDate ?? '';
+      _controllers['currentUniversity']?.text = m.currentUniversity ?? '';
+      _controllers['currentCountry']?.text = m.currentCountry ?? '';
+
+      _controllers['assistantProfDate']?.text = m.assistantProfDate ?? '';
+      _controllers['assistantProfDecision']?.text =
+          m.assistantProfDecision ?? '';
+      _controllers['assocProfDate']?.text = m.assocProfDate ?? '';
+      _controllers['assocProfDecision']?.text = m.assocProfDecision ?? '';
+
+      _controllers['titleTransferDate']?.text = m.titleTransferDate ?? '';
+      _controllers['generalSpecialization']?.text =
+          m.generalSpecialization ?? '';
+      _controllers['exactSpecialization']?.text = m.exactSpecialization ?? '';
+
       _selectedDepartment =
-          _departments.contains(widget.memberToEdit!.department)
-              ? widget.memberToEdit!.department
-              : null;
+          _departments.contains(m.department) ? m.department : null;
+      _selectedDegree =
+          _degrees.contains(m.academicDegree) ? m.academicDegree : null;
+      _selectedStatus = _statuses.contains(m.status) ? m.status : 'نشط';
 
-      _selectedDegree = _degrees.contains(widget.memberToEdit!.academicDegree)
-          ? widget.memberToEdit!.academicDegree
-          : null;
-
-      _selectedStatus = _statuses.contains(widget.memberToEdit!.status)
-          ? widget.memberToEdit!.status
-          : 'نشط'; // وضعنا 'نشط' كحالة افتراضية آمنة
+      try {
+        if (m.sabbaticalLeaves != null && m.sabbaticalLeaves!.isNotEmpty) {
+          final List decoded = jsonDecode(m.sabbaticalLeaves!);
+          _sabbaticalList =
+              decoded.map((e) => Map<String, String>.from(e)).toList();
+        }
+        if (m.unpaidLeaves != null && m.unpaidLeaves!.isNotEmpty) {
+          final List decoded = jsonDecode(m.unpaidLeaves!);
+          _unpaidList =
+              decoded.map((e) => Map<String, String>.from(e)).toList();
+        }
+      } catch (e) {
+        debugPrint('Error parsing leaves JSON: $e');
+      }
     }
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
+    for (var controller in _controllers.values) {
+      controller.dispose();
+    }
+    _sabStartCtrl.dispose();
+    _sabEndCtrl.dispose();
+    _sabUnivCtrl.dispose();
+    _unpStartCtrl.dispose();
+    _unpEndCtrl.dispose();
+    _unpNotesCtrl.dispose();
     super.dispose();
   }
 
   Future<void> _saveFacultyMember() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedDepartment == null ||
-        _selectedDegree == null ||
-        _selectedStatus == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرجاء تعبئة جميع الحقول المطلوبة')),
-      );
+    if (_selectedUserId == null && widget.memberToEdit == null) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('الرجاء اختيار المستخدم (ربط الحساب) من القائمة')));
       return;
     }
 
     setState(() => _isLoading = true);
 
     try {
-      final data = {
-        'name': _nameController.text.trim(),
-        'email': _emailController.text.trim(),
-        'department': _selectedDepartment,
-        'academic_degree': _selectedDegree,
-        'status': _selectedStatus,
-      };
+      final newModel = FacultyMemberModel(
+        id: widget.memberToEdit?.id ??
+            DateTime.now().millisecondsSinceEpoch.toString(),
+        userId: _selectedUserId,
+        name: _controllers['name']!.text.trim(),
+        email: _controllers['email']!.text.trim(),
+        status: _selectedStatus ?? 'نشط',
+        department: _selectedDepartment ?? 'غير محدد',
+        academicDegree: _selectedDegree ?? 'غير محدد',
+        idCardNumber: _controllers['idCardNumber']!.text.trim(),
+        jobNumber: _controllers['jobNumber']!.text.trim(),
+        birthPlace: _controllers['birthPlace']!.text.trim(),
+        birthDate: _controllers['birthDate']!.text.trim(),
+        firstAppointmentDate: _controllers['firstAppointmentDate']!.text.trim(),
+        univAppointmentDate: _controllers['univAppointmentDate']!.text.trim(),
+        bscDegree: _controllers['bscDegree']!.text.trim(),
+        bscDate: _controllers['bscDate']!.text.trim(),
+        bscUniversity: _controllers['bscUniversity']!.text.trim(),
+        bscCountry: _controllers['bscCountry']!.text.trim(),
+        bscAcademicTitle: _controllers['bscAcademicTitle']!.text.trim(),
+        bscTitleTransferDate: _controllers['bscTitleTransferDate']!.text.trim(),
+        bscSpecialization: _controllers['bscSpecialization']!.text.trim(),
+        mscDegree: _controllers['mscDegree']!.text.trim(),
+        mscDate: _controllers['mscDate']!.text.trim(),
+        mscUniversity: _controllers['mscUniversity']!.text.trim(),
+        mscCountry: _controllers['mscCountry']!.text.trim(),
+        mscAcademicTitle: _controllers['mscAcademicTitle']!.text.trim(),
+        mscTitleTransferDate: _controllers['mscTitleTransferDate']!.text.trim(),
+        mscDecisionNumber: _controllers['mscDecisionNumber']!.text.trim(),
+        mscExactSpecialization:
+            _controllers['mscExactSpecialization']!.text.trim(),
+        currentDegree: _controllers['currentDegree']!.text.trim(),
+        currentDegreeDate: _controllers['currentDegreeDate']!.text.trim(),
+        currentUniversity: _controllers['currentUniversity']!.text.trim(),
+        currentCountry: _controllers['currentCountry']!.text.trim(),
+        assistantProfDate: _controllers['assistantProfDate']!.text.trim(),
+        assistantProfDecision:
+            _controllers['assistantProfDecision']!.text.trim(),
+        assocProfDate: _controllers['assocProfDate']!.text.trim(),
+        assocProfDecision: _controllers['assocProfDecision']!.text.trim(),
+        titleTransferDate: _controllers['titleTransferDate']!.text.trim(),
+        generalSpecialization:
+            _controllers['generalSpecialization']!.text.trim(),
+        exactSpecialization: _controllers['exactSpecialization']!.text.trim(),
+        sabbaticalLeaves: jsonEncode(_sabbaticalList),
+        unpaidLeaves: jsonEncode(_unpaidList),
+        createdAt:
+            widget.memberToEdit?.createdAt ?? DateTime.now().toIso8601String(),
+      );
 
-      // 👈 تحديد العملية بناءً على حالة memberToEdit
       if (widget.memberToEdit == null) {
-        await widget.viewModel.addFacultyMember(data); // إضافة جديد
+        await widget.viewModel.addFacultyMember(newModel);
       } else {
         await widget.viewModel
-            .updateFacultyMember(widget.memberToEdit!.id, data); // تعديل الحالي
+            .updateFacultyMember(widget.memberToEdit!.id, newModel);
       }
 
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-              content: Text(widget.memberToEdit == null
-                  ? 'تمت الإضافة بنجاح'
-                  : 'تم التعديل بنجاح'),
-              backgroundColor: Colors.green),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('تم حفظ الملف الأكاديمي بنجاح'),
+            backgroundColor: Colors.green));
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('حدث خطأ: $e'), backgroundColor: Colors.red),
-        );
+            SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red));
       }
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -122,191 +290,478 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // تحديد عنوان النافذة بناءً على نوع العملية
-    final String dialogTitle = widget.memberToEdit == null
-        ? 'إضافة عضو هيئة تدريس'
-        : 'تعديل عضو هيئة تدريس';
-
-    return SingleChildScrollView(
-      child: Column(
-        children: [
-          Dialog(
-            shape:
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            backgroundColor: Colors.white,
-            child: Container(
-              width: 500,
-              padding: const EdgeInsets.all(DesktopSpacing.lg),
+    return Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      backgroundColor: Colors.white,
+      child: Container(
+        width: 1000,
+        height: MediaQuery.of(context).size.height * 0.90,
+        padding: const EdgeInsets.all(DesktopSpacing.lg),
+        child: Column(
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                    widget.memberToEdit == null
+                        ? 'إضافة دكتور جديد'
+                        : 'تعديل الملف الأكاديمي الشامل',
+                    style: DesktopTextStyles.heading1),
+                IconButton(
+                    onPressed: () => Navigator.pop(context),
+                    icon: const Icon(Icons.close)),
+              ],
+            ),
+            const Divider(),
+            Expanded(
               child: Form(
                 key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(dialogTitle, style: DesktopTextStyles.heading1),
-                        IconButton(
-                          onPressed: () => Navigator.pop(context),
-                          icon: const Icon(Icons.close),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: DesktopSpacing.md),
-                    _buildLabel('الاسم الكامل'),
-                    _buildTextField(
-                      controller: _nameController,
-                      hint: 'أدخل اسم العضو رباعياً',
-                      icon: Icons.person_outline,
-                      validator: (val) =>
-                          val!.isEmpty ? 'هذا الحقل مطلوب' : null,
-                    ),
-                    const SizedBox(height: DesktopSpacing.sm),
-                    _buildLabel('البريد الإلكتروني'),
-                    _buildTextField(
-                      controller: _emailController,
-                      hint: 'example@domain.com',
-                      icon: Icons.email_outlined,
-                      validator: (val) =>
-                          !val!.contains('@') ? 'بريد غير صالح' : null,
-                    ),
-                    const SizedBox(height: DesktopSpacing.sm),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('القسم الأكاديمي'),
-                              _buildDropdown(
-                                value: _selectedDepartment,
-                                items: _departments,
-                                hint: 'اختر القسم',
-                                icon: Icons.category_outlined,
-                                onChanged: (val) =>
-                                    setState(() => _selectedDepartment = val),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: DesktopSpacing.sm),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('الدرجة العلمية'),
-                              _buildDropdown(
-                                value: _selectedDegree,
-                                items: _degrees,
-                                hint: 'اختر الدرجة',
-                                icon: Icons.school_outlined,
-                                onChanged: (val) =>
-                                    setState(() => _selectedDegree = val),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: DesktopSpacing.sm),
-                    _buildLabel('الحالة الوظيفية'),
-                    _buildDropdown(
-                      value: _selectedStatus,
-                      items: _statuses,
-                      hint: 'اختر الحالة',
-                      icon: Icons.work_outline,
-                      onChanged: (val) => setState(() => _selectedStatus = val),
-                    ),
-                    const SizedBox(height: DesktopSpacing.lg),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: DesktopSpacing.md,
-                                vertical: DesktopSpacing.sm),
-                          ),
-                          child: const Text('إلغاء',
-                              style: TextStyle(color: Colors.grey)),
-                        ),
-                        const SizedBox(width: DesktopSpacing.xs),
-                        ElevatedButton(
-                          onPressed: _isLoading ? null : _saveFacultyMember,
-                          style: DesktopButtonTheme.elevatedButtonTheme.style,
-                          child: _isLoading
-                              ? const SizedBox(
-                                  width: DesktopSpacing.md,
-                                  height: DesktopSpacing.md,
-                                  child: CircularProgressIndicator(
-                                      color: Colors.white, strokeWidth: 2),
-                                )
-                              : const Text('حفظ البيانات'),
-                        ),
-                      ],
-                    ),
-                  ],
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.only(right: 16, left: 16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildSectionTitle('الحساب والبيانات الأساسية'),
+                      _buildRowFields([
+                        _buildUserDropdown(),
+                        _buildInput('البريد الإلكتروني', 'email', true,
+                            isReadOnly: true),
+                      ]),
+                      _buildRowFields([
+                        _buildInput(
+                            'رقم البطاقة الشخصية', 'idCardNumber', false),
+                        _buildInput('الرقم الوظيفي', 'jobNumber', false),
+                      ]),
+                      _buildRowFields([
+                        _buildInput('مكان الميلاد', 'birthPlace', false),
+                        // 👈 استخدام الدالة الجديدة للتواريخ
+                        _buildDateInput('تاريخ الميلاد', 'birthDate', false),
+                      ]),
+                      _buildSectionTitle('الوضع الأكاديمي والتعيين بالجامعة'),
+                      _buildRowFields([
+                        _buildDropdown(
+                            'القسم',
+                            _selectedDepartment,
+                            _departments,
+                            (v) => setState(() => _selectedDepartment = v)),
+                        _buildDropdown(
+                            'الدرجة العلمية',
+                            _selectedDegree,
+                            _degrees,
+                            (v) => setState(() => _selectedDegree = v)),
+                        _buildDropdown('الحالة', _selectedStatus, _statuses,
+                            (v) => setState(() => _selectedStatus = v)),
+                      ]),
+                      _buildRowFields([
+                        _buildDateInput('تاريخ التعيين لأول مرة',
+                            'firstAppointmentDate', false),
+                        _buildDateInput('تاريخ التعيين بالجامعة',
+                            'univAppointmentDate', false),
+                        _buildDateInput('تاريخ نقل اللقب الحالي',
+                            'titleTransferDate', false),
+                      ]),
+                      _buildRowFields([
+                        _buildInput(
+                            'التخصص العام', 'generalSpecialization', false),
+                        _buildInput(
+                            'التخصص الدقيق', 'exactSpecialization', false),
+                      ]),
+                      _buildSectionTitle('بيانات البكالوريوس'),
+                      _buildRowFields([
+                        _buildInput('الدرجة العلمية', 'bscDegree', false),
+                        _buildDateInput('تاريخها', 'bscDate', false),
+                        _buildInput('الجامعة', 'bscUniversity', false),
+                        _buildInput('الدولة', 'bscCountry', false),
+                      ]),
+                      _buildRowFields([
+                        _buildInput('التخصص', 'bscSpecialization', false),
+                        _buildInput(
+                            'اللقب العلمي (وقتها)', 'bscAcademicTitle', false),
+                        _buildDateInput(
+                            'تاريخ نقل اللقب', 'bscTitleTransferDate', false),
+                      ]),
+                      _buildSectionTitle('بيانات الماجستير'),
+                      _buildRowFields([
+                        _buildInput('الدرجة العلمية', 'mscDegree', false),
+                        _buildDateInput('تاريخها', 'mscDate', false),
+                        _buildInput('الجامعة', 'mscUniversity', false),
+                        _buildInput('الدولة', 'mscCountry', false),
+                      ]),
+                      _buildRowFields([
+                        _buildInput(
+                            'التخصص الدقيق', 'mscExactSpecialization', false),
+                        _buildInput(
+                            'اللقب العلمي (وقتها)', 'mscAcademicTitle', false),
+                        _buildDateInput(
+                            'تاريخ نقل اللقب', 'mscTitleTransferDate', false),
+                        _buildInput('رقم القرار', 'mscDecisionNumber', false),
+                      ]),
+                      _buildSectionTitle('البيانات الحالية (الدكتوراه)'),
+                      _buildRowFields([
+                        _buildInput('الدرجة العلمية', 'currentDegree', false),
+                        _buildDateInput('تاريخها', 'currentDegreeDate', false),
+                        _buildInput('الجامعة', 'currentUniversity', false),
+                        _buildInput('الدولة', 'currentCountry', false),
+                      ]),
+                      _buildSectionTitle('الترقيات الوظيفية'),
+                      _buildRowFields([
+                        _buildDateInput('تاريخ ترقية (أستاذ مساعد)',
+                            'assistantProfDate', false),
+                        _buildInput('رقم قرار (أستاذ مساعد)',
+                            'assistantProfDecision', false),
+                      ]),
+                      _buildRowFields([
+                        _buildDateInput('تاريخ ترقية (أستاذ مشارك)',
+                            'assocProfDate', false),
+                        _buildInput('رقم قرار (أستاذ مشارك)',
+                            'assocProfDecision', false),
+                      ]),
+                      _buildSectionTitle('سجل التفرغ العلمي'),
+                      _buildDynamicLeaveSection(
+                        title: 'التفرغ العلمي',
+                        list: _sabbaticalList,
+                        startCtrl: _sabStartCtrl,
+                        endCtrl: _sabEndCtrl,
+                        thirdCtrl: _sabUnivCtrl,
+                        thirdHint: 'الجامعة/الجهة',
+                        onAdd: () {
+                          if (_sabStartCtrl.text.isEmpty) return;
+                          setState(() {
+                            _sabbaticalList.add({
+                              'start': _sabStartCtrl.text,
+                              'end': _sabEndCtrl.text,
+                              'details': _sabUnivCtrl.text,
+                            });
+                            _sabStartCtrl.clear();
+                            _sabEndCtrl.clear();
+                            _sabUnivCtrl.clear();
+                          });
+                        },
+                      ),
+                      _buildSectionTitle('سجل الإجازات بدون راتب'),
+                      _buildDynamicLeaveSection(
+                        title: 'إجازة',
+                        list: _unpaidList,
+                        startCtrl: _unpStartCtrl,
+                        endCtrl: _unpEndCtrl,
+                        thirdCtrl: _unpNotesCtrl,
+                        thirdHint: 'ملاحظات/السبب',
+                        onAdd: () {
+                          if (_unpStartCtrl.text.isEmpty) return;
+                          setState(() {
+                            _unpaidList.add({
+                              'start': _unpStartCtrl.text,
+                              'end': _unpEndCtrl.text,
+                              'details': _unpNotesCtrl.text,
+                            });
+                            _unpStartCtrl.clear();
+                            _unpEndCtrl.clear();
+                            _unpNotesCtrl.clear();
+                          });
+                        },
+                      ),
+                      const SizedBox(height: 30),
+                    ],
+                  ),
                 ),
               ),
             ),
+            const Divider(),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('إلغاء')),
+                const SizedBox(width: 16),
+                ElevatedButton(
+                  onPressed: _isLoading ? null : _saveFacultyMember,
+                  style: DesktopButtonTheme.elevatedButtonTheme.style,
+                  child: _isLoading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : const Text('حفظ الملف الشامل'),
+                ),
+              ],
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  // =========================================================================
+  // ================= دوال بناء الواجهة المساعدة المُحدثة =====================
+  // =========================================================================
+
+  // 🌟 الدالة الجديدة لاستدعاء التقويم في الحقول الأساسية
+  Widget _buildDateInput(String label, String controllerKey, bool isRequired) {
+    return TextFormField(
+      controller: _controllers[controllerKey],
+      readOnly: true, // يمنع الكتابة اليدوية
+      validator: (val) => isRequired && val!.isEmpty ? 'مطلوب' : null,
+      onTap: () async {
+        DateTime? pickedDate = await showDatePicker(
+          context: context,
+          initialDate: DateTime.now(),
+          firstDate: DateTime(1940), // للسماح بتواريخ ميلاد قديمة
+          lastDate: DateTime(2050),
+          builder: (context, child) {
+            return Theme(
+              data: Theme.of(context).copyWith(
+                colorScheme: const ColorScheme.light(
+                  primary: DesktopColors.primary,
+                  onPrimary: Colors.white,
+                  onSurface: Colors.black,
+                ),
+              ),
+              child: child!,
+            );
+          },
+        );
+        if (pickedDate != null) {
+          // تنسيق التاريخ إلى YYYY-MM-DD
+          String formattedDate =
+              "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')}";
+          setState(() {
+            _controllers[controllerKey]!.text = formattedDate;
+          });
+        }
+      },
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: Colors.white,
+        suffixIcon:
+            const Icon(Icons.calendar_month, color: DesktopColors.primary),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  // 🌟 الدالة الجديدة لاستدعاء التقويم في الجداول التفاعلية (الإجازات)
+  Widget _buildSmallDateInput(TextEditingController ctrl, String hint) {
+    return TextFormField(
+      controller: ctrl,
+      readOnly: true,
+      onTap: () async {
+        DateTime? pickedDate = await showDatePicker(
+          context: context,
+          initialDate: DateTime.now(),
+          firstDate: DateTime(2000),
+          lastDate: DateTime(2050),
+        );
+        if (pickedDate != null) {
+          String formattedDate =
+              "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')}";
+          setState(() {
+            ctrl.text = formattedDate;
+          });
+        }
+      },
+      decoration: InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.white,
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+        suffixIcon: const Icon(Icons.calendar_month,
+            size: 16, color: DesktopColors.primary),
+      ),
+    );
+  }
+
+  Widget _buildDynamicLeaveSection({
+    required String title,
+    required List<Map<String, String>> list,
+    required TextEditingController startCtrl,
+    required TextEditingController endCtrl,
+    required TextEditingController thirdCtrl,
+    required String thirdHint,
+    required VoidCallback onAdd,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        border: Border.all(color: Colors.grey[300]!),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                  child: _buildSmallDateInput(
+                      startCtrl, 'من تاريخ')), // 👈 تم التحديث للتقويم
+              const SizedBox(width: 8),
+              Expanded(
+                  child: _buildSmallDateInput(
+                      endCtrl, 'إلى تاريخ')), // 👈 تم التحديث للتقويم
+              const SizedBox(width: 8),
+              Expanded(flex: 2, child: _buildSmallInput(thirdCtrl, thirdHint)),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: onAdd,
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('إضافة'),
+              ),
+            ],
           ),
+          const SizedBox(height: 12),
+          if (list.isNotEmpty)
+            DataTable(
+              headingRowHeight: 40,
+              dataRowMinHeight: 40,
+              dataRowMaxHeight: 40,
+              columns: const [
+                DataColumn(
+                    label: Text('من تاريخ',
+                        style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(
+                    label: Text('إلى تاريخ',
+                        style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(
+                    label: Text('التفاصيل',
+                        style: TextStyle(fontWeight: FontWeight.bold))),
+                DataColumn(
+                    label: Text('حذف',
+                        style: TextStyle(fontWeight: FontWeight.bold))),
+              ],
+              rows: list.map((item) {
+                return DataRow(cells: [
+                  DataCell(Text(item['start'] ?? '')),
+                  DataCell(Text(item['end'] ?? '')),
+                  DataCell(Text(item['details'] ?? '')),
+                  DataCell(
+                    IconButton(
+                      icon: const Icon(Icons.delete_outline,
+                          color: Colors.red, size: 20),
+                      onPressed: () {
+                        setState(() {
+                          list.remove(item);
+                        });
+                      },
+                    ),
+                  ),
+                ]);
+              }).toList(),
+            )
+          else
+            const Center(
+                child: Padding(
+              padding: EdgeInsets.all(8.0),
+              child: Text('لا توجد سجلات مضافة.',
+                  style: TextStyle(color: Colors.grey)),
+            )),
         ],
       ),
     );
   }
 
-  // (دوال _buildTextField و _buildDropdown و _buildLabel تبقى كما هي تماماً بدون تغيير)
-  Widget _buildTextField(
-      {required TextEditingController controller,
-      required String hint,
-      required IconData icon,
-      String? Function(String?)? validator}) {
+  Widget _buildSmallInput(TextEditingController ctrl, String hint) {
     return TextFormField(
-        controller: controller,
-        validator: validator,
-        decoration: InputDecoration(
-            hintText: hint,
-            prefixIcon: Icon(icon, color: Colors.grey),
-            enabledBorder: DesktopInputTheme.inputDecorationTheme.enabledBorder,
-            focusedBorder: DesktopInputTheme.inputDecorationTheme.focusedBorder,
-            errorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Colors.red)),
-            focusedErrorBorder: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(8),
-                borderSide: const BorderSide(color: Colors.red)),
-            filled: true,
-            fillColor: Colors.grey[50]));
+      controller: ctrl,
+      decoration: InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.white,
+        isDense: true,
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+      ),
+    );
   }
 
-  Widget _buildDropdown(
-      {required String? value,
-      required List<String> items,
-      required String hint,
-      required IconData icon,
-      required void Function(String?) onChanged}) {
+  Widget _buildUserDropdown() {
     return DropdownButtonFormField<String>(
-        value: value,
-        decoration: InputDecoration(
-            enabledBorder: DesktopInputTheme.inputDecorationTheme.enabledBorder,
-            focusedBorder: DesktopInputTheme.inputDecorationTheme.focusedBorder,
-            filled: true,
-            fillColor: Colors.grey[50],
-            prefixIcon: Icon(icon, color: Colors.grey)),
-        hint: Text(hint),
-        items: items.map((item) {
-          return DropdownMenuItem(value: item, child: Text(item));
-        }).toList(),
-        onChanged: onChanged);
+      value: _selectedUserId,
+      decoration: InputDecoration(
+        labelText: 'اختر الموظف (لربط الحساب)',
+        filled: true,
+        fillColor:
+            widget.memberToEdit != null ? Colors.grey[200] : Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      items: _usersList.map((u) {
+        return DropdownMenuItem<String>(
+          value: u['id'].toString(),
+          child: Text(u['name'].toString()),
+        );
+      }).toList(),
+      onChanged: widget.memberToEdit != null
+          ? null
+          : (val) {
+              setState(() {
+                _selectedUserId = val;
+                final user =
+                    _usersList.firstWhere((u) => u['id'].toString() == val);
+                _controllers['name']!.text = user['name'].toString();
+                _controllers['email']!.text = user['email'].toString();
+              });
+            },
+      validator: (val) => val == null ? 'مطلوب ربط الحساب' : null,
+    );
   }
 
-  Widget _buildLabel(String text) {
+  Widget _buildSectionTitle(String title) {
     return Padding(
-        padding: const EdgeInsets.only(bottom: 8.0),
-        child: Text(text,
-            style:
-                DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)));
+      padding: const EdgeInsets.only(top: 24, bottom: 12),
+      child: Text(title,
+          style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: DesktopColors.primary)),
+    );
+  }
+
+  Widget _buildRowFields(List<Widget> fields) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Row(
+          children: fields
+              .map((f) => Expanded(
+                  child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: f)))
+              .toList()),
+    );
+  }
+
+  Widget _buildInput(String label, String controllerKey, bool isRequired,
+      {bool isReadOnly = false}) {
+    return TextFormField(
+      controller: _controllers[controllerKey],
+      readOnly: isReadOnly,
+      validator: (val) => isRequired && val!.isEmpty ? 'مطلوب' : null,
+      decoration: InputDecoration(
+        labelText: label,
+        filled: true,
+        fillColor: isReadOnly ? Colors.grey[200] : Colors.white,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+    );
+  }
+
+  Widget _buildDropdown(String label, String? value, List<String> items,
+      Function(String?) onChanged) {
+    return DropdownButtonFormField<String>(
+      value: value,
+      decoration: InputDecoration(
+          labelText: label,
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+      items:
+          items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+      onChanged: onChanged,
+    );
   }
 }

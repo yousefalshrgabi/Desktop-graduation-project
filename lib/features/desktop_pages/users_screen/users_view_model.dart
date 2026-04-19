@@ -78,64 +78,6 @@ class UsersViewModel extends ChangeNotifier {
 
   // ==================== العمليات الأساسية ====================
 
-  // 2. دالة الحذف
-  Future<void> deleteUser(String userId) async {
-    try {
-      final db = await DatabaseHelper.instance.database;
-
-      await db.transaction((txn) async {
-        // 1. الحذف من الجدول الأساسي
-        await txn.delete('users', where: 'id = ?', whereArgs: [userId]);
-        // 2. التسجيل في سلة المهملات
-        await txn
-            .insert('deleted_records', {'id': userId, 'table_name': 'users'});
-      });
-
-      await fetchUsers(); // تحديث الواجهة
-      debugPrint('تم حذف المستخدم وتسجيله في سلة المهملات: $userId');
-    } catch (e) {
-      debugPrint('Error deleting user: $e');
-      rethrow;
-    }
-  }
-
-  // 3. إضافة مستخدم جديد
-  Future<void> addUser(Map<String, dynamic> data) async {
-    // ==========================================
-    // 👈 التعديل الجديد: التحقق من صيغة البريد الإلكتروني
-    // ==========================================
-    final String email = data['email']?.toString().trim() ?? '';
-
-    // هذا التعبير النمطي (RegEx) يتأكد أن البريد يحتوي على @ ونقطة وصيغة صحيحة
-    final bool isEmailValid = RegExp(
-            r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
-        .hasMatch(email);
-
-    if (!isEmailValid) {
-      // إذا كان البريد خاطئاً، نوقف العملية ونرسل رسالة خطأ للواجهة
-      throw Exception(
-          'صيغة البريد الإلكتروني غير صحيحة. يجب أن تكون مثل: name@example.com');
-    }
-    // ==========================================
-
-    try {
-      final db = await DatabaseHelper.instance.database;
-
-      data['id'] =
-          data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
-      data['created_at'] = DateTime.now().toIso8601String();
-
-      data.remove('createAt');
-      data.remove('createdAt');
-
-      await db.insert('users', data);
-      await fetchUsers(); // تحديث الواجهة
-    } catch (e) {
-      debugPrint('Error adding user: $e');
-      rethrow;
-    }
-  }
-
   // 4. تعديل بيانات مستخدم
   Future<void> updateUser(String userId, Map<String, dynamic> data) async {
     try {
@@ -156,6 +98,98 @@ class UsersViewModel extends ChangeNotifier {
       debugPrint('User with ID $userId updated successfully');
     } catch (e) {
       debugPrint('Error updating user: $e');
+      rethrow;
+    }
+  }
+
+  // 2. دالة الحذف (تم التعديل لربط الحذف مع جدول أعضاء هيئة التدريس)
+  Future<void> deleteUser(String userId) async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+
+      await db.transaction((txn) async {
+        // أ. البحث عن الملف الأكاديمي المرتبط بهذا المستخدم (إن وجد)
+        final linkedFaculty = await txn.query('faculty_members',
+            where: 'user_id = ?', whereArgs: [userId]);
+
+        // ب. الحذف من جدول المستخدمين الأساسي
+        await txn.delete('users', where: 'id = ?', whereArgs: [userId]);
+        await txn.insert('deleted_records',
+            {'id': userId, 'table_name': 'users'}); // تسجيل في المهملات
+
+        // ج. إذا كان له ملف أكاديمي، ستقوم قاعدة البيانات بحذفه محلياً تلقائياً بسبب (ON DELETE CASCADE)
+        // ولكن يجب علينا تسجيل الـ ID الخاص بالملف الأكاديمي في سلة المهملات ليتم حذفه من الفايربيس!
+        for (var fac in linkedFaculty) {
+          await txn.insert('deleted_records',
+              {'id': fac['id'], 'table_name': 'faculty_members'});
+        }
+      });
+
+      await fetchUsers(); // تحديث الواجهة
+      debugPrint(
+          'تم حذف المستخدم وملفاته المرتبطة وتسجيلهما في سلة المهملات: $userId');
+    } catch (e) {
+      debugPrint('Error deleting user: $e');
+      rethrow;
+    }
+  }
+
+  // 3. إضافة مستخدم جديد (تم التعديل لإنشاء ملف أكاديمي تلقائياً)
+  Future<void> addUser(Map<String, dynamic> data) async {
+    // التحقق من صيغة البريد الإلكتروني
+    final String email = data['email']?.toString().trim() ?? '';
+    final bool isEmailValid = RegExp(
+            r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+")
+        .hasMatch(email);
+
+    if (!isEmailValid) {
+      throw Exception(
+          'صيغة البريد الإلكتروني غير صحيحة. يجب أن تكون مثل: name@example.com');
+    }
+
+    try {
+      final db = await DatabaseHelper.instance.database;
+
+      // تجهيز بيانات المستخدم
+      String userId =
+          data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
+      data['id'] = userId;
+      data['created_at'] = DateTime.now().toIso8601String();
+
+      data.remove('createAt');
+      data.remove('createdAt');
+
+      // 👈 استخدام Transaction لضمان إنشاء الحساب والملف معاً
+      await db.transaction((txn) async {
+        // أ. إنشاء حساب الدخول
+        await txn.insert('users', data);
+
+        // ب. التحقق من الدور (Role). إذا كان أكاديمياً، ننشئ له ملفاً في faculty_members
+        List<String> academicRoles = [
+          'Head of department',
+          'Deputy Dean',
+          'Faculty Member'
+        ];
+
+        if (academicRoles.contains(data['role'])) {
+          String facultyId = 'fac_${DateTime.now().millisecondsSinceEpoch}';
+
+          await txn.insert('faculty_members', {
+            'id': facultyId,
+            'user_id': userId, // 🔗 هذا هو حقل الربط السحري!
+            'name': data['name'],
+            'email': email,
+            'created_at': DateTime.now().toIso8601String(),
+            // باقي الحقول ستكون فارغة، وسيقوم الدكتور لاحقاً بتعبئتها من حسابه!
+          });
+          debugPrint(
+              'تم إنشاء ملف أكاديمي مبدئي للمستخدم الجديد برقم: $facultyId');
+        }
+      });
+
+      await fetchUsers(); // تحديث الواجهة
+    } catch (e) {
+      debugPrint('Error adding user: $e');
       rethrow;
     }
   }

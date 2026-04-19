@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart'; // تأكد من المسار
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'faculty_member_model.dart';
 
 class FacultyMembersViewModel extends ChangeNotifier {
   List<FacultyMemberModel> allMembers = [];
-
   bool isLoading = true;
   String errorMessage = '';
 
@@ -12,7 +11,6 @@ class FacultyMembersViewModel extends ChangeNotifier {
     fetchFacultyMembers();
   }
 
-  // 1. جلب البيانات من SQLite محلياً وبشكل فوري
   Future<void> fetchFacultyMembers() async {
     isLoading = true;
     notifyListeners();
@@ -21,10 +19,8 @@ class FacultyMembersViewModel extends ChangeNotifier {
       final db = await DatabaseHelper.instance.database;
       final List<Map<String, dynamic>> result =
           await db.query('faculty_members');
-
       allMembers =
           result.map((map) => FacultyMemberModel.fromMap(map)).toList();
-
       isLoading = false;
       notifyListeners();
     } catch (e) {
@@ -35,65 +31,26 @@ class FacultyMembersViewModel extends ChangeNotifier {
     }
   }
 
-  // 2. دالة الإضافة (تم نقلها من الـ Dialog إلى هنا)
-  Future<void> addFacultyMember(Map<String, dynamic> data) async {
+  // دالة الإضافة (للأعضاء الذين يضافون من هذه الشاشة مباشرة)
+  Future<void> addFacultyMember(FacultyMemberModel member) async {
     try {
       final db = await DatabaseHelper.instance.database;
-
-      data['id'] =
-          data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
-      data['created_at'] = DateTime.now().toIso8601String();
-
-      // تحويل الاسم القديم للاسم المتوافق مع قاعدة بياناتك
-      if (data.containsKey('academicDegree')) {
-        data['academic_degree'] = data.remove('academicDegree');
-      }
-
-      await db.insert('faculty_members', data);
-      await fetchFacultyMembers(); // تحديث الواجهة فوراً
-      debugPrint('Faculty member added successfully: ${data['ar_name']}');
+      await db.insert('faculty_members', member.toMap());
+      await fetchFacultyMembers();
     } catch (e) {
       debugPrint('Error adding faculty member: $e');
       rethrow;
     }
   }
 
-  // 3. دالة الحذف
-  Future<void> deleteFacultyMember(String memberId) async {
-    try {
-      final db = await DatabaseHelper.instance.database;
-
-      await db.transaction((txn) async {
-        // 1. الحذف من الجدول الأساسي
-        await txn
-            .delete('faculty_members', where: 'id = ?', whereArgs: [memberId]);
-        // 2. التسجيل في سلة المهملات
-        await txn.insert('deleted_records',
-            {'id': memberId, 'table_name': 'faculty_members'});
-      });
-
-      await fetchFacultyMembers(); // تحديث الواجهة
-      debugPrint('تم حذف عضو هيئة التدريس وتسجيله في سلة المهملات: $memberId');
-    } catch (e) {
-      debugPrint('Error deleting faculty member: $e');
-      rethrow;
-    }
-  }
-
-  // 4. دالة التعديل
+  // دالة التعديل (وهي الأهم لاستكمال بيانات الأعضاء)
   Future<void> updateFacultyMember(
-      String memberId, Map<String, dynamic> data) async {
+      String memberId, FacultyMemberModel updatedMember) async {
     try {
       final db = await DatabaseHelper.instance.database;
 
-      // تحويل الاسم القديم للاسم المتوافق مع SQLite
-      if (data.containsKey('academicDegree')) {
-        data['academic_degree'] = data.remove('academicDegree');
-      }
-
-      // تنظيف التاريخ لمنع تعديله بالخطأ
-      data.remove('createdAt');
-      data.remove('created_at');
+      // نستخدم دالة toMap الجاهزة في المودل التي تحتوي على جميع الـ 30 حقل
+      Map<String, dynamic> data = updatedMember.toMap();
 
       await db.update(
         'faculty_members',
@@ -102,10 +59,26 @@ class FacultyMembersViewModel extends ChangeNotifier {
         whereArgs: [memberId],
       );
 
-      await fetchFacultyMembers(); // تحديث الواجهة فوراً
-      debugPrint('Faculty member updated successfully: $memberId');
+      await fetchFacultyMembers();
+      debugPrint('تم تحديث الملف الأكاديمي الشامل بنجاح: $memberId');
     } catch (e) {
       debugPrint('Error updating faculty member: $e');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteFacultyMember(String memberId) async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+      await db.transaction((txn) async {
+        await txn
+            .delete('faculty_members', where: 'id = ?', whereArgs: [memberId]);
+        await txn.insert('deleted_records',
+            {'id': memberId, 'table_name': 'faculty_members'});
+      });
+      await fetchFacultyMembers();
+    } catch (e) {
+      debugPrint('Error deleting faculty member: $e');
       rethrow;
     }
   }

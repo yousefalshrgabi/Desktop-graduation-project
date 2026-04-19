@@ -24,13 +24,39 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 📍 المسار: $path');
 
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(
+      path,
+      version: 1,
+      // 👈 تفعيل القيود المرجعية (Foreign Keys) لضمان صحة الربط بين الجداول
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
+      onCreate: _createDB,
+    );
   }
 
   Future<void> _createDB(Database db, int version) async {
     debugPrint(
         '[SQLITE DEBUG] 🛠️ 3. جاري إنشاء الجداول (الإصدار $version)...');
     try {
+      // 1. جدول المستخدمين (حسابات الدخول)
+      await db.execute('''
+        CREATE TABLE users (
+          id TEXT PRIMARY KEY, 
+          name TEXT NOT NULL, 
+          email TEXT NOT NULL,
+          phone TEXT NOT NULL, 
+          role TEXT NOT NULL, 
+          created_at TEXT NOT NULL,
+          faculty TEXT, 
+          department TEXT, 
+          level TEXT, 
+          status TEXT
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول users');
+
+      // 2. جدول الكليات
       await db.execute('''
         CREATE TABLE colleges (
           id TEXT PRIMARY KEY, ar_name TEXT NOT NULL, en_name TEXT NOT NULL,
@@ -39,6 +65,7 @@ class DatabaseHelper {
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول colleges');
 
+      // 3. جدول الأقسام
       await db.execute('''
         CREATE TABLE departments (
           id TEXT PRIMARY KEY, name TEXT NOT NULL, college_id TEXT NOT NULL,
@@ -47,24 +74,78 @@ class DatabaseHelper {
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول departments');
 
+// 4. جدول أعضاء هيئة التدريس (النسخة الشاملة والمحدثة)
       await db.execute('''
         CREATE TABLE faculty_members (
-          id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL,
-          department TEXT NOT NULL, academic_degree TEXT NOT NULL,
-          status TEXT NOT NULL, created_at TEXT NOT NULL
+          id TEXT PRIMARY KEY, 
+          user_id TEXT,
+          name TEXT NOT NULL, 
+          email TEXT,       -- 👈 تمت إضافة عمود الإيميل
+          status TEXT,      -- 👈 تمت إضافة عمود الحالة
+          
+          -- 📁 حقول الملفات
+          file_url TEXT,
+          local_file_path TEXT,
+          
+          -- 👤 البيانات الأساسية والشخصية
+          id_card_number TEXT,
+          job_number TEXT,
+          birth_place TEXT,
+          birth_date TEXT,
+          first_appointment_date TEXT,
+          university_appointment_date TEXT,
+          
+          -- 🎓 بيانات البكالوريوس
+          bsc_degree TEXT,
+          bsc_date TEXT,
+          bsc_university TEXT,
+          bsc_country TEXT,
+          bsc_academic_title TEXT,
+          bsc_title_transfer_date TEXT,
+          bsc_specialization TEXT,
+          
+          -- 🎓 بيانات الماجستير
+          msc_degree TEXT,
+          msc_date TEXT,
+          msc_university TEXT,
+          msc_country TEXT,
+          msc_academic_title TEXT,
+          msc_title_transfer_date TEXT,
+          msc_decision_number TEXT,
+          msc_exact_specialization TEXT,
+          
+          -- 🎓 البيانات الحالية (الدكتوراه)
+          current_degree TEXT,
+          current_degree_date TEXT,
+          current_university TEXT,
+          current_country TEXT,
+          
+          -- 📈 الترقيات
+          assistant_prof_date TEXT,
+          assistant_prof_decision TEXT,
+          assoc_prof_date TEXT,
+          assoc_prof_decision TEXT,
+          
+          -- 🏫 الوضع الأكاديمي الحالي بالجامعة
+          current_academic_title TEXT,
+          title_transfer_date TEXT,
+          department_id TEXT,
+          general_specialization TEXT,
+          exact_specialization TEXT,
+          
+          -- ✈️ الإجازات والتفرغ (تُخزن بصيغة JSON)
+          sabbatical_leaves TEXT,
+          unpaid_leaves TEXT,
+
+          created_at TEXT NOT NULL,
+          
+          -- 🔗 الربط المرجعي بجدول المستخدمين
+          FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
         )
       ''');
-      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول faculty_members');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول faculty_members المحدث');
 
-      await db.execute('''
-        CREATE TABLE users (
-          id TEXT PRIMARY KEY, name TEXT NOT NULL, email TEXT NOT NULL,
-          phone TEXT NOT NULL, role TEXT NOT NULL, created_at TEXT NOT NULL,
-          faculty TEXT, department TEXT, level TEXT, status TEXT
-        )
-      ''');
-      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول users');
-
+      // 5. جدول الخطط الدراسية
       await db.execute('''
         CREATE TABLE study_plans (
           id TEXT PRIMARY KEY, contact_hours_lab INTEGER NOT NULL,
@@ -76,6 +157,7 @@ class DatabaseHelper {
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول study_plans');
 
+      // 6. جدول المواد
       await db.execute('''
         CREATE TABLE subjects (
           id TEXT PRIMARY KEY, ar_name TEXT NOT NULL, en_name TEXT NOT NULL
@@ -83,6 +165,7 @@ class DatabaseHelper {
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول subjects');
 
+      // 7. جدول سلة المهملات
       await db.execute('''
         CREATE TABLE deleted_records (
           id TEXT PRIMARY KEY,
@@ -98,36 +181,30 @@ class DatabaseHelper {
   }
 
   // =================================================================
-  // مثال: دوال المراقبة والإدخال لجدول الـ Users
+  // دوال الإدخال والمسح (كما هي في كودك السابق)
   // =================================================================
 
-  // دالة إدخال مستخدم (مع المراقبة)
   Future<void> insertUserLocal(Map<String, dynamic> userMap) async {
     debugPrint(
         '[SQLITE DEBUG] 🟡 محاولة حفظ المستخدم (${userMap['email']}) محلياً...');
     try {
       final db = await instance.database;
-
-      // نستخدم ConflictAlgorithm.replace لكي يقوم بتحديث البيانات إذا كان الـ ID موجود مسبقاً
       int result = await db.insert(
         'users',
         userMap,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-
       debugPrint('[SQLITE DEBUG] ✅ تم حفظ المستخدم بنجاح! رقم الصف: $result');
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ فشل حفظ المستخدم: $e');
     }
   }
 
-  // دالة جلب المستخدمين (مع المراقبة)
   Future<List<Map<String, dynamic>>> getLocalUsers() async {
     debugPrint('[SQLITE DEBUG] 🟡 جاري جلب قائمة المستخدمين من SQLite...');
     try {
       final db = await instance.database;
       final result = await db.query('users');
-
       debugPrint(
           '[SQLITE DEBUG] ✅ تم جلب البيانات. عدد المستخدمين: ${result.length}');
       return result;
@@ -136,8 +213,6 @@ class DatabaseHelper {
       return [];
     }
   }
-
-  // =================================================================
 
   Future<void> clearAllData() async {
     debugPrint(

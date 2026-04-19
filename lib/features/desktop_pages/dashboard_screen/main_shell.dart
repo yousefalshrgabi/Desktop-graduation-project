@@ -82,10 +82,11 @@ class _MainShellState extends State<MainShell>
                   index: _selectedIndex,
                   children: [
                     DashboardView(onNavigate: _navigateTo),
-                    const Colleges(),
-                    const DepartmentsView(),
-                    const FacultyMembers(),
-                    const Users(),
+                    // 👈 أزلنا const وأضفنا مفتاحاً فريداً (Key) لكل صفحة
+                    Colleges(key: ValueKey('colleges_$_selectedIndex')),
+                    DepartmentsView(key: ValueKey('depts_$_selectedIndex')),
+                    FacultyMembers(key: ValueKey('faculty_$_selectedIndex')),
+                    Users(key: ValueKey('users_$_selectedIndex')),
                   ],
                 ),
                 // Toggle button
@@ -183,7 +184,12 @@ class _MainShellState extends State<MainShell>
       padding: const EdgeInsets.symmetric(
           horizontal: DesktopSpacing.sm, vertical: 4),
       child: InkWell(
-        onTap: () => setState(() => _selectedIndex = index),
+        onTap: () {
+          setState(() {
+            // 1. تصفير الاندكس للحظة (اختياري لضمان التحديث)
+            _selectedIndex = index;
+          });
+        },
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),

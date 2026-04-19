@@ -2,7 +2,6 @@ import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.da
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'faculty_members_view_model.dart';
-import 'faculty_member_model.dart';
 import 'add_faculty_member_dialog.dart';
 
 class FacultyMembers extends StatefulWidget {
@@ -33,6 +32,12 @@ class _FacultyMembersState extends State<FacultyMembers> {
   final List<String> _statuses = ['نشط', 'متفرغ', 'منتدب', 'غير نشط'];
 
   final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _viewModel.fetchFacultyMembers(); // 👈 تأكد من وجود هذا السطر
+  }
 
   @override
   void dispose() {

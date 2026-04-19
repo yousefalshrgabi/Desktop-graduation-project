@@ -24,43 +24,38 @@ class DashboardViewModel extends ChangeNotifier {
 
     try {
       debugPrint('[DASHBOARD DEBUG] جاري جلب الإحصائيات من SQLite...');
-      // الحصول على مثيل قاعدة البيانات
       final db = await DatabaseHelper.instance.database;
 
       // =======================================================
-      // 1. جلب الإحصائيات (العدد الإجمالي) باستخدام rawQuery
+      // 1. جلب الإحصائيات (العدد الإجمالي)
       // =======================================================
-      final collegesCountResult =
-          await db.rawQuery('SELECT COUNT(*) as count FROM colleges');
+      final collegesCountResult = await db.rawQuery('SELECT COUNT(*) as count FROM colleges');
       final int totalColleges = Sqflite.firstIntValue(collegesCountResult) ?? 0;
 
-      final facultyCountResult =
-          await db.rawQuery('SELECT COUNT(*) as count FROM faculty_members');
+      final facultyCountResult = await db.rawQuery('SELECT COUNT(*) as count FROM faculty_members');
       final int totalFaculty = Sqflite.firstIntValue(facultyCountResult) ?? 0;
 
-      final usersCountResult =
-          await db.rawQuery('SELECT COUNT(*) as count FROM users');
+      final usersCountResult = await db.rawQuery('SELECT COUNT(*) as count FROM users');
       final int totalUsers = Sqflite.firstIntValue(usersCountResult) ?? 0;
 
       // =======================================================
-      // 2. جلب أحدث الكليات المضافة (ترتيب تنازلي حسب تاريخ الإنشاء)
+      // 2. جلب أحدث الكليات المضافة
       // =======================================================
       final recentCollegesLocal = await db.query(
         'colleges',
-        orderBy: 'created_at DESC', // الترتيب من الأحدث للأقدم
-        limit: 5, // جلب 5 فقط
+        orderBy: 'created_at DESC',
+        limit: 5,
       );
 
-      // تحويل الـ Map القادم من SQLite إلى CollegeModel
-      // ملاحظة: تأكد أن دالة fromJson لديك في CollegeModel تقبل هذه المفاتيح
+      // تأمين التحويل لـ CollegeModel لمنع أخطاء Null
       final recentColleges = recentCollegesLocal.map((map) {
         return CollegeModel(
-          id: map['id'] as String,
-          arName: map['ar_name'] as String,
-          enName: map['en_name'] as String,
-          code: map['code'] as String,
-          deanId: map['dean_id'] as String,
-          createdAt: map['created_at'] as String, // أو حسب نوعها في الموديل
+          id: map['id']?.toString() ?? '',
+          arName: map['ar_name']?.toString() ?? 'غير محدد',
+          enName: map['en_name']?.toString() ?? 'غير محدد',
+          code: map['code']?.toString() ?? '',
+          deanId: map['dean_id']?.toString() ?? '',
+          createdAt: map['created_at']?.toString() ?? '',
         );
       }).toList();
 
@@ -73,17 +68,9 @@ class DashboardViewModel extends ChangeNotifier {
         limit: 5,
       );
 
-      final recentFaculty = recentFacultyLocal.map((map) {
-        return FacultyMemberModel(
-          id: map['id'] as String,
-          name: map['name'] as String,
-          email: map['email'] as String,
-          department: map['department'] as String,
-          academicDegree: map['academic_degree'] as String,
-          status: map['status'] as String,
-          createdAt: map['created_at'] as String, // أو حسب نوعها
-        );
-      }).toList();
+      // 👈 التعديل الأهم: استخدام دالة fromMap الجاهزة والشاملة
+      // هذا يضمن توافق جميع الحقول الـ 30 التي أضفناها مؤخراً!
+      final recentFaculty = recentFacultyLocal.map((map) => FacultyMemberModel.fromMap(map)).toList();
 
       // =======================================================
       // 4. تعيين البيانات وتحديث الواجهة
@@ -113,14 +100,10 @@ class DashboardViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // جلب الإحصائيات (العدد الإجمالي)
-      final collegesCount =
-          await _firestore.collection('colleges').count().get();
-      final facultyCount =
-          await _firestore.collection('faculty_members').count().get();
+      final collegesCount = await _firestore.collection('colleges').count().get();
+      final facultyCount = await _firestore.collection('faculty_members').count().get();
       final usersCount = await _firestore.collection('users').count().get();
 
-      // جلب أحدث الكليات المضافة
       final recentCollegesSnapshot = await _firestore
           .collection('colleges')
           .orderBy('createdAt', descending: true)
@@ -131,7 +114,6 @@ class DashboardViewModel extends ChangeNotifier {
           .map((doc) => CollegeModel.fromFirestore(doc))
           .toList();
 
-      // جلب أحدث أعضاء هيئة التدريس المضافين
       final recentFacultySnapshot = await _firestore
           .collection('faculty_members')
           .orderBy('createdAt', descending: true)
@@ -154,7 +136,7 @@ class DashboardViewModel extends ChangeNotifier {
       notifyListeners();
     } catch (e) {
       isLoading = false;
-      errorMessage = 'حدث خطأ أثناء جلب البيانات: $e';
+      errorMessage = 'حدث خطأ أثناء جلب البيانات من السحابة: $e';
       debugPrint('Dashboard Error: $e');
       notifyListeners();
     }

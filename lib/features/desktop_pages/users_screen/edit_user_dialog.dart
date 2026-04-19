@@ -6,7 +6,8 @@ import 'user_model.dart';
 class EditUserDialog extends StatefulWidget {
   final UserModel user;
   final UsersViewModel viewModel;
-  const EditUserDialog({super.key, required this.user, required this.viewModel});
+  const EditUserDialog(
+      {super.key, required this.user, required this.viewModel});
 
   @override
   State<EditUserDialog> createState() => _EditUserDialogState();
@@ -89,7 +90,8 @@ class _EditUserDialogState extends State<EditUserDialog> {
       child: Column(
         children: [
           Dialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             backgroundColor: Colors.white,
             child: Container(
               width: 500,
@@ -103,7 +105,8 @@ class _EditUserDialogState extends State<EditUserDialog> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('تعديل بيانات المستخدم', style: DesktopTextStyles.heading1),
+                        const Text('تعديل بيانات المستخدم',
+                            style: DesktopTextStyles.heading1),
                         IconButton(
                           onPressed: () => Navigator.pop(context),
                           icon: const Icon(Icons.close),
@@ -111,58 +114,62 @@ class _EditUserDialogState extends State<EditUserDialog> {
                       ],
                     ),
                     const SizedBox(height: DesktopSpacing.md),
-
                     _buildLabel('الاسم الكامل'),
                     _buildTextField(
                       controller: _nameController,
                       hint: 'أدخل اسم الموظف',
                       icon: Icons.person_outline,
-                      validator: (val) => val!.isEmpty ? 'هذا الحقل مطلوب' : null,
+                      validator: (val) =>
+                          val!.isEmpty ? 'هذا الحقل مطلوب' : null,
                     ),
                     const SizedBox(height: DesktopSpacing.sm),
-
                     _buildLabel('البريد الإلكتروني'),
                     _buildTextField(
                       controller: _emailController,
                       hint: 'example@domain.com',
                       icon: Icons.email_outlined,
                       validator: (val) {
-                        if (val == null || val.isEmpty) return 'هذا الحقل مطلوب';
-                        final emailRegex = RegExp(r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
-                        if (!emailRegex.hasMatch(val)) return 'بريد إلكتروني غير صالح باللغة الإنجليزية';
+                        if (val == null || val.isEmpty)
+                          return 'هذا الحقل مطلوب';
+                        final emailRegex = RegExp(
+                            r"^[a-zA-Z0-9.a-zA-Z0-9.!#$%&'*+-/=?^_`{|}~]+@[a-zA-Z0-9]+\.[a-zA-Z]+");
+                        if (!emailRegex.hasMatch(val))
+                          return 'بريد إلكتروني غير صالح باللغة الإنجليزية';
                         return null;
                       },
                     ),
                     const SizedBox(height: DesktopSpacing.sm),
-
                     _buildLabel('رقم الجوال'),
                     _buildTextField(
                       controller: _phoneController,
                       hint: '77xxxxxxx',
                       icon: Icons.phone_outlined,
                       validator: (val) {
-                        if (val == null || val.isEmpty) return 'هذا الحقل مطلوب';
-                        if (!RegExp(r'^[0-9]+$').hasMatch(val)) return 'يجب إدخال أرقام فقط';
-                        if (val.length != 9) return 'رقم الجوال يجب أن يتكون من 9 أرقام';
+                        if (val == null || val.isEmpty)
+                          return 'هذا الحقل مطلوب';
+                        if (!RegExp(r'^[0-9]+$').hasMatch(val))
+                          return 'يجب إدخال أرقام فقط';
+                        if (val.length != 9)
+                          return 'رقم الجوال يجب أن يتكون من 9 أرقام';
                         return null;
                       },
                     ),
                     const SizedBox(height: DesktopSpacing.sm),
-
                     _buildLabel('الدور والصلاحية'),
                     _buildRoleDropdown(),
-
                     const SizedBox(height: DesktopSpacing.lg),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         TextButton(
                           onPressed: () => Navigator.pop(context),
                           style: TextButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(horizontal: DesktopSpacing.md, vertical: DesktopSpacing.sm),
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: DesktopSpacing.md,
+                                vertical: DesktopSpacing.sm),
                           ),
-                          child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+                          child: const Text('إلغاء',
+                              style: TextStyle(color: Colors.grey)),
                         ),
                         const SizedBox(width: DesktopSpacing.xs),
                         ElevatedButton(
@@ -172,7 +179,8 @@ class _EditUserDialogState extends State<EditUserDialog> {
                               ? const SizedBox(
                                   width: DesktopSpacing.md,
                                   height: DesktopSpacing.md,
-                                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                  child: CircularProgressIndicator(
+                                      color: Colors.white, strokeWidth: 2),
                                 )
                               : const Text('حفظ التعديلات'),
                         ),
@@ -240,7 +248,8 @@ class _EditUserDialogState extends State<EditUserDialog> {
   Widget _buildLabel(String text) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
-      child: Text(text, style: DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
+      child: Text(text,
+          style: DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
     );
   }
 }

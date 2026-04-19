@@ -1,5 +1,4 @@
 import 'dart:async';
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/services/sync_service.dart';
@@ -18,7 +17,7 @@ class _SyncDialogState extends State<SyncDialog> {
   String _syncMessage = 'اضغط على الزر لبدء المزامنة الشاملة';
   IconData _syncIcon = Icons.cloud_sync_rounded;
   Color _iconColor = Colors.blue;
-  double _progressValue = 0.0; // لمتابعة التقدم الوهمي أو الحقيقي
+  double _progressValue = 0.0;
 
   Future<void> _handleFullSync() async {
     setState(() {
@@ -30,7 +29,7 @@ class _SyncDialogState extends State<SyncDialog> {
     });
 
     try {
-      // 1. إرسال أوامر الحذف أولاً (لضمان نظافة السحابة)
+      // 1. إرسال أوامر الحذف
       setState(() {
         _syncMessage = 'جاري تنظيف السحابة... (1/3)';
         _progressValue = 0.3;
@@ -55,7 +54,6 @@ class _SyncDialogState extends State<SyncDialog> {
       });
       await _syncService.pushToFirebase();
 
-      // اكتمال المزامنة بنجاح
       setState(() {
         _syncMessage = 'تمت المزامنة الشاملة بنجاح!';
         _syncIcon = Icons.check_circle_outline;
@@ -63,41 +61,31 @@ class _SyncDialogState extends State<SyncDialog> {
         _progressValue = 1.0;
       });
 
-      // إغلاق النافذة تلقائياً بعد ثانيتين من النجاح
       Future.delayed(const Duration(seconds: 2), () {
         if (mounted) Navigator.pop(context, true);
       });
     } on FirebaseException catch (e) {
-      // التقاط أخطاء فايربيس (مثل انقطاع النت أثناء التنزيل)
-      debugPrint('[SYNC ERROR] FirebaseException: $e');
-      setState(() {
-        _syncMessage = 'تعذر الوصول للسحابة. تأكد من اتصالك بالإنترنت.';
-        _syncIcon = Icons.wifi_off;
-        _iconColor = Colors.red;
-      });
+      _setErrorState(
+          'تعذر الوصول للسحابة. تأكد من اتصالك بالإنترنت.', Icons.wifi_off);
     } on TimeoutException catch (e) {
-      // التقاط خطأ الـ Timeout الذي أضفناه في خدمة المزامنة
-      debugPrint('[SYNC ERROR] TimeoutException: $e');
-      setState(() {
-        _syncMessage = e.message ?? 'انقضى وقت الاتصال. الإنترنت ضعيف جداً.';
-        _syncIcon = Icons.signal_wifi_bad;
-        _iconColor = Colors.orange;
-      });
+      _setErrorState(e.message ?? 'انقضى وقت الاتصال. الإنترنت ضعيف جداً.',
+          Icons.signal_wifi_bad);
     } catch (e) {
-      // التقاط أي خطأ عام آخر
-      debugPrint('[SYNC ERROR] General Exception: $e');
-      setState(() {
-        _syncMessage = 'حدث خطأ: $e';
-        _syncIcon = Icons.error_outline;
-        _iconColor = Colors.red;
-      });
+      _setErrorState('حدث خطأ: $e', Icons.error_outline);
     } finally {
-      // هذا الكود يضمن أنه بمجرد حدوث خطأ، يتحول _isSyncing إلى false
-      // مما يفعل زر (الإغلاق X) ويسمح للمستخدم بالخروج من النافذة
       if (mounted && _syncIcon != Icons.check_circle_outline) {
         setState(() => _isSyncing = false);
       }
     }
+  }
+
+  void _setErrorState(String message, IconData icon) {
+    setState(() {
+      _syncMessage = message;
+      _syncIcon = icon;
+      _iconColor = Colors.red;
+      _isSyncing = false;
+    });
   }
 
   @override
@@ -105,7 +93,9 @@ class _SyncDialogState extends State<SyncDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        width: 400,
+        width: 450, // زيادة العرض قليلاً لتناسب رسائل الخطأ
+        constraints:
+            const BoxConstraints(maxHeight: 500), // تحديد أقصى ارتفاع للنافذة
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -123,55 +113,61 @@ class _SyncDialogState extends State<SyncDialog> {
               ],
             ),
             const Divider(),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // أيقونة متغيرة حسب الحالة
+            // أيقونة الحالة
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
               child: Icon(_syncIcon,
-                  key: ValueKey(_syncIcon), size: 72, color: _iconColor),
+                  key: ValueKey(_syncIcon), size: 64, color: _iconColor),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
 
-            // رسالة المزامنة
-            Text(_syncMessage,
-                textAlign: TextAlign.center,
-                style:
-                    const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 32),
+            // 👈 الحل لمشكلة الـ Overflow: استخدام Flexible مع ScrollView لرسالة المزامنة
+            Flexible(
+              child: SingleChildScrollView(
+                child: Text(
+                  _syncMessage,
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    color: _iconColor == Colors.red
+                        ? Colors.red[700]
+                        : Colors.black87,
+                  ),
+                ),
+              ),
+            ),
+
+            const SizedBox(height: 24),
 
             // شريط التقدم أو زر المزامنة
             if (_isSyncing || _progressValue == 1.0)
-              Column(
-                children: [
-                  LinearProgressIndicator(
-                    value: _progressValue == 1.0
-                        ? 1.0
-                        : null, // إذا اكتمل يثبت الشريط، وإلا يتحرك
-                    backgroundColor: Colors.grey[200],
-                    color: _iconColor,
-                    minHeight: 6,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ],
+              LinearProgressIndicator(
+                value: _progressValue == 1.0 ? 1.0 : null,
+                backgroundColor: Colors.grey[200],
+                color: _iconColor,
+                minHeight: 6,
+                borderRadius: BorderRadius.circular(4),
               )
             else
               SizedBox(
                 width: double.infinity,
-                height: 48,
+                height: 45,
                 child: ElevatedButton.icon(
                   onPressed: _handleFullSync,
                   icon: const Icon(Icons.sync, color: Colors.white),
-                  label: const Text('بدء المزامنة',
-                      style:
-                          TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  label: const Text('بدء المزامنة الآن'),
                   style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8))),
+                    backgroundColor: Colors.blue[700],
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8)),
+                  ),
                 ),
-              )
+              ),
+            const SizedBox(height: 8),
           ],
         ),
       ),
