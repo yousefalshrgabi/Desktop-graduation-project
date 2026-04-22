@@ -24,7 +24,66 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 📍 المسار: $path');
 
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(path,
+        version: 6, onCreate: _createDB, onUpgrade: _upgradeDB);
+  }
+
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    debugPrint(
+        '[SQLITE DEBUG] 🛠️ جاري الترقية من $oldVersion إلى $newVersion');
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS programs (
+          id TEXT PRIMARY KEY, 
+          name_ar TEXT NOT NULL, 
+          name_en TEXT NOT NULL,
+          total_levels INTEGER NOT NULL, 
+          status TEXT NOT NULL, 
+          tracks TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول programs خلال الترقية');
+    }
+
+    if (oldVersion < 5) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS studyPlans (
+          id TEXT PRIMARY KEY,
+          program_id TEXT NOT NULL,
+          track_id TEXT,
+          ar_level TEXT NOT NULL,
+          en_level TEXT NOT NULL,
+          ar_semester TEXT NOT NULL,
+          en_semester TEXT NOT NULL,
+          semester_totals TEXT NOT NULL,
+          courses TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول studyPlans خلال الترقية');
+    }
+
+    if (oldVersion < 6) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS studyPlans (
+          id TEXT PRIMARY KEY,
+          program_id TEXT NOT NULL,
+          track_id TEXT,
+          ar_level TEXT NOT NULL,
+          en_level TEXT NOT NULL,
+          ar_semester TEXT NOT NULL,
+          en_semester TEXT NOT NULL,
+          semester_totals TEXT NOT NULL,
+          courses TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول studyPlans (v6) خلال الترقية');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -84,12 +143,43 @@ class DatabaseHelper {
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول subjects');
 
       await db.execute('''
+        CREATE TABLE programs (
+          id TEXT PRIMARY KEY, 
+          name_ar TEXT NOT NULL, 
+          name_en TEXT NOT NULL,
+          total_levels INTEGER NOT NULL, 
+          status TEXT NOT NULL, 
+          tracks TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول programs');
+
+      await db.execute('''
         CREATE TABLE deleted_records (
           id TEXT PRIMARY KEY,
           table_name TEXT NOT NULL
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول deleted_records');
+
+      await db.execute('''
+        CREATE TABLE studyPlans (
+          id TEXT PRIMARY KEY,
+          program_id TEXT NOT NULL,
+          track_id TEXT,
+          ar_level TEXT NOT NULL,
+          en_level TEXT NOT NULL,
+          ar_semester TEXT NOT NULL,
+          en_semester TEXT NOT NULL,
+          semester_totals TEXT NOT NULL,
+          courses TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول studyPlans');
 
       debugPrint('[SQLITE DEBUG] 🎉 اكتمل بناء قاعدة البيانات المحلية بنجاح!');
     } catch (e) {
@@ -148,8 +238,9 @@ class DatabaseHelper {
       await db.delete('departments');
       await db.delete('faculty_members');
       await db.delete('users');
-      await db.delete('study_plans');
       await db.delete('subjects');
+      await db.delete('programs');
+      await db.delete('studyPlans');
       debugPrint('[SQLITE DEBUG] ✅ تم تنظيف قاعدة البيانات بنجاح.');
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ فشل عملية التنظيف: $e');

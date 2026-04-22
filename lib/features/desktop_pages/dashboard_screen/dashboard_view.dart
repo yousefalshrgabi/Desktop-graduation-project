@@ -46,6 +46,27 @@ class _DashboardViewState extends State<DashboardView> {
       icon: Icons.manage_accounts_rounded,
       gradient: [Color(0xFFE65100), Color(0xFFFF8F00)],
     ),
+    _ModuleCard(
+      index: 5,
+      label: 'البرامج الأكاديمية',
+      subtitle: 'إدارة البرامج وتخصيص المسارات',
+      icon: Icons.school_rounded,
+      gradient: [Color(0xFFC2185B), Color(0xFFE91E63)],
+    ),
+    _ModuleCard(
+      index: 6,
+      label: 'المقررات',
+      subtitle: 'إدارة المقررات الدراسية',
+      icon: Icons.menu_book_rounded,
+      gradient: [Color(0xFF512DA8), Color(0xFF7E57C2)],
+    ),
+    _ModuleCard(
+      index: 7,
+      label: 'الخطط الدراسية',
+      subtitle: 'إدارة ومزامنة خطط المقررات بملفات CSV',
+      icon: Icons.schema_outlined,
+      gradient: [Color(0xFF00796B), Color(0xFF26A69A)],
+    ),
   ];
 
   @override
@@ -121,7 +142,7 @@ class _DashboardViewState extends State<DashboardView> {
             showDialog(
               context: context,
               barrierDismissible: false, // لمنع الإغلاق بالخطأ أثناء المزامنة
-              builder: (context) => SyncDialog(),
+              builder: (context) => const SyncDialog(),
             );
           },
         ),
@@ -157,35 +178,65 @@ class _DashboardViewState extends State<DashboardView> {
 
   // ── Stats Row ─────────────────────────────────────────────────────────────
   Widget _buildStatsRow() {
-    return Row(
-      children: [
-        Expanded(
-          child: _buildStatCard(
-            title: 'إجمالي الكليات',
-            value: _viewModel.stats.totalColleges.toString(),
-            icon: Icons.business_rounded,
-            color: const Color(0xFF0123C9),
-          ),
-        ),
-        const SizedBox(width: DesktopSpacing.md),
-        Expanded(
-          child: _buildStatCard(
-            title: 'أعضاء هيئة التدريس',
-            value: _viewModel.stats.totalFacultyMembers.toString(),
-            icon: Icons.people_alt_rounded,
-            color: const Color(0xFF00897B),
-          ),
-        ),
-        const SizedBox(width: DesktopSpacing.md),
-        Expanded(
-          child: _buildStatCard(
-            title: 'المستخدمين',
-            value: _viewModel.stats.totalUsers.toString(),
-            icon: Icons.manage_accounts_rounded,
-            color: const Color(0xFFE65100),
-          ),
-        ),
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // 5 بطاقات: 4 في الصف الأول وواحدة في الثاني (أو تلقائياً حسب المساحة)
+        int crossAxisCount = 4;
+        double spacing = DesktopSpacing.md;
+        double itemWidth = ((constraints.maxWidth - (crossAxisCount - 1) * spacing) / crossAxisCount) - 0.1;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: [
+            SizedBox(
+              width: itemWidth,
+              child: _buildStatCard(
+                title: 'إجمالي الكليات',
+                value: _viewModel.stats.totalColleges.toString(),
+                icon: Icons.business_rounded,
+                color: const Color(0xFF0123C9),
+              ),
+            ),
+            SizedBox(
+              width: itemWidth,
+              child: _buildStatCard(
+                title: 'أعضاء هيئة التدريس',
+                value: _viewModel.stats.totalFacultyMembers.toString(),
+                icon: Icons.people_alt_rounded,
+                color: const Color(0xFF00897B),
+              ),
+            ),
+            SizedBox(
+              width: itemWidth,
+              child: _buildStatCard(
+                title: 'المستخدمين',
+                value: _viewModel.stats.totalUsers.toString(),
+                icon: Icons.manage_accounts_rounded,
+                color: const Color(0xFFE65100),
+              ),
+            ),
+            SizedBox(
+              width: itemWidth,
+              child: _buildStatCard(
+                title: 'البرامج الأكاديمية',
+                value: _viewModel.stats.totalPrograms.toString(),
+                icon: Icons.school_rounded,
+                color: const Color(0xFFC2185B),
+              ),
+            ),
+            SizedBox(
+              width: itemWidth,
+              child: _buildStatCard(
+                title: 'الخطط الدراسية',
+                value: _viewModel.stats.totalStudyPlans.toString(),
+                icon: Icons.schema_outlined,
+                color: const Color(0xFF00796B),
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 
@@ -198,7 +249,7 @@ class _DashboardViewState extends State<DashboardView> {
     return Container(
       height: 110,
       padding: const EdgeInsets.symmetric(
-          horizontal: DesktopSpacing.md, vertical: DesktopSpacing.sm),
+          horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -213,8 +264,8 @@ class _DashboardViewState extends State<DashboardView> {
       child: Row(
         children: [
           Container(
-            width: 56,
-            height: 56,
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               gradient: LinearGradient(
                 colors: [color, color.withOpacity(0.7)],
@@ -223,25 +274,31 @@ class _DashboardViewState extends State<DashboardView> {
               ),
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Icon(icon, color: Colors.white, size: 28),
+            child: Icon(icon, color: Colors.white, size: 24),
           ),
-          const SizedBox(width: DesktopSpacing.md),
+          const SizedBox(width: 8),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(title,
-                    style: DesktopTextStyles.caption,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis),
-                const SizedBox(height: 4),
                 Text(
-                  value,
-                  style: TextStyle(
-                    fontSize: 30,
-                    fontWeight: FontWeight.bold,
-                    color: color,
+                  title,
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 4),
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    value,
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                      color: color,
+                    ),
                   ),
                 ),
               ],
@@ -256,17 +313,18 @@ class _DashboardViewState extends State<DashboardView> {
   Widget _buildQuickAccessGrid() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // Adaptive count – always 3 side by side on desktop
-        return Row(
-          children: _modules
-              .map((m) => Expanded(
-                    child: Padding(
-                      padding: EdgeInsets.only(
-                          left: m != _modules.last ? DesktopSpacing.md : 0),
-                      child: _buildModuleButton(m),
-                    ),
-                  ))
-              .toList(),
+        // بناءً على طلبك، 4 بطاقات للمسار السريع وينزل للسطر
+        int crossAxisCount = 4;
+        double spacing = DesktopSpacing.md;
+        double itemWidth = ((constraints.maxWidth - (crossAxisCount - 1) * spacing) / crossAxisCount) - 0.1;
+
+        return Wrap(
+          spacing: spacing,
+          runSpacing: spacing,
+          children: _modules.map((m) => SizedBox(
+            width: itemWidth,
+            child: _buildModuleButton(m),
+          )).toList(),
         );
       },
     );

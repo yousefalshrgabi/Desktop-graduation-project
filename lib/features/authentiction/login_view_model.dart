@@ -162,32 +162,11 @@ class LoginViewModel extends ChangeNotifier {
     }
   }
 
-  // دالة إضافية لتنزيل الجداول التي لم يتم تضمينها في SyncService (مثل الخطط والمواد)
+  // دالة إضافية لتنزيل الجداول التي لم يتم تضمينها في SyncService (مثل المواد)
   Future<void> syncExtraData() async {
     try {
       final db = await DatabaseHelper.instance.database;
       Batch batch = db.batch();
-
-      // مزامنة الخطط الدراسية
-      final plansSnapshot = await _firestore.collection('studyPlans').get();
-      for (var doc in plansSnapshot.docs) {
-        final data = doc.data();
-        final contactHours =
-            data['contactHours'] as Map<String, dynamic>? ?? {};
-
-        batch.insert('study_plans', {
-          'id': doc.id,
-          'contact_hours_lab': contactHours['lab'] ?? 0,
-          'contact_hours_th': contactHours['th'] ?? 0,
-          'course_type': data['courseType'] ?? '',
-          'credit_hours': data['creditHours'] ?? 0,
-          'dept_id': data['deptId'] ?? '',
-          'level': data['level'] ?? 0,
-          'semester': data['semester'] ?? 0,
-          'state': data['state'] ?? '',
-          'subject_id': data['subjectId'] ?? '',
-        });
-      }
 
       // مزامنة المواد
       final subjectsSnapshot = await _firestore.collection('subjects').get();

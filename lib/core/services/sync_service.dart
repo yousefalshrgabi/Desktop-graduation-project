@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -99,6 +100,44 @@ class SyncService {
       });
     }
 
+    // -- رفع البرامج غير المتزامنة --
+    final programs = await db.query('programs', where: 'is_synced = ?', whereArgs: [0]);
+    for (var p in programs) {
+      final ref = _firestore.collection('programs').doc(p['id'].toString());
+      List<dynamic> tracksList = [];
+      try {
+        tracksList = jsonDecode(p['tracks'].toString());
+      } catch (e) {}
+      batch.set(ref, {
+        'name_ar': p['name_ar'],
+        'name_en': p['name_en'],
+        'total_levels': p['total_levels'],
+        'status': p['status'],
+        'tracks': tracksList,
+        'created_at': _toFirebaseTimestamp(p['created_at']),
+      });
+      // تحديث حالة المزامنة محلياً عند نجاح الـ batch كله (نحدثها مباشرة قبل التنفيذ، إذا فشل الباتش يمكن إعادة المحاولة لاحقاً)
+      await db.update('programs', {'is_synced': 1}, where: 'id = ?', whereArgs: [p['id']]);
+    }
+
+    // -- رفع الخطط الدراسية غير المتزامنة --
+    final studyPlans = await db.query('studyPlans', where: 'is_synced = ?', whereArgs: [0]);
+    for (var sp in studyPlans) {
+      final ref = _firestore.collection('studyPlans').doc(sp['id'].toString());
+      batch.set(ref, {
+        'program_id': sp['program_id'],
+        'track_id': sp['track_id'],
+        'ar_level': sp['ar_level'],
+        'en_level': sp['en_level'],
+        'ar_semester': sp['ar_semester'],
+        'en_semester': sp['en_semester'],
+        'semester_totals': jsonDecode(sp['semester_totals'].toString()),
+        'courses': jsonDecode(sp['courses'].toString()),
+        'created_at': _toFirebaseTimestamp(sp['created_at']),
+      });
+      await db.update('studyPlans', {'is_synced': 1}, where: 'id = ?', whereArgs: [sp['id']]);
+    }
+
     // تنفيذ الرفع بمراعاة الـ Timeout
     await batch.commit().timeout(
           const Duration(seconds: 15),
@@ -194,6 +233,48 @@ class SyncService {
             'status': data['status'],
             'created_at':
                 _toLocalIsoString(data['createdAt'] ?? data['createAt']),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    // -- تنزيل البرامج --
+    final progSnap = await _firestore.collection('programs').get(serverOnly);
+    for (var doc in progSnap.docs) {
+      final data = doc.data();
+      localBatch.insert(
+          'programs',
+          {
+            'id': doc.id,
+            'name_ar': data['name_ar'] ?? '',
+            'name_en': data['name_en'] ?? '',
+            'total_levels': data['total_levels'] ?? 4,
+            'status': data['status'] ?? 'active',
+            'tracks': jsonEncode(data['tracks'] ?? []),
+            'is_synced': 1,
+            'created_at':
+                _toLocalIsoString(data['created_at'] ?? data['createdAt']),
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace);
+    }
+
+    // -- تنزيل الخطط الدراسية --
+    final spSnap = await _firestore.collection('studyPlans').get(serverOnly);
+    for (var doc in spSnap.docs) {
+      final data = doc.data();
+      localBatch.insert(
+          'studyPlans',
+          {
+            'id': doc.id,
+            'program_id': data['program_id'] ?? '',
+            'track_id': data['track_id'],
+            'ar_level': data['ar_level'] ?? '',
+            'en_level': data['en_level'] ?? '',
+            'ar_semester': data['ar_semester'] ?? '',
+            'en_semester': data['en_semester'] ?? '',
+            'semester_totals': jsonEncode(data['semester_totals'] ?? {}),
+            'courses': jsonEncode(data['courses'] ?? []),
+            'is_synced': 1,
+            'created_at': _toLocalIsoString(data['created_at'] ?? data['createdAt']),
           },
           conflictAlgorithm: ConflictAlgorithm.replace);
     }

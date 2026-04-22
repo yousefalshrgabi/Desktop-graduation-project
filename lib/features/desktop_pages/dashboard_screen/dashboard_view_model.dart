@@ -42,6 +42,14 @@ class DashboardViewModel extends ChangeNotifier {
           await db.rawQuery('SELECT COUNT(*) as count FROM users');
       final int totalUsers = Sqflite.firstIntValue(usersCountResult) ?? 0;
 
+      final programsCountResult =
+          await db.rawQuery('SELECT COUNT(*) as count FROM programs');
+      final int totalPrograms = Sqflite.firstIntValue(programsCountResult) ?? 0;
+
+      final studyPlansCountResult =
+          await db.rawQuery('SELECT COUNT(*) as count FROM studyPlans');
+      final int totalStudyPlans = Sqflite.firstIntValue(studyPlansCountResult) ?? 0;
+
       // =======================================================
       // 2. جلب أحدث الكليات المضافة (ترتيب تنازلي حسب تاريخ الإنشاء)
       // =======================================================
@@ -51,17 +59,9 @@ class DashboardViewModel extends ChangeNotifier {
         limit: 5, // جلب 5 فقط
       );
 
-      // تحويل الـ Map القادم من SQLite إلى CollegeModel
-      // ملاحظة: تأكد أن دالة fromJson لديك في CollegeModel تقبل هذه المفاتيح
+      // تحويل الـ Map القادم من SQLite إلى CollegeModel بطريقة آمنة
       final recentColleges = recentCollegesLocal.map((map) {
-        return CollegeModel(
-          id: map['id'] as String,
-          arName: map['ar_name'] as String,
-          enName: map['en_name'] as String,
-          code: map['code'] as String,
-          deanId: map['dean_id'] as String,
-          createdAt: map['created_at'] as String, // أو حسب نوعها في الموديل
-        );
+        return CollegeModel.fromMap(map);
       }).toList();
 
       // =======================================================
@@ -73,16 +73,9 @@ class DashboardViewModel extends ChangeNotifier {
         limit: 5,
       );
 
+      // تحويل باستخدام fromMap بشكل آمن
       final recentFaculty = recentFacultyLocal.map((map) {
-        return FacultyMemberModel(
-          id: map['id'] as String,
-          name: map['name'] as String,
-          email: map['email'] as String,
-          department: map['department'] as String,
-          academicDegree: map['academic_degree'] as String,
-          status: map['status'] as String,
-          createdAt: map['created_at'] as String, // أو حسب نوعها
-        );
+        return FacultyMemberModel.fromMap(map);
       }).toList();
 
       // =======================================================
@@ -92,6 +85,8 @@ class DashboardViewModel extends ChangeNotifier {
         totalColleges: totalColleges,
         totalFacultyMembers: totalFaculty,
         totalUsers: totalUsers,
+        totalPrograms: totalPrograms,
+        totalStudyPlans: totalStudyPlans,
         recentColleges: recentColleges,
         recentFaculty: recentFaculty,
       );
@@ -119,6 +114,7 @@ class DashboardViewModel extends ChangeNotifier {
       final facultyCount =
           await _firestore.collection('faculty_members').count().get();
       final usersCount = await _firestore.collection('users').count().get();
+      final programsCount = await _firestore.collection('programs').count().get();
 
       // جلب أحدث الكليات المضافة
       final recentCollegesSnapshot = await _firestore
@@ -146,6 +142,7 @@ class DashboardViewModel extends ChangeNotifier {
         totalColleges: collegesCount.count ?? 0,
         totalFacultyMembers: facultyCount.count ?? 0,
         totalUsers: usersCount.count ?? 0,
+        totalPrograms: programsCount.count ?? 0,
         recentColleges: recentColleges,
         recentFaculty: recentFaculty,
       );

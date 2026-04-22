@@ -7,6 +7,10 @@ import 'package:academic_affairs_management/features/desktop_pages/colleges_scre
 import 'package:academic_affairs_management/features/desktop_pages/departments_screen/departments_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_members.dart';
 import 'package:academic_affairs_management/features/desktop_pages/users_screen/users_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/programs_screen/programs_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/subjects_screen/subjects_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/study_plans_view.dart';
+
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -18,6 +22,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell>
     with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
+  int _dashboardKeyCount = 0;
   bool _sidebarVisible = true;
 
   late final AnimationController _animController;
@@ -56,7 +61,10 @@ class _MainShellState extends State<MainShell>
 
   /// Called from DashboardView quick-access buttons
   void _navigateTo(int index) {
-    setState(() => _selectedIndex = index);
+    setState(() {
+      _selectedIndex = index;
+      if (index == 0) _dashboardKeyCount++;
+    });
   }
 
   @override
@@ -81,11 +89,16 @@ class _MainShellState extends State<MainShell>
                 IndexedStack(
                   index: _selectedIndex,
                   children: [
-                    DashboardView(onNavigate: _navigateTo),
+                    DashboardView(
+                        key: ValueKey('dash_$_dashboardKeyCount'),
+                        onNavigate: _navigateTo),
                     const Colleges(),
                     const DepartmentsView(),
                     const FacultyMembers(),
                     const Users(),
+                    const ProgramsView(),
+                    const SubjectsView(),
+                    const StudyPlansView(),
                   ],
                 ),
                 // Toggle button
@@ -141,13 +154,21 @@ class _MainShellState extends State<MainShell>
         children: [
           _buildSidebarHeader(),
           const Divider(height: 1),
-          const SizedBox(height: DesktopSpacing.md),
-          _buildSidebarItem(0, 'لوحة التحكم', Icons.dashboard_outlined),
-          _buildSidebarItem(1, 'إدارة الكليات', Icons.business_outlined),
-          _buildSidebarItem(2, 'الأقسام', Icons.account_tree_outlined),
-          _buildSidebarItem(3, 'هيئة التدريس', Icons.people_outline),
-          _buildSidebarItem(4, 'المستخدمين', Icons.manage_accounts_outlined),
-          const Spacer(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: DesktopSpacing.md),
+              children: [
+                _buildSidebarItem(0, 'لوحة التحكم', Icons.dashboard_outlined),
+                _buildSidebarItem(1, 'إدارة الكليات', Icons.business_outlined),
+                _buildSidebarItem(2, 'الأقسام', Icons.account_tree_outlined),
+                _buildSidebarItem(3, 'هيئة التدريس', Icons.people_outline),
+                _buildSidebarItem(4, 'المستخدمين', Icons.manage_accounts_outlined),
+                _buildSidebarItem(5, 'إدارة البرامج', Icons.school_outlined),
+                _buildSidebarItem(6, 'المقررات', Icons.menu_book_outlined),
+                _buildSidebarItem(7, 'الخطط الدراسية', Icons.schema_outlined),
+              ],
+            ),
+          ),
           _buildSidebarFooter(),
         ],
       ),
@@ -183,7 +204,12 @@ class _MainShellState extends State<MainShell>
       padding: const EdgeInsets.symmetric(
           horizontal: DesktopSpacing.sm, vertical: 4),
       child: InkWell(
-        onTap: () => setState(() => _selectedIndex = index),
+        onTap: () {
+          setState(() {
+            _selectedIndex = index;
+            if (index == 0) _dashboardKeyCount++;
+          });
+        },
         borderRadius: BorderRadius.circular(8),
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
