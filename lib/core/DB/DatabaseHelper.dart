@@ -84,6 +84,7 @@ class DatabaseHelper {
           status TEXT,      -- 👈 تمت إضافة عمود الحالة
           
           -- 📁 حقول الملفات
+          file_number TEXT,        -- 👈 تمت إضافته هنا (مهم جداً للإكسل)
           file_url TEXT,
           local_file_path TEXT,
           
@@ -129,7 +130,7 @@ class DatabaseHelper {
           -- 🏫 الوضع الأكاديمي الحالي بالجامعة
           current_academic_title TEXT,
           title_transfer_date TEXT,
-          department_id TEXT,
+          department TEXT,
           general_specialization TEXT,
           exact_specialization TEXT,
           

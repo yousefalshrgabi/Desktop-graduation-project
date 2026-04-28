@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class FacultyMemberModel {
@@ -54,7 +53,7 @@ class FacultyMemberModel {
   // 🏫 الوضع الأكاديمي الحالي
   final String academicDegree; // mapped to current_academic_title
   final String? titleTransferDate;
-  final String department; // mapped to department_id
+  final String department; // mapped to department
   final String? generalSpecialization;
   final String? exactSpecialization;
 
@@ -152,7 +151,7 @@ class FacultyMemberModel {
       assocProfDecision: map['assoc_prof_decision']?.toString(),
       academicDegree: map['current_academic_title']?.toString() ?? 'غير محدد',
       titleTransferDate: map['title_transfer_date']?.toString(),
-      department: map['department_id']?.toString() ?? 'غير محدد',
+      department: map['department']?.toString() ?? 'غير محدد',
       generalSpecialization: map['general_specialization']?.toString(),
       exactSpecialization: map['exact_specialization']?.toString(),
       sabbaticalLeaves: map['sabbatical_leaves']?.toString(),
@@ -206,7 +205,7 @@ class FacultyMemberModel {
       assocProfDecision: data['assoc_prof_decision']?.toString(),
       academicDegree: data['current_academic_title']?.toString() ?? 'غير محدد',
       titleTransferDate: data['title_transfer_date']?.toString(),
-      department: data['department_id']?.toString() ?? 'غير محدد',
+      department: data['department']?.toString() ?? 'غير محدد',
       generalSpecialization: data['general_specialization']?.toString(),
       exactSpecialization: data['exact_specialization']?.toString(),
       sabbaticalLeaves: data['sabbatical_leaves']?.toString(),
@@ -271,7 +270,7 @@ class FacultyMemberModel {
       'assoc_prof_decision': assocProfDecision,
       'current_academic_title': academicDegree,
       'title_transfer_date': titleTransferDate,
-      'department_id': department,
+      'department': department,
       'general_specialization': generalSpecialization,
       'exact_specialization': exactSpecialization,
       'sabbatical_leaves': sabbaticalLeaves,

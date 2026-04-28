@@ -32,42 +32,63 @@ class SyncService {
     await db.delete('deleted_records');
   }
 
-  // 2. رفع البيانات من SQLite إلى Firebase (بدون تجاهل أي حقل)
+  // 2. رفع البيانات من SQLite إلى Firebase (الشامل)
   Future<void> pushToFirebase() async {
     final db = await DatabaseHelper.instance.database;
     WriteBatch batch = _firestore.batch();
 
-    // -- رفع أعضاء هيئة التدريس (الشامل) --
-    // نستخدم المودل لضمان جلب الـ 30 حقل بالكامل
+    // -- 1. رفع أعضاء هيئة التدريس --
     final facultyMaps = await db.query('faculty_members');
     for (var map in facultyMaps) {
       final faculty = FacultyMemberModel.fromMap(map);
       final ref = _firestore.collection('faculty_members').doc(faculty.id);
 
-      // نرفع البيانات كاملة باستخدام toMap()
-      // ملاحظة: قمنا بتحويل التاريخ لـ Timestamp للتوافق مع الفايربيس
       Map<String, dynamic> dataToUpload = faculty.toMap();
       dataToUpload['created_at'] = _toFirebaseTimestamp(faculty.createdAt);
-
       batch.set(ref, dataToUpload);
     }
 
-    // -- رفع المستخدمين --
+    // -- 2. رفع المستخدمين --
     final users = await db.query('users');
     for (var u in users) {
       final ref = _firestore.collection('users').doc(u['id'].toString());
       batch.set(ref, {
-        ...u, // نرفع كل الحقول الموجودة في الجدول تلقائياً
+        ...u,
         'created_at': _toFirebaseTimestamp(u['created_at']),
       });
     }
 
-    // -- رفع الكليات والأقسام --
+    // -- 3. رفع الكليات --
     final colleges = await db.query('colleges');
     for (var c in colleges) {
       batch.set(_firestore.collection('colleges').doc(c['id'].toString()), {
         ...c,
         'created_at': _toFirebaseTimestamp(c['created_at']),
+      });
+    }
+
+    // -- 4. رفع الأقسام (كانت مفقودة) --
+    final departments = await db.query('departments');
+    for (var d in departments) {
+      batch.set(_firestore.collection('departments').doc(d['id'].toString()), {
+        ...d,
+        'created_at': _toFirebaseTimestamp(d['created_at']),
+      });
+    }
+
+    // -- 5. رفع المواد (كانت مفقودة) --
+    final subjects = await db.query('subjects');
+    for (var s in subjects) {
+      batch.set(_firestore.collection('subjects').doc(s['id'].toString()), {
+        ...s,
+      });
+    }
+
+    // -- 6. رفع الخطط الدراسية (كانت مفقودة) --
+    final studyPlans = await db.query('study_plans');
+    for (var p in studyPlans) {
+      batch.set(_firestore.collection('study_plans').doc(p['id'].toString()), {
+        ...p,
       });
     }
 
@@ -77,33 +98,17 @@ class SyncService {
         );
   }
 
-  // 3. تنزيل البيانات من Firebase إلى SQLite (التكامل الكامل)
   // 3. تنزيل البيانات من Firebase إلى SQLite (التكامل الكامل والشامل)
+  // 3. تنزيل البيانات من Firebase إلى SQLite (بالترتيب الصحيح لتجنب Foreign Key Error)
   Future<void> pullFromFirebase() async {
     final db = await DatabaseHelper.instance.database;
     Batch localBatch = db.batch();
 
-    // إجبار القراءة من السيرفر لضمان جلب أحدث البيانات
     const GetOptions serverOnly = GetOptions(source: Source.server);
 
     try {
       // -----------------------------------------------------------
-      // 1. تنزيل أعضاء هيئة التدريس (الملف الشامل 30+ حقل)
-      // -----------------------------------------------------------
-      final facSnap =
-          await _firestore.collection('faculty_members').get(serverOnly);
-      for (var doc in facSnap.docs) {
-        // نستخدم fromFirestore لأنه يعالج التواريخ والـ JSON تلقائياً
-        final faculty = FacultyMemberModel.fromFirestore(doc);
-        localBatch.insert(
-          'faculty_members',
-          faculty.toMap(),
-          conflictAlgorithm: ConflictAlgorithm.replace,
-        );
-      }
-
-      // -----------------------------------------------------------
-      // 2. تنزيل المستخدمين
+      // 1. تنزيل المستخدمين (الجدول الأب) أولاً
       // -----------------------------------------------------------
       final userSnap = await _firestore.collection('users').get(serverOnly);
       for (var doc in userSnap.docs) {
@@ -128,7 +133,7 @@ class SyncService {
       }
 
       // -----------------------------------------------------------
-      // 3. تنزيل الكليات
+      // 2. تنزيل الكليات (الجدول الأب للأقسام)
       // -----------------------------------------------------------
       final colSnap = await _firestore.collection('colleges').get(serverOnly);
       for (var doc in colSnap.docs) {
@@ -149,7 +154,7 @@ class SyncService {
       }
 
       // -----------------------------------------------------------
-      // 4. تنزيل الأقسام (جديد)
+      // 3. تنزيل الأقسام
       // -----------------------------------------------------------
       final deptSnap =
           await _firestore.collection('departments').get(serverOnly);
@@ -170,7 +175,7 @@ class SyncService {
       }
 
       // -----------------------------------------------------------
-      // 5. تنزيل المواد (Subjects)
+      // 4. تنزيل المواد
       // -----------------------------------------------------------
       final subSnap = await _firestore.collection('subjects').get(serverOnly);
       for (var doc in subSnap.docs) {
@@ -187,7 +192,21 @@ class SyncService {
       }
 
       // -----------------------------------------------------------
-      // 6. تنزيل الخطط الدراسية (Study Plans)
+      // 5. تنزيل أعضاء هيئة التدريس (الآن المستخدمين موجودين، لن يحدث خطأ)
+      // -----------------------------------------------------------
+      final facSnap =
+          await _firestore.collection('faculty_members').get(serverOnly);
+      for (var doc in facSnap.docs) {
+        final faculty = FacultyMemberModel.fromFirestore(doc);
+        localBatch.insert(
+          'faculty_members',
+          faculty.toMap(),
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      // -----------------------------------------------------------
+      // 6. تنزيل الخطط الدراسية
       // -----------------------------------------------------------
       final planSnap =
           await _firestore.collection('study_plans').get(serverOnly);
@@ -216,13 +235,10 @@ class SyncService {
       debugPrint('[SYNC SUCCESS] تم تنزيل كافة البيانات بنجاح.');
     } catch (e) {
       debugPrint('[SYNC ERROR] فشل في تنزيل البيانات: $e');
-      rethrow; // نمرر الخطأ للـ UI لعرضه في نافذة المزامنة
+      rethrow;
     }
   }
 
-  // =================================================================
-  // دوال معالجة التواريخ
-  // =================================================================
   Timestamp _toFirebaseTimestamp(dynamic localDate) {
     if (localDate == null || localDate == '-') return Timestamp.now();
     DateTime? dt = DateTime.tryParse(localDate.toString());

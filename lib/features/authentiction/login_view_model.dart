@@ -1,6 +1,5 @@
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'package:academic_affairs_management/core/services/sync_service.dart'; // استدعاء خدمة المزامنة
-import 'package:academic_affairs_management/features/authentiction/login_view.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';

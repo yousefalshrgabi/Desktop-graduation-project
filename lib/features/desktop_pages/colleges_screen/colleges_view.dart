@@ -1,7 +1,6 @@
 import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
-import 'package:academic_affairs_management/core/services/sync_service.dart';
 import 'colleges_view_model.dart';
 import 'add_college_dialog.dart';
 import 'edit_college_dialog.dart';
@@ -16,7 +15,6 @@ class Colleges extends StatefulWidget {
 
 class _CollegesState extends State<Colleges> {
   final CollegesViewModel _viewModel = CollegesViewModel();
-  final SyncService _syncService = SyncService();
   final TextEditingController _searchController = TextEditingController();
 
   @override

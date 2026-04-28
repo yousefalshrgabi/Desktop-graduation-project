@@ -155,6 +155,33 @@ class _FacultyMembersState extends State<FacultyMembers> {
               ),
             ),
             const SizedBox(width: DesktopSpacing.xs),
+            ListenableBuilder(
+                listenable: _viewModel,
+                builder: (context, _) {
+                  return ElevatedButton.icon(
+                    onPressed: _viewModel.isLoading
+                        ? null
+                        : () =>
+                            _viewModel.importFacultyMembersFromExcel(context),
+                    icon: _viewModel.isLoading
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(
+                                color: Colors.white, strokeWidth: 2))
+                        : const Icon(Icons.upload_file, color: Colors.white),
+                    label: const Text('استيراد الإكسل',
+                        style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.green[700], // لون مميز للإكسل
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: DesktopSpacing.md, vertical: 16),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                    ),
+                  );
+                }),
+            const SizedBox(width: DesktopSpacing.xs),
             ElevatedButton(
               onPressed: () {
                 showDialog(
