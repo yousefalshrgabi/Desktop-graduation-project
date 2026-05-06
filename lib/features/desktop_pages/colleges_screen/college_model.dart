@@ -6,6 +6,8 @@ class CollegeModel {
   final String enName;
   final String code;
   final String deanId;
+  final String academicViceDeanId;
+  final String studentViceDeanId;
   final String createdAt;
 
   CollegeModel({
@@ -14,6 +16,8 @@ class CollegeModel {
     required this.enName,
     required this.code,
     required this.deanId,
+    required this.academicViceDeanId,
+    required this.studentViceDeanId,
     required this.createdAt,
   });
 
@@ -61,6 +65,8 @@ class CollegeModel {
       enName: map['en_name']?.toString() ?? 'غير محدد',
       code: map['code']?.toString() ?? 'غير محدد',
       deanId: map['dean_id']?.toString() ?? '',
+      academicViceDeanId: map['academic_vice_dean_id']?.toString() ?? '',
+      studentViceDeanId: map['student_vice_dean_id']?.toString() ?? '',
       createdAt: parsedDate,
     );
   }
@@ -76,6 +82,8 @@ class CollegeModel {
       enName: data['en_name']?.toString() ?? 'غير محدد',
       code: data['code']?.toString() ?? 'غير محدد',
       deanId: data['deanId']?.toString() ?? '',
+      academicViceDeanId: data['academicViceDeanId']?.toString() ?? '',
+      studentViceDeanId: data['studentViceDeanId']?.toString() ?? '',
       // استخدام الدالة الذكية لمعالجة التاريخ لتجنب الـ Crash
       createdAt: _parseDate(data['createdAt']),
     );

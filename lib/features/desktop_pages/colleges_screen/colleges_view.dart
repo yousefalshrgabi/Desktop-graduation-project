@@ -184,7 +184,9 @@ class _CollegesState extends State<Colleges> {
             );
           }
 
-          return CustomDataTable(
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: CustomDataTable(
             columns: const [
               DataColumn(
                   label: Text('المعرف', style: DesktopTextStyles.caption)),
@@ -197,6 +199,10 @@ class _CollegesState extends State<Colleges> {
               DataColumn(
                   label: Text('العميد', style: DesktopTextStyles.caption)),
               DataColumn(
+                  label: Text('نائب الشؤون الأكاديمية', style: DesktopTextStyles.caption)),
+              DataColumn(
+                  label: Text('نائب شؤون الطلاب', style: DesktopTextStyles.caption)),
+              DataColumn(
                   label:
                       Text('تاريخ الإنشاء', style: DesktopTextStyles.caption)),
               DataColumn(
@@ -204,7 +210,7 @@ class _CollegesState extends State<Colleges> {
             ],
             rows: _viewModel.filteredColleges.map((college) {
               final deanName =
-                  _viewModel.deanNames[college.deanId] ?? 'غير محدد';
+                  _viewModel.userNames[college.deanId] ?? 'غير محدد';
               return DataRow(cells: [
                 DataCell(Text('#${college.id.substring(0, 5)}...',
                     style: DesktopTextStyles.caption)),
@@ -212,6 +218,10 @@ class _CollegesState extends State<Colleges> {
                 DataCell(Text(college.enName, style: DesktopTextStyles.body)),
                 DataCell(Text(college.code, style: DesktopTextStyles.body)),
                 DataCell(Text(deanName, style: DesktopTextStyles.body)),
+                DataCell(Text(_viewModel.userNames[college.academicViceDeanId] ?? '-',
+                    style: DesktopTextStyles.body)),
+                DataCell(Text(_viewModel.userNames[college.studentViceDeanId] ?? '-',
+                    style: DesktopTextStyles.body)),
                 DataCell(
                     Text(college.createdAt, style: DesktopTextStyles.caption)),
                 DataCell(
@@ -264,7 +274,7 @@ class _CollegesState extends State<Colleges> {
                 ),
               ]);
             }).toList(),
-          );
+          ));
         },
       ),
     );

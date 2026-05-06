@@ -5,6 +5,11 @@ import 'package:sqflite/sqflite.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'study_plans_model.dart';
 import 'package:academic_affairs_management/features/desktop_pages/programs_screen/programs_model.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:uuid/uuid.dart';
+import 'package:path/path.dart' as p;
 
 class StudyPlansViewModel extends ChangeNotifier {
   // ── State ─────────────────────────────────────────────────────────────────
@@ -13,9 +18,11 @@ class StudyPlansViewModel extends ChangeNotifier {
   String _searchQuery = '';
   bool _isLoading = true;
   String? _errorMessage;
+  List<Map<String, dynamic>> _departments = [];
 
   List<StudyPlanModel> get plans => _plans;
   List<ProgramModel> get programs => _programs;
+  List<Map<String, dynamic>> get departments => _departments;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
@@ -80,6 +87,10 @@ class StudyPlansViewModel extends ChangeNotifier {
       final plansResult = await db.query('studyPlans');
       _plans =
           plansResult.map((e) => StudyPlanModel.fromSQLiteMap(e)).toList();
+
+      // تحميل الأقسام
+      final depsResult = await db.query('departments');
+      _departments = depsResult;
 
       // مزامنة العناصر غير المرفوعة في الخلفية
       _syncPendingPlans();
@@ -201,6 +212,64 @@ class StudyPlansViewModel extends ChangeNotifier {
       return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
     } catch (_) {
       return false;
+    }
+  }
+
+  // ── Excel Upload ───────────────────────────────────────────────────────────
+  Future<void> uploadStudyPlanExcel(String deptId, PlatformFile file) async {
+    try {
+      // 1. Save locally
+      final docsDir = await getApplicationDocumentsDirectory();
+      final targetDir = Directory(p.join(docsDir.path, 'AcademicAffairs', 'StudyPlans'));
+      if (!await targetDir.exists()) {
+        await targetDir.create(recursive: true);
+      }
+      final localPath = p.join(targetDir.path, file.name);
+      
+      if (file.path != null) {
+        final localFile = File(file.path!);
+        await localFile.copy(localPath);
+      }
+
+      // 2. Upload to Firebase
+      String downloadUrl = '';
+      if (await hasInternet()) {
+        final storageRef = FirebaseStorage.instance.ref().child('study_plans/${const Uuid().v4()}_${file.name}');
+        UploadTask uploadTask;
+        if (file.bytes != null) {
+          uploadTask = storageRef.putData(file.bytes!);
+        } else if (file.path != null) {
+          uploadTask = storageRef.putFile(File(file.path!));
+        } else {
+          throw Exception("No file data found.");
+        }
+        
+        final snapshot = await uploadTask;
+        downloadUrl = await snapshot.ref.getDownloadURL();
+      } else {
+        throw Exception("لا يوجد اتصال بالإنترنت للرفع على فايربيس");
+      }
+
+      // 3. Save to Firestore
+      final id = const Uuid().v4();
+      final date = DateTime.now().toIso8601String();
+      final record = {
+        'id': id,
+        'dept_id': deptId,
+        'url': downloadUrl,
+        'date': date,
+        'local_path': localPath,
+      };
+      
+      await _firestore.collection('study_plans_storage').doc(id).set(record);
+
+      // 4. Save to SQLite
+      final db = await DatabaseHelper.instance.database;
+      await db.insert('study_plans_storage', record, conflictAlgorithm: ConflictAlgorithm.replace);
+
+    } catch (e) {
+      debugPrint('خطأ في إدراج ملف الخطة الدراسية: $e');
+      rethrow;
     }
   }
 }

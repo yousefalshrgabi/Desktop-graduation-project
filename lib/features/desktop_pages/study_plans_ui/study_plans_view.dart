@@ -6,6 +6,7 @@ import 'study_plans_viewmodel.dart';
 import 'add_study_plan_dialog.dart';
 import 'edit_study_plan_dialog.dart';
 import 'view_study_plan_dialog.dart';
+import 'insert_study_plan_excel_dialog.dart';
 
 class StudyPlansView extends StatefulWidget {
   const StudyPlansView({Key? key}) : super(key: key);
@@ -126,6 +127,22 @@ class _StudyPlansViewState extends State<StudyPlansView> {
           Icon(Icons.add, color: DesktopColors.surface),
           SizedBox(width: 8),
           Text('إضافة خطة جديدة'),
+        ]),
+      ),
+      const SizedBox(width: DesktopSpacing.md),
+      ElevatedButton(
+        onPressed: () => showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => InsertStudyPlanExcelDialog(viewModel: _viewModel),
+        ),
+        style: DesktopButtonTheme.elevatedButtonTheme.style?.copyWith(
+          backgroundColor: MaterialStateProperty.all(Colors.teal),
+        ),
+        child: Row(children: const [
+          Icon(Icons.upload_file, color: DesktopColors.surface),
+          SizedBox(width: 8),
+          Text('إدراج خطة دراسية'),
         ]),
       ),
     ]);

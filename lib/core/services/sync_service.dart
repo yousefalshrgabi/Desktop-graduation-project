@@ -52,6 +52,8 @@ class SyncService {
         'enName': c['en_name'],
         'code': c['code'],
         'deanId': c['dean_id'],
+        'academicViceDeanId': c['academic_vice_dean_id'] ?? '',
+        'studentViceDeanId': c['student_vice_dean_id'] ?? '',
         'createdAt': _toFirebaseTimestamp(c['created_at']),
       });
     }
@@ -171,6 +173,8 @@ class SyncService {
             'en_name': data['enName'] ?? data['en_name'] ?? '',
             'code': data['code'] ?? '',
             'dean_id': data['deanId'] ?? data['dean_id'] ?? '',
+            'academic_vice_dean_id': data['academicViceDeanId'] ?? data['academic_vice_dean_id'] ?? '',
+            'student_vice_dean_id': data['studentViceDeanId'] ?? data['student_vice_dean_id'] ?? '',
             'created_at':
                 _toLocalIsoString(data['createdAt'] ?? data['createAt']),
           },

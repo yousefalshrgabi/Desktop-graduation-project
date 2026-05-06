@@ -25,7 +25,7 @@ class DatabaseHelper {
 
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
     return await openDatabase(path,
-        version: 6, onCreate: _createDB, onUpgrade: _upgradeDB);
+        version: 8, onCreate: _createDB, onUpgrade: _upgradeDB);
   }
 
   Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
@@ -84,6 +84,25 @@ class DatabaseHelper {
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول studyPlans (v6) خلال الترقية');
     }
+
+    if (oldVersion < 7) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS study_plans_storage (
+          id TEXT PRIMARY KEY,
+          dept_id TEXT NOT NULL,
+          url TEXT NOT NULL,
+          date TEXT NOT NULL,
+          local_path TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول study_plans_storage (v7) خلال الترقية');
+    }
+
+    if (oldVersion < 8) {
+      await db.execute('ALTER TABLE colleges ADD COLUMN academic_vice_dean_id TEXT');
+      await db.execute('ALTER TABLE colleges ADD COLUMN student_vice_dean_id TEXT');
+      debugPrint('[SQLITE DEBUG] ✅ تم إضافة أعمدة نواب العميد لجدول colleges');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -93,7 +112,9 @@ class DatabaseHelper {
       await db.execute('''
         CREATE TABLE colleges (
           id TEXT PRIMARY KEY, ar_name TEXT NOT NULL, en_name TEXT NOT NULL,
-          code TEXT NOT NULL, dean_id TEXT NOT NULL, created_at TEXT NOT NULL
+          code TEXT NOT NULL, dean_id TEXT NOT NULL, 
+          academic_vice_dean_id TEXT, student_vice_dean_id TEXT,
+          created_at TEXT NOT NULL
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول colleges');
@@ -180,6 +201,17 @@ class DatabaseHelper {
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول studyPlans');
+
+      await db.execute('''
+        CREATE TABLE study_plans_storage (
+          id TEXT PRIMARY KEY,
+          dept_id TEXT NOT NULL,
+          url TEXT NOT NULL,
+          date TEXT NOT NULL,
+          local_path TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول study_plans_storage');
 
       debugPrint('[SQLITE DEBUG] 🎉 اكتمل بناء قاعدة البيانات المحلية بنجاح!');
     } catch (e) {
