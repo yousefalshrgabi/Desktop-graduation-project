@@ -1,6 +1,10 @@
-import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
+import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'faculty_members_view_model.dart';
 import 'add_faculty_member_dialog.dart';
 
@@ -12,32 +16,134 @@ class FacultyMembers extends StatefulWidget {
 }
 
 class _FacultyMembersState extends State<FacultyMembers> {
-  // تعريف الـ ViewModel
   final FacultyMembersViewModel _viewModel = FacultyMembersViewModel();
+  final TextEditingController _searchController = TextEditingController();
 
+  // 🌟 متغيرات الفلترة
   String _searchQuery = '';
+  String? _selectedFaculty;
   String? _selectedDepartment;
   String? _selectedDegree;
   String? _selectedStatus;
 
-  final List<String> _departments = [
-    'علوم الحاسوب',
-    'نظم المعلومات',
-    'تقنية المعلومات',
-    'هندسة البرمجيات'
-  ];
+  // 🌟 متغيرات قواعد البيانات المساعدة للفلترة
+  List<Map<String, dynamic>> _dbColleges = [];
+  List<Map<String, dynamic>> _dbDepartments = [];
+  Map<String, String> _userFaculties =
+      {}; // لربط الدكتور بكليته من جدول المستخدمين
 
-  final List<String> _degrees = ['أستاذ', 'أستاذ مشارك', 'أستاذ مساعد', 'معيد'];
-
-  final List<String> _statuses = ['نشط', 'متفرغ', 'منتدب', 'غير نشط'];
-
-  final TextEditingController _searchController = TextEditingController();
+  bool _wasLoading = false;
 
   @override
   void initState() {
     super.initState();
-    _viewModel.fetchFacultyMembers(); // 👈 تأكد من وجود هذا السطر
+    _viewModel.fetchFacultyMembers();
+    _loadDynamicFiltersData();
+
+    // تحديث المرشحات تلقائياً بعد أي استيراد أو تغيير
+    _viewModel.addListener(() {
+      if (_wasLoading && !_viewModel.isLoading) {
+        _loadDynamicFiltersData();
+      }
+      _wasLoading = _viewModel.isLoading;
+    });
   }
+
+  // 🌟 جلب الكليات والأقسام من الجداول لتهيئتها في المرشحات
+  Future<void> _loadDynamicFiltersData() async {
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final colleges = await db.query('colleges');
+      final departments = await db.query('departments');
+
+      // سحب كليات المستخدمين لربط الدكتور بكليته (لأن الكلية محفوظة في جدول users)
+      final users = await db.query('users', columns: ['id', 'faculty']);
+      Map<String, String> tempUserFaculties = {};
+      for (var u in users) {
+        tempUserFaculties[u['id'].toString()] = u['faculty']?.toString() ?? '';
+      }
+
+      if (mounted) {
+        setState(() {
+          _dbColleges = colleges;
+          _dbDepartments = departments;
+          _userFaculties = tempUserFaculties;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading dynamic filter data: $e');
+    }
+  }
+
+  Future<void> _openLocalFile(String path) async {
+    final File file = File(path);
+    if (await file.exists()) {
+      // تشغيل الملف باستخدام البرنامج الافتراضي في الويندوز (مثل Acrobat Reader للـ PDF)
+      final Uri uri = Uri.file(path);
+      if (!await launchUrl(uri)) {
+        throw 'تعذر فتح الملف في المسار: $path';
+      }
+    } else {
+      print("الملف غير موجود محلياً في هذا المسار");
+    }
+  }
+
+  // ==================== استخراج القوائم الديناميكية للمرشحات ====================
+
+  // 1. قائمة الكليات (من جدول colleges)
+  List<String> get _availableFaculties {
+    return _dbColleges.map((c) => c['ar_name'].toString()).toSet().toList()
+      ..sort();
+  }
+
+  // 2. قائمة الأقسام (تتغير بناءً على الكلية المختارة)
+  List<String> get _availableDepartments {
+    if (_selectedFaculty != null) {
+      // إذا اختار كلية، نبحث عن المعرف الخاص بها
+      final college = _dbColleges.firstWhere(
+        (c) => c['ar_name'].toString() == _selectedFaculty,
+        orElse: () => {},
+      );
+
+      if (college.isNotEmpty) {
+        // نعرض فقط الأقسام التي تتبع لهذه الكلية
+        final collegeId = college['id'];
+        return _dbDepartments
+            .where((d) => d['college_id'] == collegeId)
+            .map((d) => d['name'].toString())
+            .toSet()
+            .toList()
+          ..sort();
+      }
+      return [];
+    } else {
+      // إذا لم يحدد كلية، نعرض جميع الأقسام من جدول الأقسام
+      return _dbDepartments.map((d) => d['name'].toString()).toSet().toList()
+        ..sort();
+    }
+  }
+
+  // 3. الدرجات العلمية (من الأعضاء الموجودين)
+  List<String> get _dynamicDegrees {
+    return _viewModel.allMembers
+        .map((m) => m.currentAcademicTitle)
+        .where((d) => d.isNotEmpty && d != 'غير محدد')
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  // 4. الحالات (من الأعضاء الموجودين)
+  List<String> get _dynamicStatuses {
+    return _viewModel.allMembers
+        .map((m) => m.status)
+        .where((s) => s.isNotEmpty)
+        .toSet()
+        .toList()
+      ..sort();
+  }
+
+  // ========================================================================================
 
   @override
   void dispose() {
@@ -65,7 +171,6 @@ class _FacultyMembersState extends State<FacultyMembers> {
     );
   }
 
-  // 1. دالة الـ AppBar
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
       title: Row(
@@ -79,36 +184,30 @@ class _FacultyMembersState extends State<FacultyMembers> {
       ),
       actions: [
         TextButton(onPressed: () {}, child: const Text('العربية | EN')),
-
-        // 👈 إضافة زر المزامنة هنا
         IconButton(
-          tooltip: 'مزامنة السحابة', // يظهر كنص توضيحي عند تمرير الماوس
+          tooltip: 'مزامنة السحابة',
           icon: const Icon(Icons.cloud_sync_outlined,
               color: DesktopColors.primary),
           onPressed: () {
             showDialog(
-              context: context,
-              barrierDismissible: false, // لمنع الإغلاق بالخطأ أثناء المزامنة
-              builder: (context) => SyncDialog(),
-            );
+                context: context,
+                barrierDismissible: false,
+                builder: (context) => SyncDialog());
           },
         ),
-
         IconButton(
             icon: const Icon(Icons.notifications_none), onPressed: () {}),
         IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () {}),
         const Padding(
           padding: EdgeInsets.symmetric(horizontal: 16.0),
           child: CircleAvatar(
-            backgroundColor: Color.fromARGB(255, 219, 215, 220),
-            child: Text('أ'),
-          ),
+              backgroundColor: Color.fromARGB(255, 219, 215, 220),
+              child: Text('أ')),
         ),
       ],
     );
   }
 
-  // 2. دالة الـ Header
   Widget _buildHeader() {
     return Row(
       children: [
@@ -118,10 +217,8 @@ class _FacultyMembersState extends State<FacultyMembers> {
             const Text('إدارة أعضاء هيئة التدريس',
                 style: DesktopTextStyles.heading1),
             const SizedBox(height: DesktopSpacing.xs / 2),
-            Text(
-              'إضافة وتعديل وحذف أعضاء هيئة التدريس في الأقسام الأكاديمية',
-              style: DesktopTextStyles.caption,
-            ),
+            Text('إضافة وتعديل وحذف أعضاء هيئة التدريس في الأقسام الأكاديمية',
+                style: DesktopTextStyles.caption),
             const SizedBox(height: DesktopSpacing.xs),
           ],
         ),
@@ -129,7 +226,6 @@ class _FacultyMembersState extends State<FacultyMembers> {
     );
   }
 
-  // 3. دالة الفلاتر وزر الإضافة
   Widget _buildFiltersAndActions(BuildContext context) {
     return Column(
       children: [
@@ -139,18 +235,16 @@ class _FacultyMembersState extends State<FacultyMembers> {
               flex: 3,
               child: TextField(
                 controller: _searchController,
-                onChanged: (val) {
-                  setState(() {
-                    _searchQuery = val;
-                  });
-                },
+                onChanged: (val) => setState(() => _searchQuery = val),
                 decoration: InputDecoration(
-                  hintText: 'ابحث بالاسم، القسم، أو الدرجة العلمية...',
+                  hintText: 'ابحث بالاسم، الرقم الوظيفي، أو التخصص...',
                   prefixIcon: const Icon(Icons.search),
                   enabledBorder:
                       DesktopInputTheme.inputDecorationTheme.enabledBorder,
                   focusedBorder:
                       DesktopInputTheme.inputDecorationTheme.focusedBorder,
+                  filled: true,
+                  fillColor: Colors.white,
                 ),
               ),
             ),
@@ -173,7 +267,7 @@ class _FacultyMembersState extends State<FacultyMembers> {
                     label: const Text('استيراد الإكسل',
                         style: TextStyle(color: Colors.white)),
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green[700], // لون مميز للإكسل
+                      backgroundColor: Colors.green[700],
                       padding: const EdgeInsets.symmetric(
                           horizontal: DesktopSpacing.md, vertical: 16),
                       shape: RoundedRectangleBorder(
@@ -185,41 +279,47 @@ class _FacultyMembersState extends State<FacultyMembers> {
             ElevatedButton(
               onPressed: () {
                 showDialog(
-                  context: context,
-                  barrierDismissible: false,
-                  builder: (context) =>
-                      AddFacultyMemberDialog(viewModel: _viewModel),
-                );
+                    context: context,
+                    barrierDismissible: false,
+                    builder: (context) =>
+                        AddFacultyMemberDialog(viewModel: _viewModel));
               },
               style: DesktopButtonTheme.elevatedButtonTheme.style,
-              child: Row(
-                children: [
-                  const Icon(
-                    Icons.add,
-                    color: DesktopColors.surface,
-                  ),
-                  const SizedBox(width: 8),
-                  const Text(
-                    'إضافة عضو جديد',
-                  )
-                ],
-              ),
+              child: const Row(children: [
+                Icon(Icons.add, color: DesktopColors.surface),
+                SizedBox(width: 8),
+                Text('إضافة عضو جديد')
+              ]),
             )
           ],
         ),
         const SizedBox(height: DesktopSpacing.sm),
+
+        // 🌟 صف المرشحات الديناميكية
         Row(
           children: [
             _buildDropdownFilter(
-                'كل الأقسام',
-                _selectedDepartment,
-                _departments,
-                (val) => setState(() => _selectedDepartment = val)),
+                'كل الكليات', _selectedFaculty, _availableFaculties, (val) {
+              setState(() {
+                _selectedFaculty = val;
+                _selectedDepartment =
+                    null; // 👈 تصفير القسم إجبارياً عند تغيير الكلية
+              });
+            }),
             const SizedBox(width: 10),
-            _buildDropdownFilter('الدرجة العلمية', _selectedDegree, _degrees,
+            _buildDropdownFilter(
+                'كل الأقسام', _selectedDepartment, _availableDepartments,
+                (val) {
+              setState(() => _selectedDepartment = val);
+            }),
+            const SizedBox(width: 10),
+            _buildDropdownFilter(
+                'اللقب العلمي',
+                _selectedDegree,
+                _dynamicDegrees,
                 (val) => setState(() => _selectedDegree = val)),
             const SizedBox(width: 10),
-            _buildDropdownFilter('الحالة', _selectedStatus, _statuses,
+            _buildDropdownFilter('الحالة', _selectedStatus, _dynamicStatuses,
                 (val) => setState(() => _selectedStatus = val)),
             const SizedBox(width: 10),
             TextButton(
@@ -227,6 +327,7 @@ class _FacultyMembersState extends State<FacultyMembers> {
                 setState(() {
                   _searchQuery = '';
                   _searchController.clear();
+                  _selectedFaculty = null;
                   _selectedDepartment = null;
                   _selectedDegree = null;
                   _selectedStatus = null;
@@ -243,6 +344,9 @@ class _FacultyMembersState extends State<FacultyMembers> {
 
   Widget _buildDropdownFilter(String label, String? selectedValue,
       List<String> items, void Function(String?) onChanged) {
+    String? safeValue = selectedValue;
+    if (safeValue != null && !items.contains(safeValue)) safeValue = null;
+
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: DesktopSpacing.xs + 4),
@@ -254,10 +358,11 @@ class _FacultyMembersState extends State<FacultyMembers> {
         child: DropdownButtonHideUnderline(
           child: DropdownButton<String>(
             hint: Text(label, style: DesktopTextStyles.caption),
-            value: selectedValue,
+            value: safeValue,
             isExpanded: true,
             items: items
-                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .map((e) => DropdownMenuItem(
+                    value: e, child: Text(e, overflow: TextOverflow.ellipsis)))
                 .toList(),
             onChanged: onChanged,
           ),
@@ -266,7 +371,6 @@ class _FacultyMembersState extends State<FacultyMembers> {
     );
   }
 
-  // 4. جدول البيانات المحلي (بدون Stream)
   Widget _buildFacultyMembersTableLocal() {
     return Container(
       decoration: BoxDecoration(
@@ -274,16 +378,14 @@ class _FacultyMembersState extends State<FacultyMembers> {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: DesktopColors.border),
       ),
-      // 👈 استخدام ListenableBuilder لربط الواجهة بالـ ViewModel
       child: ListenableBuilder(
         listenable: _viewModel,
         builder: (context, child) {
           if (_viewModel.isLoading) {
             return const Center(
                 child: Padding(
-              padding: EdgeInsets.all(DesktopSpacing.lg),
-              child: CircularProgressIndicator(),
-            ));
+                    padding: EdgeInsets.all(DesktopSpacing.lg),
+                    child: CircularProgressIndicator()));
           }
 
           if (_viewModel.errorMessage.isNotEmpty) {
@@ -293,54 +395,65 @@ class _FacultyMembersState extends State<FacultyMembers> {
           if (_viewModel.allMembers.isEmpty) {
             return const Center(
                 child: Padding(
-              padding: EdgeInsets.all(DesktopSpacing.lg),
-              child: Text('لا يوجد أعضاء هيئة تدريس مسجلين حالياً'),
-            ));
+                    padding: EdgeInsets.all(DesktopSpacing.lg),
+                    child: Text('لا يوجد أعضاء هيئة تدريس مسجلين حالياً')));
           }
 
-          final allMembers = _viewModel.allMembers;
-
-          // تفعيل الفلاتر محلياً
-          final members = allMembers.where((m) {
+          // 🌟 تطبيق منطق الفلترة المتقدم
+          final members = _viewModel.allMembers.where((m) {
+            // 1. البحث النصي
             final matchesSearch = _searchQuery.isEmpty ||
                 m.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                m.department
-                    .toLowerCase()
-                    .contains(_searchQuery.toLowerCase()) ||
-                m.academicDegree
+                m.jobNumber.contains(_searchQuery) ||
+                m.generalSpecialization
                     .toLowerCase()
                     .contains(_searchQuery.toLowerCase());
 
+            // 2. فلتر الكلية (يعرض كل أعضاء الكلية)
+            final memberFaculty = _userFaculties[m.userId] ?? '';
+            final matchesFaculty =
+                _selectedFaculty == null || memberFaculty == _selectedFaculty;
+
+            // 3. فلتر القسم (مبني على القسم المختار - اختياري)
             final matchesDept = _selectedDepartment == null ||
                 m.department == _selectedDepartment;
-            final matchesDegree =
-                _selectedDegree == null || m.academicDegree == _selectedDegree;
+
+            // 4. فلتر اللقب العلمي
+            final matchesDegree = _selectedDegree == null ||
+                m.currentAcademicTitle == _selectedDegree;
+
+            // 5. فلتر الحالة
             final matchesStatus =
                 _selectedStatus == null || m.status == _selectedStatus;
 
             return matchesSearch &&
+                matchesFaculty &&
                 matchesDept &&
                 matchesDegree &&
                 matchesStatus;
           }).toList();
 
+          if (members.isEmpty) {
+            return const Center(
+                child: Padding(
+                    padding: EdgeInsets.all(DesktopSpacing.lg),
+                    child: Text('لا توجد نتائج تطابق المرشحات الحالية.')));
+          }
+
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               CustomDataTable(
-                // نفس الجدول الذي صممته تماماً
                 columns: const [
                   DataColumn(
-                      label: Text('المعرف', style: DesktopTextStyles.caption)),
+                      label: Text('الالرقم الوظيفي',
+                          style: DesktopTextStyles.caption)),
                   DataColumn(
                       label: Text('الاسم', style: DesktopTextStyles.caption)),
                   DataColumn(
                       label: Text('القسم', style: DesktopTextStyles.caption)),
                   DataColumn(
-                      label: Text('الدرجة العلمية',
-                          style: DesktopTextStyles.caption)),
-                  DataColumn(
-                      label: Text('تاريخ الإضافة',
+                      label: Text('اللقب العلمي',
                           style: DesktopTextStyles.caption)),
                   DataColumn(
                       label: Text('الحالة', style: DesktopTextStyles.caption)),
@@ -349,35 +462,55 @@ class _FacultyMembersState extends State<FacultyMembers> {
                 ],
                 rows: members.map((member) {
                   return DataRow(cells: [
-                    DataCell(Text('#${member.id.substring(0, 5)}...',
+                    DataCell(Text(
+                        member.jobNumber.isNotEmpty ? member.jobNumber : '---',
                         style: DesktopTextStyles.caption)),
                     DataCell(Text(member.name, style: DesktopTextStyles.body)),
                     DataCell(
                         Text(member.department, style: DesktopTextStyles.body)),
-                    DataCell(Text(member.academicDegree,
+                    DataCell(Text(member.currentAcademicTitle,
                         style: DesktopTextStyles.body)),
-                    DataCell(Text(member.createdAt,
-                        style: DesktopTextStyles.caption)),
                     DataCell(_buildStatusBadge(member.status)),
                     DataCell(
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert, color: Colors.grey),
-                        onSelected: (value) {
+                        onSelected: (value) async {
                           if (value == 'edit') {
-                            // 👈 استدعاء نافذة الإضافة وتمرير العضو ليتم التعديل عليه
                             showDialog(
                               context: context,
                               barrierDismissible: false,
                               builder: (context) => AddFacultyMemberDialog(
                                 viewModel: _viewModel,
-                                memberToEdit: member, // هنا نمرر البيانات
+                                memberToEdit: member,
                               ),
                             );
+                          } else if (value == 'view_file') {
+                            // 👈 تم تعديل المنطق هنا ليتناسب مع القيمة الجديدة
+                            if (member.localFilePath.isNotEmpty) {
+                              await _openLocalFile(member.localFilePath);
+                            } else {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content:
+                                        Text('لا يوجد ملف مرفق لهذا العضو')),
+                              );
+                            }
                           } else if (value == 'delete') {
                             _viewModel.deleteFacultyMember(member.id);
                           }
                         },
                         itemBuilder: (context) => [
+                          // 🌟 إضافة خيار "عرض الملف" في القائمة المنسدلة 🌟
+                          const PopupMenuItem(
+                            value: 'view_file',
+                            child: Row(children: [
+                              Icon(Icons.description,
+                                  color: Colors.purple, size: 16),
+                              SizedBox(width: 8),
+                              Text('عرض الملف المرفق',
+                                  style: TextStyle(color: Colors.purple))
+                            ]),
+                          ),
                           const PopupMenuItem(
                             value: 'edit',
                             child: Row(children: [
@@ -408,7 +541,6 @@ class _FacultyMembersState extends State<FacultyMembers> {
     );
   }
 
-  // 5. دالة تلوين الشارة الخاصة بالحالة (نشط، غير نشط، متفرغ، الخ)
   Widget _buildStatusBadge(String status) {
     Color color;
     switch (status) {
@@ -436,6 +568,31 @@ class _FacultyMembersState extends State<FacultyMembers> {
         status,
         style:
             TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+      ),
+    );
+  }
+}
+
+class CustomDataTable extends StatelessWidget {
+  final List<DataColumn> columns;
+  final List<DataRow> rows;
+
+  const CustomDataTable({super.key, required this.columns, required this.rows});
+
+  @override
+  Widget build(BuildContext context) {
+    return Theme(
+      data: Theme.of(context).copyWith(
+        dividerColor: DesktopColors.border,
+        dataTableTheme: DataTableThemeData(
+          headingRowColor: MaterialStateProperty.all(Colors.grey[50]),
+        ),
+      ),
+      child: DataTable(
+        columns: columns,
+        rows: rows,
+        columnSpacing: DesktopSpacing.md,
+        horizontalMargin: DesktopSpacing.md,
       ),
     );
   }

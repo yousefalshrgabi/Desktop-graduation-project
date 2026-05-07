@@ -7,9 +7,10 @@ class UserModel {
   final String phone;
   final String role;
   final String createdAt;
+
+  // حقول اختيارية (Nullable) بناءً على تصميم الجدول
   final String? faculty;
   final String? department;
-  final String? level;
   final String? status;
 
   UserModel({
@@ -21,63 +22,62 @@ class UserModel {
     required this.createdAt,
     this.faculty,
     this.department,
-    this.level,
     this.status,
   });
 
-  // دالة مساعدة لتحويل بيانات Firestore إلى Object
+  // 🔄 تحويل البيانات القادمة من SQLite إلى كائن
+  factory UserModel.fromMap(Map<String, dynamic> map) {
+    return UserModel(
+      id: map['id']?.toString() ?? '',
+      name: map['name']?.toString() ?? '',
+      email: map['email']?.toString() ?? '',
+      phone: map['phone']?.toString() ?? '',
+      role: map['role']?.toString() ?? '',
+      createdAt:
+          map['created_at']?.toString() ?? DateTime.now().toIso8601String(),
+
+      // الحقول الاختيارية
+      faculty: map['faculty']?.toString(),
+      department: map['department']?.toString(),
+      status: map['status']?.toString(),
+    );
+  }
+
+  // 🔄 تحويل الكائن إلى خريطة (Map) لحفظه في SQLite أو Firebase
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'name': name,
+      'email': email,
+      'phone': phone,
+      'role': role,
+      'created_at': createdAt,
+      'faculty': faculty,
+      'department': department,
+      'status': status,
+    };
+  }
+
+  // 🔄 دالة إضافية لجلب البيانات من Firebase بشكل آمن
   factory UserModel.fromFirestore(DocumentSnapshot doc) {
-    final data = doc.data() as Map<String, dynamic>? ?? {};
+    Map<String, dynamic> data = doc.data() as Map<String, dynamic>;
 
-    // 1. استلام القيمة كـ dynamic أولاً (بدون تحديد نوع)
-    final rawDate = data['createAt'] ?? data['createdAt'];
-
-    // 2. التحقق من النوع قبل التحويل
-    String createdAtString = '-';
-    if (rawDate is Timestamp) {
-      createdAtString = rawDate.toDate().toString().split(' ')[0];
-    } else if (rawDate is String) {
-      createdAtString = rawDate.split(' ')[0];
+    // معالجة التاريخ إذا كان بصيغة Timestamp من الفايربيس
+    String parseDate(dynamic dateField) {
+      if (dateField is Timestamp) return dateField.toDate().toIso8601String();
+      return dateField?.toString() ?? DateTime.now().toIso8601String();
     }
 
     return UserModel(
       id: doc.id,
-      name: data['name']?.toString() ?? 'غير معروف',
-      email: data['email']?.toString() ?? 'غير معروف',
-      phone: data['phone']?.toString() ?? 'غير معروف',
-      role: data['role']?.toString() ?? 'غير محدد',
-      createdAt: createdAtString, // السطر 32 الآن أصبح آمناً
+      name: data['name']?.toString() ?? '',
+      email: data['email']?.toString() ?? '',
+      phone: data['phone']?.toString() ?? '',
+      role: data['role']?.toString() ?? '',
+      createdAt: parseDate(data['created_at']),
       faculty: data['faculty']?.toString(),
       department: data['department']?.toString(),
-      level: data['level']?.toString(),
       status: data['status']?.toString(),
-    );
-  }
-  // دالة مساعدة لتحويل بيانات SQLite إلى Object
-  factory UserModel.fromMap(Map<String, dynamic> map) {
-    String parsedDate = '-';
-    // الانتباه لاسم الحقل الدقيق في جدول SQLite
-    if (map['created_at'] != null) {
-      DateTime? dt = DateTime.tryParse(map['created_at'].toString());
-      if (dt != null) {
-        parsedDate =
-            '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
-      } else {
-        parsedDate = map['created_at'].toString();
-      }
-    }
-
-    return UserModel(
-      id: map['id']?.toString() ?? '',
-      name: map['name']?.toString() ?? 'غير معروف',
-      email: map['email']?.toString() ?? 'غير معروف',
-      phone: map['phone']?.toString() ?? 'غير متوفر',
-      role: map['role']?.toString() ?? 'غير محدد',
-      createdAt: parsedDate,
-      faculty: map['faculty']?.toString(),
-      department: map['department']?.toString(),
-      level: map['level']?.toString(),
-      status: map['status']?.toString(),
     );
   }
 }

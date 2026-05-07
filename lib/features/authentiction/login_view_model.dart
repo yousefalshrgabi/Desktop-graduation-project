@@ -67,7 +67,7 @@ class LoginViewModel extends ChangeNotifier {
       try {
         await DatabaseHelper.instance.clearAllData(); // تنظيف القديم أولاً
         await _syncService
-            .pullFromFirebase(); // تنزيل الأقسام والكليات والأعضاء والمستخدمين
+            .performSmartSync(); // تنزيل الأقسام والكليات والأعضاء والمستخدمين
         await syncExtraData(); // دالة مخصصة لتنزيل الجداول الأخرى غير المشمولة في SyncService
         debugPrint('[LOGIN DEBUG] تم تنزيل البيانات بنجاح.');
       } catch (e) {
@@ -104,8 +104,8 @@ class LoginViewModel extends ChangeNotifier {
       debugPrint(
           '[LOGOUT DEBUG] جاري تأمين ورفع البيانات المحلية قبل الخروج...');
       try {
-        await _syncService.syncDeletionsFirst();
-        await _syncService.pushToFirebase();
+        await _syncService
+            .performSmartSync(); // محاولة رفع التعديلات قبل تسجيل الخروج   
       } catch (syncError) {
         throw Exception(
             'لا يمكن تسجيل الخروج الآن. يوجد تعديلات محلية لم تُرفع للسحابة ولا يوجد اتصال بالإنترنت.');

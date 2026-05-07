@@ -17,48 +17,26 @@ class _SyncDialogState extends State<SyncDialog> {
   String _syncMessage = 'اضغط على الزر لبدء المزامنة الشاملة';
   IconData _syncIcon = Icons.cloud_sync_rounded;
   Color _iconColor = Colors.blue;
-  double _progressValue = 0.0;
+  double? _progressValue = 0.0; // جعلناه يقبل Null لعمل حركة مستمرة
 
   Future<void> _handleFullSync() async {
     setState(() {
       _isSyncing = true;
-      _syncMessage = 'جاري الاتصال بالسحابة...';
-      _syncIcon = Icons.cloud_sync;
+      _syncMessage = 'جاري المزامنة الذكية (رفع التعديلات ودمج السحابة)...';
+      _syncIcon = Icons.sync; // أيقونة الدوران
       _iconColor = Colors.blue;
-      _progressValue = 0.1;
+      _progressValue = null; // القيمة null تجعل شريط التقدم يتحرك باستمرار
     });
 
     try {
-      // 1. إرسال أوامر الحذف
-      setState(() {
-        _syncMessage = 'جاري تنظيف السحابة... (1/3)';
-        _progressValue = 0.3;
-      });
-      await _syncService.syncDeletionsFirst();
-
-      // 2. التنزيل (Pull)
-      setState(() {
-        _syncMessage = 'جاري تنزيل أحدث البيانات... (2/3)';
-        _syncIcon = Icons.cloud_download;
-        _iconColor = Colors.purple;
-        _progressValue = 0.6;
-      });
-      await _syncService.pullFromFirebase();
-
-      // 3. الرفع (Push)
-      setState(() {
-        _syncMessage = 'جاري رفع التعديلات المحلية... (3/3)';
-        _syncIcon = Icons.cloud_upload;
-        _iconColor = Colors.orange;
-        _progressValue = 0.9;
-      });
-      await _syncService.pushToFirebase();
+      // 🌟 استدعاء الدالة الذكية الجديدة التي تقوم بكل شيء بأمان
+      await _syncService.performSmartSync();
 
       setState(() {
         _syncMessage = 'تمت المزامنة الشاملة بنجاح!';
         _syncIcon = Icons.check_circle_outline;
         _iconColor = Colors.green;
-        _progressValue = 1.0;
+        _progressValue = 1.0; // اكتمال الشريط
       });
 
       Future.delayed(const Duration(seconds: 2), () {
@@ -74,7 +52,10 @@ class _SyncDialogState extends State<SyncDialog> {
       _setErrorState('حدث خطأ: $e', Icons.error_outline);
     } finally {
       if (mounted && _syncIcon != Icons.check_circle_outline) {
-        setState(() => _isSyncing = false);
+        setState(() {
+          _isSyncing = false;
+          _progressValue = 0.0;
+        });
       }
     }
   }
@@ -85,6 +66,7 @@ class _SyncDialogState extends State<SyncDialog> {
       _syncIcon = icon;
       _iconColor = Colors.red;
       _isSyncing = false;
+      _progressValue = 0.0;
     });
   }
 
@@ -93,9 +75,8 @@ class _SyncDialogState extends State<SyncDialog> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: Container(
-        width: 450, // زيادة العرض قليلاً لتناسب رسائل الخطأ
-        constraints:
-            const BoxConstraints(maxHeight: 500), // تحديد أقصى ارتفاع للنافذة
+        width: 450,
+        constraints: const BoxConstraints(maxHeight: 500),
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -123,7 +104,6 @@ class _SyncDialogState extends State<SyncDialog> {
             ),
             const SizedBox(height: 20),
 
-            // 👈 الحل لمشكلة الـ Overflow: استخدام Flexible مع ScrollView لرسالة المزامنة
             Flexible(
               child: SingleChildScrollView(
                 child: Text(
@@ -145,7 +125,8 @@ class _SyncDialogState extends State<SyncDialog> {
             // شريط التقدم أو زر المزامنة
             if (_isSyncing || _progressValue == 1.0)
               LinearProgressIndicator(
-                value: _progressValue == 1.0 ? 1.0 : null,
+                value:
+                    _progressValue, // null = يتحرك يميناً ويساراً (Indeterminate)
                 backgroundColor: Colors.grey[200],
                 color: _iconColor,
                 minHeight: 6,

@@ -41,21 +41,21 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyBUVB7S59FlMYgvXHNGspH-SNZ2ffzo7Kc',
-    appId: '1:79772205925:web:46daab89f57921b1d6578c',
-    messagingSenderId: '79772205925',
-    projectId: 'academic-management-syst-5e9d8',
-    authDomain: 'academic-management-syst-5e9d8.firebaseapp.com',
-    storageBucket: 'academic-management-syst-5e9d8.firebasestorage.app',
-    measurementId: 'G-DRV8EX8S42',
+    apiKey: 'AIzaSyAWdNoPXAPee0ySt1EIeBWA2qWcV7kTgRg',
+    appId: '1:482522249835:web:2c1fa7b4ed8a6532044f2e',
+    messagingSenderId: '482522249835',
+    projectId: 'sales-shop-2026',
+    authDomain: 'sales-shop-2026.firebaseapp.com',
+    storageBucket: 'sales-shop-2026.firebasestorage.app',
+    measurementId: 'G-YC7WYJ2N8S',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyDyVXB0nmfWw2pmry1S_Vf6CAVppo-P_O8',
-    appId: '1:79772205925:android:590686c16b9603dcd6578c',
-    messagingSenderId: '79772205925',
-    projectId: 'academic-management-syst-5e9d8',
-    storageBucket: 'academic-management-syst-5e9d8.firebasestorage.app',
+    apiKey: 'AIzaSyC8CnfSYjn6rApaaCknGi4AjKxAnSgp5WA',
+    appId: '1:482522249835:android:4d2150f987374220044f2e',
+    messagingSenderId: '482522249835',
+    projectId: 'sales-shop-2026',
+    storageBucket: 'sales-shop-2026.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
@@ -77,12 +77,13 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions windows = FirebaseOptions(
-    apiKey: 'AIzaSyBUVB7S59FlMYgvXHNGspH-SNZ2ffzo7Kc',
-    appId: '1:79772205925:web:d1a2f73b94bd7d47d6578c',
-    messagingSenderId: '79772205925',
-    projectId: 'academic-management-syst-5e9d8',
-    authDomain: 'academic-management-syst-5e9d8.firebaseapp.com',
-    storageBucket: 'academic-management-syst-5e9d8.firebasestorage.app',
-    measurementId: 'G-B9YJX5CGFW',
+    apiKey: 'AIzaSyAWdNoPXAPee0ySt1EIeBWA2qWcV7kTgRg',
+    appId: '1:482522249835:web:2c1fa7b4ed8a6532044f2e',
+    messagingSenderId: '482522249835',
+    projectId: 'sales-shop-2026',
+    authDomain: 'sales-shop-2026.firebaseapp.com',
+    storageBucket: 'sales-shop-2026.firebasestorage.app',
+    measurementId: 'G-YC7WYJ2N8S',
   );
+
 }
