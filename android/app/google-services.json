@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "79772205925",
-    "project_id": "academic-management-syst-5e9d8",
-    "storage_bucket": "academic-management-syst-5e9d8.firebasestorage.app"
+    "project_number": "482522249835",
+    "project_id": "sales-shop-2026",
+    "storage_bucket": "sales-shop-2026.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:79772205925:android:590686c16b9603dcd6578c",
+        "mobilesdk_app_id": "1:482522249835:android:4d2150f987374220044f2e",
         "android_client_info": {
           "package_name": "com.example.academic_affairs_management"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDyVXB0nmfWw2pmry1S_Vf6CAVppo-P_O8"
+          "current_key": "AIzaSyC8CnfSYjn6rApaaCknGi4AjKxAnSgp5WA"
         }
       ],
       "services": {
@@ -26,15 +26,15 @@
     },
     {
       "client_info": {
-        "mobilesdk_app_id": "1:79772205925:android:9ef96eb24275fd88d6578c",
+        "mobilesdk_app_id": "1:482522249835:android:4d9eea098abb197d044f2e",
         "android_client_info": {
-          "package_name": "com.example.academic_management_system"
+          "package_name": "com.example.itlevelthreetest"
         }
       },
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyDyVXB0nmfWw2pmry1S_Vf6CAVppo-P_O8"
+          "current_key": "AIzaSyC8CnfSYjn6rApaaCknGi4AjKxAnSgp5WA"
         }
       ],
       "services": {

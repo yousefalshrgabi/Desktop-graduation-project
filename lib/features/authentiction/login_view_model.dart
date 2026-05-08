@@ -80,6 +80,8 @@ class LoginViewModel extends ChangeNotifier {
         await prefs.setBool('isLoggedIn', true);
         await prefs.setString('userId', uid);
         await prefs.setString('userRole', currentUserRole!);
+        await prefs.setString('userName', userData['name'] ?? 'مستخدم');
+        await prefs.setString('college', userData['college'] ?? 'غير محدد');
       }
 
       status = LoginStatus.success;

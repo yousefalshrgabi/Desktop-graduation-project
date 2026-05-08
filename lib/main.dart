@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:academic_affairs_management/features/mobile_pages/mobile_home.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:cloud_firestore/cloud_firestore.dart'; // سطر مهم جداً
@@ -73,7 +74,8 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         fontFamily: 'Cairo', // يفضل استخدامه لدعم العربية بشكل جميل
       ),
-      home: initialScreen,
+      home://MobileHomePage(),
+          initialScreen,
       builder: (context, child) =>
           Directionality(textDirection: TextDirection.rtl, child: child!),
     );

@@ -174,6 +174,26 @@ class DatabaseHelper {
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول deleted_records');
+      
+      // 8. جدول الطلبات (لأرشفة الطلبات والوصول إليها بدون إنترنت)
+      await db.execute('''
+        CREATE TABLE requests (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          applicantName TEXT NOT NULL,
+          senderCollege TEXT NOT NULL,
+          destinationCollege TEXT NOT NULL,
+          type TEXT NOT NULL,
+          description TEXT NOT NULL,
+          dateSent TEXT NOT NULL,
+          dateReplied TEXT,
+          status TEXT NOT NULL,
+          rejectionReason TEXT,
+          fileUrl TEXT,
+          local_file_path TEXT
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول requests');
 
       debugPrint('[SQLITE DEBUG] 🎉 اكتمل بناء قاعدة البيانات المحلية بنجاح!');
     } catch (e) {
@@ -226,9 +246,52 @@ class DatabaseHelper {
       await db.delete('users');
       await db.delete('study_plans');
       await db.delete('subjects');
+      await db.delete('requests');
       debugPrint('[SQLITE DEBUG] ✅ تم تنظيف قاعدة البيانات بنجاح.');
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ فشل عملية التنظيف: $e');
+    }
+  }
+
+  // =================================================================
+  // دوال الطلبات (Requests)
+  // =================================================================
+
+  Future<void> insertRequestLocal(Map<String, dynamic> requestMap) async {
+    try {
+      final db = await instance.database;
+      await db.insert(
+        'requests',
+        requestMap,
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+      debugPrint('[SQLITE DEBUG] ✅ تم حفظ الطلب محلياً: ${requestMap['title']}');
+    } catch (e) {
+      debugPrint('[SQLITE DEBUG] ❌ فشل حفظ الطلب محلياً: $e');
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> getLocalRequests() async {
+    try {
+      final db = await instance.database;
+      return await db.query('requests', orderBy: 'dateSent DESC');
+    } catch (e) {
+      debugPrint('[SQLITE DEBUG] ❌ فشل جلب الطلبات محلياً: $e');
+      return [];
+    }
+  }
+
+  Future<void> updateRequestLocalPath(String requestId, String localPath) async {
+    try {
+      final db = await instance.database;
+      await db.update(
+        'requests',
+        {'local_file_path': localPath},
+        where: 'id = ?',
+        whereArgs: [requestId],
+      );
+    } catch (e) {
+      debugPrint('[SQLITE DEBUG] ❌ فشل تحديث مسار الملف المحلي: $e');
     }
   }
 

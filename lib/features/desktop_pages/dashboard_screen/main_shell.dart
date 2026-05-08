@@ -7,6 +7,7 @@ import 'package:academic_affairs_management/features/desktop_pages/colleges_scre
 import 'package:academic_affairs_management/features/desktop_pages/departments_screen/departments_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_members.dart';
 import 'package:academic_affairs_management/features/desktop_pages/users_screen/users_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/requests_screen/requests_view.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -87,6 +88,7 @@ class _MainShellState extends State<MainShell>
                     DepartmentsView(key: ValueKey('depts_$_selectedIndex')),
                     FacultyMembers(key: ValueKey('faculty_$_selectedIndex')),
                     Users(key: ValueKey('users_$_selectedIndex')),
+                    RequestsView(key: ValueKey('requests_$_selectedIndex')),
                   ],
                 ),
                 // Toggle button
@@ -148,6 +150,7 @@ class _MainShellState extends State<MainShell>
           _buildSidebarItem(2, 'الأقسام', Icons.account_tree_outlined),
           _buildSidebarItem(3, 'هيئة التدريس', Icons.people_outline),
           _buildSidebarItem(4, 'المستخدمين', Icons.manage_accounts_outlined),
+          _buildSidebarItem(5, 'الطلبات', Icons.request_page_outlined),
           const Spacer(),
           _buildSidebarFooter(),
         ],
