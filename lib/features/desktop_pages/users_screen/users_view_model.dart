@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart'; // تأكد من مسار قاعدة البيانات
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'user_model.dart';
 
 class UsersViewModel extends ChangeNotifier {
@@ -10,6 +10,8 @@ class UsersViewModel extends ChangeNotifier {
 
   String searchQuery = '';
   String? selectedRole;
+  String? selectedFaculty;
+  List<String> colleges = [];
 
   // استخراج الأدوار المتاحة من البيانات الموجودة لتعبئة الـ Dropdown الديناميكي
   List<String> get availableRoles => allUsers
@@ -23,6 +25,18 @@ class UsersViewModel extends ChangeNotifier {
     fetchUsers();
   }
 
+  // داخل كلاس UsersViewModel
+  static const Map<String, String> roleTranslations = {
+    'super_admin': 'مدير النظام',
+    'Public Prosecution': 'النيابة العامة',
+    'Deputy Dean': 'نائب العميد',
+    'Head of department': 'رئيس قسم',
+    'Faculty Member': 'عضو هيئة تدريس',
+  };
+
+// دالة مساعدة لتحويل الإنجليزي إلى عربي للعرض
+  String translateRole(String role) => roleTranslations[role] ?? role;
+
   // 1. جلب البيانات (محلياً وفورياً)
   Future<void> fetchUsers() async {
     isLoading = true;
@@ -30,13 +44,19 @@ class UsersViewModel extends ChangeNotifier {
 
     try {
       final db = await DatabaseHelper.instance.database;
-      final List<Map<String, dynamic>> result = await db.query('users');
 
-      allUsers = result.map((doc) => UserModel.fromMap(doc)).toList();
+      // جلب المستخدمين
+      final List<Map<String, dynamic>> userResult = await db.query('users');
+      allUsers = userResult.map((doc) => UserModel.fromMap(doc)).toList();
+
+      // 👈 جلب أسماء الكليات لتعبئة الفلتر
+      final List<Map<String, dynamic>> collegeResult =
+          await db.query('colleges');
+      colleges = collegeResult.map((c) => c['ar_name'].toString()).toList();
+
       _applyFilters();
     } catch (error) {
       errorMessage = error.toString();
-      debugPrint('Error fetching users: $error');
       isLoading = false;
       notifyListeners();
     }
@@ -57,6 +77,12 @@ class UsersViewModel extends ChangeNotifier {
   void clearFilters() {
     searchQuery = '';
     selectedRole = null;
+    selectedFaculty = null;
+    _applyFilters();
+  }
+
+  void updateFacultyFilter(String? val) {
+    selectedFaculty = val;
     _applyFilters();
   }
 
@@ -69,7 +95,12 @@ class UsersViewModel extends ChangeNotifier {
       final matchesRole = (selectedRole == null || selectedRole == 'الكل') ||
           u.role == selectedRole;
 
-      return matchesSearch && matchesRole;
+      // 👈 إضافة شرط فلتر الكلية
+      final matchesFaculty =
+          (selectedFaculty == null || selectedFaculty == 'كل الكليات') ||
+              u.faculty == selectedFaculty;
+
+      return matchesSearch && matchesRole && matchesFaculty;
     }).toList();
 
     isLoading = false;
@@ -94,6 +125,13 @@ class UsersViewModel extends ChangeNotifier {
         where: 'id = ?',
         whereArgs: [userId],
       );
+
+      // تحديث الاسم أيضاً في جدول أعضاء هيئة التدريس إذا تم تغيير اسم المستخدم
+      if (data.containsKey('name')) {
+        await db.update('faculty_members', {'name': data['name']},
+            where: 'user_id = ?', whereArgs: [userId]);
+      }
+
       await fetchUsers(); // تحديث الواجهة
       debugPrint('User with ID $userId updated successfully');
     } catch (e) {
@@ -134,7 +172,7 @@ class UsersViewModel extends ChangeNotifier {
     }
   }
 
-  // 3. إضافة مستخدم جديد (تم التعديل لإنشاء ملف أكاديمي تلقائياً)
+  // 3. إضافة مستخدم جديد (تم التعديل لإنشاء ملف أكاديمي تلقائياً بدون حقل الإيميل)
   Future<void> addUser(Map<String, dynamic> data) async {
     // التحقق من صيغة البريد الإلكتروني
     final String email = data['email']?.toString().trim() ?? '';
@@ -178,9 +216,9 @@ class UsersViewModel extends ChangeNotifier {
             'id': facultyId,
             'user_id': userId, // 🔗 هذا هو حقل الربط السحري!
             'name': data['name'],
-            'email': email,
+            // ❌ تم حذف إدخال الإيميل من هنا نهائياً ليطابق التحديث الأخير للقاعدة
+            'status': 'نشط',
             'created_at': DateTime.now().toIso8601String(),
-            // باقي الحقول ستكون فارغة، وسيقوم الدكتور لاحقاً بتعبئتها من حسابه!
           });
           debugPrint(
               'تم إنشاء ملف أكاديمي مبدئي للمستخدم الجديد برقم: $facultyId');

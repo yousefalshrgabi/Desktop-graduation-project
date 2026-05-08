@@ -163,6 +163,8 @@ class _UsersState extends State<Users> {
           children: [
             _buildRoleDropdownFilter(),
             const SizedBox(width: 10),
+            _buildFacultyDropdownFilter(), // 👈 الفلتر الجديد
+            const SizedBox(width: 10),
             TextButton(
               onPressed: () {
                 _searchController.clear();
@@ -194,10 +196,37 @@ class _UsersState extends State<Users> {
             isExpanded: true,
             items: [
               const DropdownMenuItem(value: null, child: Text('الكل')),
-              ..._viewModel.availableRoles
-                  .map((e) => DropdownMenuItem(value: e, child: Text(e))),
+              ..._viewModel.availableRoles.map((e) => DropdownMenuItem(
+                  value: e,
+                  child: Text(UsersViewModel.roleTranslations[e] ?? e))),
             ],
             onChanged: (val) => _viewModel.updateRoleFilter(val),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFacultyDropdownFilter() {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: DesktopSpacing.xs + 4),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: DesktopColors.border),
+        ),
+        child: DropdownButtonHideUnderline(
+          child: DropdownButton<String>(
+            value: _viewModel.selectedFaculty,
+            hint: Text('كل الكليات', style: DesktopTextStyles.caption),
+            isExpanded: true,
+            items: [
+              const DropdownMenuItem(value: null, child: Text('كل الكليات')),
+              ..._viewModel.colleges
+                  .map((e) => DropdownMenuItem(value: e, child: Text(e))),
+            ],
+            onChanged: (val) => _viewModel.updateFacultyFilter(val),
           ),
         ),
       ),
@@ -242,8 +271,6 @@ class _UsersState extends State<Users> {
               CustomDataTable(
                 columns: const [
                   DataColumn(
-                      label: Text('المعرف', style: DesktopTextStyles.caption)),
-                  DataColumn(
                       label: Text('الاسم', style: DesktopTextStyles.caption)),
                   DataColumn(
                       label: Text('البريد الإلكتروني',
@@ -254,21 +281,14 @@ class _UsersState extends State<Users> {
                   DataColumn(
                       label: Text('الدور', style: DesktopTextStyles.caption)),
                   DataColumn(
-                      label: Text('تاريخ الإنشاء',
-                          style: DesktopTextStyles.caption)),
-                  DataColumn(
                       label: Text('إجراءات', style: DesktopTextStyles.caption)),
                 ],
                 rows: users.map((user) {
                   return DataRow(cells: [
-                    DataCell(Text('#${user.id.substring(0, 5)}...',
-                        style: DesktopTextStyles.caption)),
                     DataCell(Text(user.name, style: DesktopTextStyles.body)),
                     DataCell(Text(user.email, style: DesktopTextStyles.body)),
                     DataCell(Text(user.phone, style: DesktopTextStyles.body)),
                     DataCell(_buildRoleBadge(user.role)),
-                    DataCell(
-                        Text(user.createdAt, style: DesktopTextStyles.caption)),
                     DataCell(
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert, color: Colors.grey),
@@ -336,6 +356,8 @@ class _UsersState extends State<Users> {
   // 5. دالة تلوين الشارة
   Widget _buildRoleBadge(String role) {
     Color color;
+    final String displayRole = UsersViewModel.roleTranslations[role] ?? role;
+
     switch (role) {
       case 'super_admin':
         color = Colors.red;
@@ -362,7 +384,7 @@ class _UsersState extends State<Users> {
         border: Border.all(color: color.withOpacity(0.5)),
       ),
       child: Text(
-        role,
+        displayRole,
         style:
             TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
       ),

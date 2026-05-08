@@ -50,7 +50,6 @@ class DatabaseHelper {
           created_at TEXT NOT NULL,
           faculty TEXT, 
           department TEXT, 
-          level TEXT, 
           status TEXT
         )
       ''');
@@ -80,7 +79,6 @@ class DatabaseHelper {
           id TEXT PRIMARY KEY, 
           user_id TEXT,
           name TEXT NOT NULL, 
-          email TEXT,       -- 👈 تمت إضافة عمود الإيميل
           status TEXT,      -- 👈 تمت إضافة عمود الحالة
           
           -- 📁 حقول الملفات

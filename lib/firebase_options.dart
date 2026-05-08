@@ -42,12 +42,12 @@ class DefaultFirebaseOptions {
 
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyAWdNoPXAPee0ySt1EIeBWA2qWcV7kTgRg',
-    appId: '1:482522249835:web:55961061d8147ceb044f2e',
+    appId: '1:482522249835:web:2c1fa7b4ed8a6532044f2e',
     messagingSenderId: '482522249835',
     projectId: 'sales-shop-2026',
     authDomain: 'sales-shop-2026.firebaseapp.com',
     storageBucket: 'sales-shop-2026.firebasestorage.app',
-    measurementId: 'G-XYYC09L4ER',
+    measurementId: 'G-YC7WYJ2N8S',
   );
 
   static const FirebaseOptions android = FirebaseOptions(

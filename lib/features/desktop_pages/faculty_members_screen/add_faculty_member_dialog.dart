@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'faculty_members_view_model.dart';
 import 'faculty_member_model.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 class AddFacultyMemberDialog extends StatefulWidget {
   final FacultyMembersViewModel viewModel;
@@ -24,23 +27,20 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
 
   final Map<String, TextEditingController> _controllers = {};
 
-  List<Map<String, dynamic>> _usersList = [];
-  String? _selectedUserId;
   String? _selectedDepartment;
   String? _selectedDegree;
   String? _selectedStatus = 'نشط';
   bool _isLoading = false;
+  String? _selectedLocalFilePath;
 
-  final List<String> _departments = [
-    'علوم الحاسوب',
-    'نظم المعلومات',
-    'تقنية المعلومات',
-    'هندسة البرمجيات'
-  ];
+  // قائمة ديناميكية تُجلب من قاعدة البيانات
+  List<String> _departments = [];
+
   final List<String> _degrees = [
     'أستاذ',
     'أستاذ مشارك',
     'أستاذ مساعد',
+    'مدرس',
     'معيد',
     'غير محدد'
   ];
@@ -62,28 +62,60 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
   void initState() {
     super.initState();
     _initControllers();
-    _loadUsers();
+    _loadDepartments(); // جلب الأقسام عند بدء الشاشة
   }
 
-  Future<void> _loadUsers() async {
+  // 🌟 دالة جلب الأقسام من جدول الأقسام
+  Future<void> _loadDepartments() async {
     try {
       final db = await DatabaseHelper.instance.database;
-      final users = await db.query('users');
-      setState(() {
-        _usersList = users;
-        if (widget.memberToEdit != null) {
-          _selectedUserId = widget.memberToEdit!.userId;
-        }
-      });
+      final departmentsData = await db.query('departments');
+
+      if (mounted) {
+        setState(() {
+          // استخراج أسماء الأقسام من البيانات
+          _departments = departmentsData
+              .map((d) => d['name'].toString())
+              .toSet() // لمنع التكرار
+              .toList();
+
+          // حماية لواجهة التعديل
+          if (widget.memberToEdit != null) {
+            String currentDept = widget.memberToEdit!.department;
+            if (currentDept.isNotEmpty && currentDept != 'غير محدد') {
+              if (!_departments.contains(currentDept)) {
+                _departments.add(currentDept);
+              }
+              _selectedDepartment = currentDept;
+            }
+          }
+        });
+      }
     } catch (e) {
-      debugPrint('Error loading users: $e');
+      debugPrint('Error loading departments: $e');
     }
   }
 
+  // 🌟 دالة اختيار ملف الدكتور (PDF أو صور)
+  Future<void> _pickFile() async {
+    FilePickerResult? result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png'],
+    );
+
+    if (result != null && result.files.single.path != null) {
+      setState(() {
+        _selectedLocalFilePath = result.files.single.path;
+      });
+    }
+  }
+
+  
+
   void _initControllers() {
     final fields = [
-      'name',
-      'email',
+      'name', // حقل الاسم الذي سيكتبه المستخدم يدوياً
+      'fileNumber',
       'idCardNumber',
       'jobNumber',
       'birthPlace',
@@ -124,63 +156,61 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
 
     if (widget.memberToEdit != null) {
       final m = widget.memberToEdit!;
+
       _controllers['name']?.text = m.name;
-      _controllers['email']?.text = m.email;
-      _controllers['idCardNumber']?.text = m.idCardNumber ?? '';
-      _controllers['jobNumber']?.text = m.jobNumber ?? '';
-      _controllers['birthPlace']?.text = m.birthPlace ?? '';
-      _controllers['birthDate']?.text = m.birthDate ?? '';
-      _controllers['firstAppointmentDate']?.text = m.firstAppointmentDate ?? '';
-      _controllers['univAppointmentDate']?.text = m.univAppointmentDate ?? '';
+      _controllers['fileNumber']?.text = m.fileNumber;
+      _controllers['idCardNumber']?.text = m.idCardNumber;
+      _controllers['jobNumber']?.text = m.jobNumber;
+      _controllers['birthPlace']?.text = m.birthPlace;
+      _controllers['birthDate']?.text = m.birthDate;
+      _controllers['firstAppointmentDate']?.text = m.firstAppointmentDate;
+      _controllers['univAppointmentDate']?.text = m.universityAppointmentDate;
 
-      _controllers['bscDegree']?.text = m.bscDegree ?? '';
-      _controllers['bscDate']?.text = m.bscDate ?? '';
-      _controllers['bscUniversity']?.text = m.bscUniversity ?? '';
-      _controllers['bscCountry']?.text = m.bscCountry ?? '';
-      _controllers['bscAcademicTitle']?.text = m.bscAcademicTitle ?? '';
-      _controllers['bscTitleTransferDate']?.text = m.bscTitleTransferDate ?? '';
-      _controllers['bscSpecialization']?.text = m.bscSpecialization ?? '';
+      _controllers['bscDegree']?.text = m.bscDegree;
+      _controllers['bscDate']?.text = m.bscDate;
+      _controllers['bscUniversity']?.text = m.bscUniversity;
+      _controllers['bscCountry']?.text = m.bscCountry;
+      _controllers['bscAcademicTitle']?.text = m.bscAcademicTitle;
+      _controllers['bscTitleTransferDate']?.text = m.bscTitleTransferDate;
+      _controllers['bscSpecialization']?.text = m.bscSpecialization;
 
-      _controllers['mscDegree']?.text = m.mscDegree ?? '';
-      _controllers['mscDate']?.text = m.mscDate ?? '';
-      _controllers['mscUniversity']?.text = m.mscUniversity ?? '';
-      _controllers['mscCountry']?.text = m.mscCountry ?? '';
-      _controllers['mscAcademicTitle']?.text = m.mscAcademicTitle ?? '';
-      _controllers['mscTitleTransferDate']?.text = m.mscTitleTransferDate ?? '';
-      _controllers['mscDecisionNumber']?.text = m.mscDecisionNumber ?? '';
-      _controllers['mscExactSpecialization']?.text =
-          m.mscExactSpecialization ?? '';
+      _controllers['mscDegree']?.text = m.mscDegree;
+      _controllers['mscDate']?.text = m.mscDate;
+      _controllers['mscUniversity']?.text = m.mscUniversity;
+      _controllers['mscCountry']?.text = m.mscCountry;
+      _controllers['mscAcademicTitle']?.text = m.mscAcademicTitle;
+      _controllers['mscTitleTransferDate']?.text = m.mscTitleTransferDate;
+      _controllers['mscDecisionNumber']?.text = m.mscDecisionNumber;
+      _controllers['mscExactSpecialization']?.text = m.mscExactSpecialization;
 
-      _controllers['currentDegree']?.text = m.currentDegree ?? '';
-      _controllers['currentDegreeDate']?.text = m.currentDegreeDate ?? '';
-      _controllers['currentUniversity']?.text = m.currentUniversity ?? '';
-      _controllers['currentCountry']?.text = m.currentCountry ?? '';
+      _controllers['currentDegree']?.text = m.currentDegree;
+      _controllers['currentDegreeDate']?.text = m.currentDegreeDate;
+      _controllers['currentUniversity']?.text = m.currentUniversity;
+      _controllers['currentCountry']?.text = m.currentCountry;
 
-      _controllers['assistantProfDate']?.text = m.assistantProfDate ?? '';
-      _controllers['assistantProfDecision']?.text =
-          m.assistantProfDecision ?? '';
-      _controllers['assocProfDate']?.text = m.assocProfDate ?? '';
-      _controllers['assocProfDecision']?.text = m.assocProfDecision ?? '';
+      _controllers['assistantProfDate']?.text = m.assistantProfDate;
+      _controllers['assistantProfDecision']?.text = m.assistantProfDecision;
+      _controllers['assocProfDate']?.text = m.assocProfDate;
+      _controllers['assocProfDecision']?.text = m.assocProfDecision;
 
-      _controllers['titleTransferDate']?.text = m.titleTransferDate ?? '';
-      _controllers['generalSpecialization']?.text =
-          m.generalSpecialization ?? '';
-      _controllers['exactSpecialization']?.text = m.exactSpecialization ?? '';
+      _controllers['titleTransferDate']?.text = m.titleTransferDate;
+      _controllers['generalSpecialization']?.text = m.generalSpecialization;
+      _controllers['exactSpecialization']?.text = m.exactSpecialization;
 
-      _selectedDepartment =
-          _departments.contains(m.department) ? m.department : null;
-      _selectedDegree =
-          _degrees.contains(m.academicDegree) ? m.academicDegree : null;
+      _selectedDegree = _degrees.contains(m.currentAcademicTitle)
+          ? m.currentAcademicTitle
+          : null;
+
       _selectedStatus = _statuses.contains(m.status) ? m.status : 'نشط';
 
       try {
-        if (m.sabbaticalLeaves != null && m.sabbaticalLeaves!.isNotEmpty) {
-          final List decoded = jsonDecode(m.sabbaticalLeaves!);
+        if (m.sabbaticalLeaves.isNotEmpty) {
+          final List decoded = jsonDecode(m.sabbaticalLeaves);
           _sabbaticalList =
               decoded.map((e) => Map<String, String>.from(e)).toList();
         }
-        if (m.unpaidLeaves != null && m.unpaidLeaves!.isNotEmpty) {
-          final List decoded = jsonDecode(m.unpaidLeaves!);
+        if (m.unpaidLeaves.isNotEmpty) {
+          final List decoded = jsonDecode(m.unpaidLeaves);
           _unpaidList =
               decoded.map((e) => Map<String, String>.from(e)).toList();
         }
@@ -204,32 +234,73 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
     super.dispose();
   }
 
+  // 🌟 الدالة الذكية لربط أو إنشاء المستخدم
+  Future<String> _getOrCreateUserId(String name) async {
+    final db = await DatabaseHelper.instance.database;
+
+    final existingUsers = await db.query(
+      'users',
+      where: 'name = ?',
+      whereArgs: [name],
+    );
+
+    if (existingUsers.isNotEmpty) {
+      return existingUsers.first['id'].toString();
+    } else {
+      String newUserId = DateTime.now().millisecondsSinceEpoch.toString();
+      await db.insert('users', {
+        'id': newUserId,
+        'name': name,
+        'email': '', // لا يوجد إيميل إجباري
+        'phone': '',
+        'role': 'Faculty Member',
+        'faculty': '',
+        'department': _selectedDepartment ?? '',
+        'status': 'نشط',
+        'created_at': DateTime.now().toIso8601String(),
+      });
+      return newUserId;
+    }
+  }
+
   Future<void> _saveFacultyMember() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedUserId == null && widget.memberToEdit == null) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('الرجاء اختيار المستخدم (ربط الحساب) من القائمة')));
-      return;
-    }
 
     setState(() => _isLoading = true);
 
     try {
+      final typedName = _controllers['name']!.text.trim();
+
+      // الحصول على معرّف المستخدم (ربط أو إنشاء)
+      String finalUserId = widget.memberToEdit != null
+          ? widget.memberToEdit!.userId
+          : await _getOrCreateUserId(typedName);
+
       final newModel = FacultyMemberModel(
-        id: widget.memberToEdit?.id ??
-            DateTime.now().millisecondsSinceEpoch.toString(),
-        userId: _selectedUserId,
-        name: _controllers['name']!.text.trim(),
-        email: _controllers['email']!.text.trim(),
+        id: widget.memberToEdit != null
+            ? widget.memberToEdit!.id
+            : 'fac_${DateTime.now().millisecondsSinceEpoch}',
+
+        userId: finalUserId,
+        name: typedName,
         status: _selectedStatus ?? 'نشط',
         department: _selectedDepartment ?? 'غير محدد',
-        academicDegree: _selectedDegree ?? 'غير محدد',
+        currentAcademicTitle: _selectedDegree ?? 'غير محدد',
+
+        // 👈 تمرير مسارات الملف (سيتم معالجتها في الـ ViewModel للرفع المحلي والسحابي)
+        localFilePath:
+            _selectedLocalFilePath ?? widget.memberToEdit?.localFilePath ?? '',
+        fileUrl: widget.memberToEdit?.fileUrl ?? '',
+
+        fileNumber: _controllers['fileNumber']!.text.trim(),
         idCardNumber: _controllers['idCardNumber']!.text.trim(),
         jobNumber: _controllers['jobNumber']!.text.trim(),
         birthPlace: _controllers['birthPlace']!.text.trim(),
         birthDate: _controllers['birthDate']!.text.trim(),
         firstAppointmentDate: _controllers['firstAppointmentDate']!.text.trim(),
-        univAppointmentDate: _controllers['univAppointmentDate']!.text.trim(),
+        universityAppointmentDate:
+            _controllers['univAppointmentDate']!.text.trim(),
+
         bscDegree: _controllers['bscDegree']!.text.trim(),
         bscDate: _controllers['bscDate']!.text.trim(),
         bscUniversity: _controllers['bscUniversity']!.text.trim(),
@@ -237,6 +308,7 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
         bscAcademicTitle: _controllers['bscAcademicTitle']!.text.trim(),
         bscTitleTransferDate: _controllers['bscTitleTransferDate']!.text.trim(),
         bscSpecialization: _controllers['bscSpecialization']!.text.trim(),
+
         mscDegree: _controllers['mscDegree']!.text.trim(),
         mscDate: _controllers['mscDate']!.text.trim(),
         mscUniversity: _controllers['mscUniversity']!.text.trim(),
@@ -246,21 +318,26 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
         mscDecisionNumber: _controllers['mscDecisionNumber']!.text.trim(),
         mscExactSpecialization:
             _controllers['mscExactSpecialization']!.text.trim(),
+
         currentDegree: _controllers['currentDegree']!.text.trim(),
         currentDegreeDate: _controllers['currentDegreeDate']!.text.trim(),
         currentUniversity: _controllers['currentUniversity']!.text.trim(),
         currentCountry: _controllers['currentCountry']!.text.trim(),
+
         assistantProfDate: _controllers['assistantProfDate']!.text.trim(),
         assistantProfDecision:
             _controllers['assistantProfDecision']!.text.trim(),
         assocProfDate: _controllers['assocProfDate']!.text.trim(),
         assocProfDecision: _controllers['assocProfDecision']!.text.trim(),
+
         titleTransferDate: _controllers['titleTransferDate']!.text.trim(),
         generalSpecialization:
             _controllers['generalSpecialization']!.text.trim(),
         exactSpecialization: _controllers['exactSpecialization']!.text.trim(),
+
         sabbaticalLeaves: jsonEncode(_sabbaticalList),
         unpaidLeaves: jsonEncode(_unpaidList),
+
         createdAt:
             widget.memberToEdit?.createdAt ?? DateTime.now().toIso8601String(),
       );
@@ -287,6 +364,8 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // ... الأجزاء العلوية من الملف كما هي دون تغيير ...
 
   @override
   Widget build(BuildContext context) {
@@ -321,12 +400,62 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _buildSectionTitle('الحساب والبيانات الأساسية'),
+                      _buildSectionTitle('البيانات الأساسية'),
                       _buildRowFields([
-                        _buildUserDropdown(),
-                        _buildInput('البريد الإلكتروني', 'email', true,
-                            isReadOnly: true),
+                        _buildInput('اسم عضو هيئة التدريس', 'name', true,
+                            isReadOnly: widget.memberToEdit != null),
+                        _buildInput('رقم الملف', 'fileNumber', false),
                       ]),
+
+                      // 🌟 تم التصحيح هنا: حذف الـ Expanded اليدوي لأن _buildRowFields يوفره تلقائياً
+                      _buildRowFields([
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel('إرفاق ملف الدكتور (PDF/صورة)'),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Container(
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 12, vertical: 14),
+                                    decoration: BoxDecoration(
+                                      color: Colors.grey[100],
+                                      border:
+                                          Border.all(color: Colors.grey[300]!),
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    child: Text(
+                                      _selectedLocalFilePath != null
+                                          ? _selectedLocalFilePath!
+                                              .split(RegExp(r'[\\/]'))
+                                              .last
+                                          : (widget.memberToEdit
+                                                          ?.localFilePath !=
+                                                      null &&
+                                                  widget.memberToEdit!
+                                                      .localFilePath.isNotEmpty)
+                                              ? widget
+                                                  .memberToEdit!.localFilePath
+                                                  .split(RegExp(r'[\\/]'))
+                                                  .last
+                                              : 'لم يتم اختيار ملف',
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                ElevatedButton.icon(
+                                  onPressed: _pickFile,
+                                  icon: const Icon(Icons.attach_file),
+                                  label: const Text('إرفاق'),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ]),
+
                       _buildRowFields([
                         _buildInput(
                             'رقم البطاقة الشخصية', 'idCardNumber', false),
@@ -334,9 +463,10 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                       ]),
                       _buildRowFields([
                         _buildInput('مكان الميلاد', 'birthPlace', false),
-                        // 👈 استخدام الدالة الجديدة للتواريخ
                         _buildDateInput('تاريخ الميلاد', 'birthDate', false),
                       ]),
+
+                      // ... باقي الأقسام (الوضع الأكاديمي، البكالوريوس، الماجستير، إلخ) تظل كما هي تماماً ...
                       _buildSectionTitle('الوضع الأكاديمي والتعيين بالجامعة'),
                       _buildRowFields([
                         _buildDropdown(
@@ -345,7 +475,7 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                             _departments,
                             (v) => setState(() => _selectedDepartment = v)),
                         _buildDropdown(
-                            'الدرجة العلمية',
+                            'اللقب العلمي (الحالي)',
                             _selectedDegree,
                             _degrees,
                             (v) => setState(() => _selectedDegree = v)),
@@ -493,21 +623,18 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
     );
   }
 
-  // =========================================================================
-  // ================= دوال بناء الواجهة المساعدة المُحدثة =====================
-  // =========================================================================
+  // ================= دوال الواجهة =================
 
-  // 🌟 الدالة الجديدة لاستدعاء التقويم في الحقول الأساسية
   Widget _buildDateInput(String label, String controllerKey, bool isRequired) {
     return TextFormField(
       controller: _controllers[controllerKey],
-      readOnly: true, // يمنع الكتابة اليدوية
+      readOnly: true,
       validator: (val) => isRequired && val!.isEmpty ? 'مطلوب' : null,
       onTap: () async {
         DateTime? pickedDate = await showDatePicker(
           context: context,
           initialDate: DateTime.now(),
-          firstDate: DateTime(1940), // للسماح بتواريخ ميلاد قديمة
+          firstDate: DateTime(1940),
           lastDate: DateTime(2050),
           builder: (context, child) {
             return Theme(
@@ -523,7 +650,6 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
           },
         );
         if (pickedDate != null) {
-          // تنسيق التاريخ إلى YYYY-MM-DD
           String formattedDate =
               "${pickedDate.year}-${pickedDate.month.toString().padLeft(2, '0')}-${pickedDate.day.toString().padLeft(2, '0')}";
           setState(() {
@@ -542,7 +668,6 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
     );
   }
 
-  // 🌟 الدالة الجديدة لاستدعاء التقويم في الجداول التفاعلية (الإجازات)
   Widget _buildSmallDateInput(TextEditingController ctrl, String hint) {
     return TextFormField(
       controller: ctrl,
@@ -597,13 +722,9 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
         children: [
           Row(
             children: [
-              Expanded(
-                  child: _buildSmallDateInput(
-                      startCtrl, 'من تاريخ')), // 👈 تم التحديث للتقويم
+              Expanded(child: _buildSmallDateInput(startCtrl, 'من تاريخ')),
               const SizedBox(width: 8),
-              Expanded(
-                  child: _buildSmallDateInput(
-                      endCtrl, 'إلى تاريخ')), // 👈 تم التحديث للتقويم
+              Expanded(child: _buildSmallDateInput(endCtrl, 'إلى تاريخ')),
               const SizedBox(width: 8),
               Expanded(flex: 2, child: _buildSmallInput(thirdCtrl, thirdHint)),
               const SizedBox(width: 8),
@@ -680,37 +801,6 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
     );
   }
 
-  Widget _buildUserDropdown() {
-    return DropdownButtonFormField<String>(
-      value: _selectedUserId,
-      decoration: InputDecoration(
-        labelText: 'اختر الموظف (لربط الحساب)',
-        filled: true,
-        fillColor:
-            widget.memberToEdit != null ? Colors.grey[200] : Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-      ),
-      items: _usersList.map((u) {
-        return DropdownMenuItem<String>(
-          value: u['id'].toString(),
-          child: Text(u['name'].toString()),
-        );
-      }).toList(),
-      onChanged: widget.memberToEdit != null
-          ? null
-          : (val) {
-              setState(() {
-                _selectedUserId = val;
-                final user =
-                    _usersList.firstWhere((u) => u['id'].toString() == val);
-                _controllers['name']!.text = user['name'].toString();
-                _controllers['email']!.text = user['email'].toString();
-              });
-            },
-      validator: (val) => val == null ? 'مطلوب ربط الحساب' : null,
-    );
-  }
-
   Widget _buildSectionTitle(String title) {
     return Padding(
       padding: const EdgeInsets.only(top: 24, bottom: 12),
@@ -752,16 +842,30 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
 
   Widget _buildDropdown(String label, String? value, List<String> items,
       Function(String?) onChanged) {
+    // تأمين القائمة إذا كان العنصر غير موجود
+    String? safeValue = value;
+    if (safeValue != null && !items.contains(safeValue)) safeValue = null;
+
     return DropdownButtonFormField<String>(
-      value: value,
+      value: safeValue,
       decoration: InputDecoration(
           labelText: label,
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-      items:
-          items.map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+      items: items
+          .map((e) => DropdownMenuItem(
+              value: e, child: Text(e, overflow: TextOverflow.ellipsis)))
+          .toList(),
       onChanged: onChanged,
+    );
+  }
+
+  Widget _buildLabel(String text) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Text(text,
+          style: DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
     );
   }
 }
