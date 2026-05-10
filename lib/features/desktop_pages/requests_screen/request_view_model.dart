@@ -40,7 +40,16 @@ class RequestViewModel extends ChangeNotifier {
 
   bool _isManualMode = false;
 
-  void setUserData({required String name, required String college, required String role}) {
+  // دالة مساعدة لتحويل التواريخ القادمة من فيربيس إلى نص ISO لـ SQLite
+  String _formatDateForSqlite(dynamic date) {
+    if (date == null) return DateTime.now().toIso8601String();
+    if (date is Timestamp) return date.toDate().toIso8601String();
+    if (date is DateTime) return date.toIso8601String();
+    return date.toString();
+  }
+
+  void setUserData(
+      {required String name, required String college, required String role}) {
     _isManualMode = true;
     _currentUserName = name;
     _currentUserCollege = college;
@@ -54,8 +63,9 @@ class RequestViewModel extends ChangeNotifier {
 
     _currentUserRole = prefs.getString('userRole') ?? 'Admin';
     _currentUserName = prefs.getString('userName') ?? 'المدير العام';
-    _currentUserCollege = prefs.getString('college') ?? 'نيابة الشؤون الأكاديمية';
-    
+    _currentUserCollege =
+        prefs.getString('college') ?? 'نيابة الشؤون الأكاديمية';
+
     startListening();
   }
 
@@ -67,11 +77,14 @@ class RequestViewModel extends ChangeNotifier {
     notifyListeners();
 
     Query queryReceived;
-    if (_currentUserRole == 'Admin' || _currentUserCollege == 'نيابة الشؤون الأكاديمية') {
+    if (_currentUserRole == 'Admin' ||
+        _currentUserCollege == 'نيابة الشؤون الأكاديمية') {
       queryReceived = _firestore
           .collection('requests')
-          .where('destinationCollege', whereIn: ['نيابة الشؤون الأكاديمية', 'جميع الكليات'])
-          .orderBy('dateSent', descending: true);
+          .where('destinationCollege', whereIn: [
+        'نيابة الشؤون الأكاديمية',
+        'جميع الكليات'
+      ]).orderBy('dateSent', descending: true);
     } else {
       queryReceived = _firestore
           .collection('requests')
@@ -81,22 +94,31 @@ class RequestViewModel extends ChangeNotifier {
 
     _receivedSubscription = queryReceived.snapshots().listen((snapshot) async {
       _receivedRequests = snapshot.docs
-          .map((doc) => RequestModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .map((doc) =>
+              RequestModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
-      
-      // حفظ في القاعدة المحلية للمزامنة مستقبلاً
-      for (var req in _receivedRequests) {
-        final data = req.toMap();
-        data['id'] = req.id;
-        data['dateSent'] = req.dateSent.toIso8601String();
-        await DatabaseHelper.instance.insertRequestLocal(data);
+
+      // حفظ في القاعدة المحلية بذكاء
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        Map<String, dynamic> localData = Map<String, dynamic>.from(data);
+
+        localData['id'] = doc.id;
+        // 🌟 الإصلاح: تحويل الـ Timestamp إلى String قبل الإرسال لـ SQLite
+        localData['dateSent'] = _formatDateForSqlite(data['dateSent']);
+        localData['dateReplied'] = _formatDateForSqlite(data['dateReplied']);
+
+        try {
+          await DatabaseHelper.instance.insertRequestLocal(localData);
+        } catch (e) {
+          debugPrint('[SQLITE DEBUG] ❌ فشل حفظ الطلب الوارد محلياً: $e');
+        }
       }
 
       _isLoading = false;
       notifyListeners();
     }, onError: (e) async {
       debugPrint('خطأ في جلب الطلبات الواردة (ربما بسبب الأوفلاين): $e');
-      // محاولة التحميل من القاعدة المحلية
       await _loadLocalRequests();
       _isLoading = false;
       notifyListeners();
@@ -109,15 +131,24 @@ class RequestViewModel extends ChangeNotifier {
         .snapshots()
         .listen((snapshot) async {
       _sentRequests = snapshot.docs
-          .map((doc) => RequestModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .map((doc) =>
+              RequestModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
           .toList();
 
-      // حفظ محلي للمزامنة
-      for (var req in _sentRequests) {
-        final data = req.toMap();
-        data['id'] = req.id;
-        data['dateSent'] = req.dateSent.toIso8601String();
-        await DatabaseHelper.instance.insertRequestLocal(data);
+      for (var doc in snapshot.docs) {
+        final data = doc.data() as Map<String, dynamic>;
+        Map<String, dynamic> localData = Map<String, dynamic>.from(data);
+
+        localData['id'] = doc.id;
+        // 🌟 الإصلاح: تحويل الـ Timestamp إلى String
+        localData['dateSent'] = _formatDateForSqlite(data['dateSent']);
+        localData['dateReplied'] = _formatDateForSqlite(data['dateReplied']);
+
+        try {
+          await DatabaseHelper.instance.insertRequestLocal(localData);
+        } catch (e) {
+          debugPrint('[SQLITE DEBUG] ❌ فشل حفظ الطلب الصادر محلياً: $e');
+        }
       }
 
       notifyListeners();
@@ -129,17 +160,23 @@ class RequestViewModel extends ChangeNotifier {
   Future<void> _loadLocalRequests() async {
     final localData = await DatabaseHelper.instance.getLocalRequests();
     if (localData.isNotEmpty) {
-      // تصفية الطلبات الواردة والصادرة محلياً
-      final allLocal = localData.map((map) => RequestModel.fromMap(map, map['id'])).toList();
-      
+      final allLocal =
+          localData.map((map) => RequestModel.fromMap(map, map['id'])).toList();
+
       if (_currentUserRole == 'Admin') {
-        _receivedRequests = allLocal.where((r) => 
-          ['نيابة الشؤون الأكاديمية', 'جميع الكليات'].contains(r.destinationCollege)).toList();
+        _receivedRequests = allLocal
+            .where((r) => ['نيابة الشؤون الأكاديمية', 'جميع الكليات']
+                .contains(r.destinationCollege))
+            .toList();
       } else {
-        _receivedRequests = allLocal.where((r) => r.destinationCollege == _currentUserCollege).toList();
+        _receivedRequests = allLocal
+            .where((r) => r.destinationCollege == _currentUserCollege)
+            .toList();
       }
-      
-      _sentRequests = allLocal.where((r) => r.senderCollege == _currentUserCollege).toList();
+
+      _sentRequests = allLocal
+          .where((r) => r.senderCollege == _currentUserCollege)
+          .toList();
     }
   }
 
@@ -154,10 +191,10 @@ class RequestViewModel extends ChangeNotifier {
     startListening();
   }
 
-  // دالة لاختيار ملف من الجهاز
   Future<PlatformFile?> pickFile() async {
     try {
       FilePickerResult? result = await FilePicker.pickFiles(
+        // 👈 تعديل بسيط للتوافق
         type: FileType.custom,
         allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png'],
       );
@@ -172,12 +209,11 @@ class RequestViewModel extends ChangeNotifier {
     return null;
   }
 
-  // دالة لرفع الملف إلى Firebase Storage
   Future<String?> _uploadFile(PlatformFile file) async {
     try {
       String fileName = '${DateTime.now().millisecondsSinceEpoch}_${file.name}';
       Reference ref = _storage.ref().child('request_files/$fileName');
-      
+
       UploadTask uploadTask;
       if (kIsWeb) {
         uploadTask = ref.putData(file.bytes!);
@@ -193,7 +229,6 @@ class RequestViewModel extends ChangeNotifier {
     }
   }
 
-  // دالة لحفظ الملف محلياً للأرشفة والوصول بدون إنترنت
   Future<String?> _saveFileLocally(PlatformFile file) async {
     if (kIsWeb) return null;
     try {
@@ -219,12 +254,11 @@ class RequestViewModel extends ChangeNotifier {
     }
   }
 
-  // دالة لتحميل الملف من Firebase وحفظه محلياً
   Future<String?> downloadFile(RequestModel request) async {
     if (request.fileUrl == null || request.fileUrl!.isEmpty) return null;
-    
+
     try {
-      _isLoading = true; // يمكننا استخدام مؤشر التحميل العام أو مؤشر خاص
+      _isLoading = true;
       notifyListeners();
 
       final directory = await getApplicationDocumentsDirectory();
@@ -233,19 +267,17 @@ class RequestViewModel extends ChangeNotifier {
         await archiveDir.create(recursive: true);
       }
 
-      // توليد اسم للملف
-      String fileName = 'downloaded_${DateTime.now().millisecondsSinceEpoch}_' + 
-                        p.basename(Uri.parse(request.fileUrl!).path);
-      
+      String fileName = 'downloaded_${DateTime.now().millisecondsSinceEpoch}_' +
+          p.basename(Uri.parse(request.fileUrl!).path);
+
       final localPath = p.join(archiveDir.path, fileName);
       final File file = File(localPath);
 
-      // التحميل من Firebase Storage
       await _storage.refFromURL(request.fileUrl!).writeToFile(file);
-      
-      // تحديث القاعدة المحلية بالمسار الجديد
-      await DatabaseHelper.instance.updateRequestLocalPath(request.id, localPath);
-      
+
+      await DatabaseHelper.instance
+          .updateRequestLocalPath(request.id, localPath);
+
       _isLoading = false;
       notifyListeners();
       return localPath;
@@ -275,12 +307,9 @@ class RequestViewModel extends ChangeNotifier {
       String? localFilePath;
 
       if (attachedFile != null) {
-        // 1. حفظ محلي للأرشفة
         localFilePath = await _saveFileLocally(attachedFile);
-        
-        // 2. رفع للسحابة
         fileUrl = await _uploadFile(attachedFile);
-        
+
         if (fileUrl == null) {
           _isSending = false;
           notifyListeners();
@@ -302,11 +331,7 @@ class RequestViewModel extends ChangeNotifier {
         localFilePath: localFilePath,
       );
 
-      // حفظ في Firestore
       await _firestore.collection('requests').add(newRequest.toMap());
-      
-      // ملاحظة: لا نحتاج لإضافة الطلب يدوياً للقائمة لأن الـ StreamSubscription 
-      // سيقوم بالتقاط التغيير من Firestore وتحديث الواجهة تلقائياً في كلا الجهازين.
 
       _isSending = false;
       notifyListeners();
@@ -319,7 +344,8 @@ class RequestViewModel extends ChangeNotifier {
     }
   }
 
-  Future<bool> respondToRequest(String requestId, String status, {String? rejectionReason}) async {
+  Future<bool> respondToRequest(String requestId, String status,
+      {String? rejectionReason}) async {
     try {
       await _firestore.collection('requests').doc(requestId).update({
         'status': status,

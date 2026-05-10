@@ -172,7 +172,7 @@ class DatabaseHelper {
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول deleted_records');
-      
+
       // 8. جدول الطلبات (لأرشفة الطلبات والوصول إليها بدون إنترنت)
       await db.execute('''
         CREATE TABLE requests (
@@ -188,7 +188,7 @@ class DatabaseHelper {
           status TEXT NOT NULL,
           rejectionReason TEXT,
           fileUrl TEXT,
-          local_file_path TEXT
+          localFilePath TEXT
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول requests');
@@ -263,7 +263,8 @@ class DatabaseHelper {
         requestMap,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-      debugPrint('[SQLITE DEBUG] ✅ تم حفظ الطلب محلياً: ${requestMap['title']}');
+      debugPrint(
+          '[SQLITE DEBUG] ✅ تم حفظ الطلب محلياً: ${requestMap['title']}');
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ فشل حفظ الطلب محلياً: $e');
     }
@@ -279,7 +280,8 @@ class DatabaseHelper {
     }
   }
 
-  Future<void> updateRequestLocalPath(String requestId, String localPath) async {
+  Future<void> updateRequestLocalPath(
+      String requestId, String localPath) async {
     try {
       final db = await instance.database;
       await db.update(
