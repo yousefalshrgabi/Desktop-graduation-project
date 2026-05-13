@@ -41,39 +41,81 @@ class FacultyMembersViewModel extends ChangeNotifier {
   // ==================== معالجة ورفع الملفات بتنظيم المجلدات (إسم العضو) ====================
   Future<FacultyMemberModel> _processAndUploadFile(
       FacultyMemberModel member) async {
-    // إذا لم يكن هناك ملف محلي جديد تم اختياره، نرجع المودل كما هو
-    if (member.localFilePath.isEmpty ||
-        !File(member.localFilePath).existsSync()) {
-      return member;
+    if (member.localFilePath.isEmpty) return member;
+
+    List<String> paths = [];
+    if (member.localFilePath.startsWith('[')) {
+      try {
+        paths = List<String>.from(jsonDecode(member.localFilePath));
+      } catch (e) {
+        paths = [member.localFilePath];
+      }
+    } else {
+      paths = [member.localFilePath];
     }
 
-    try {
-      File sourceFile = File(member.localFilePath);
-      String extension = p.extension(sourceFile.path);
-      // تنظيف اسم العضو من أي رموز قد لا يقبلها نظام الملفات (مثل / أو \)
-      String cleanName = member.name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-      String fileName = 'document$extension';
-
-      // --- 1. التنظيم المحلي: Documents/AcademicAffairs/FacultyFiles/اسم_العضو/الملف ---
-      Directory appDocDir = await getApplicationDocumentsDirectory();
-      String memberDirPath =
-          p.join(appDocDir.path, 'AcademicAffairs', 'FacultyFiles', cleanName);
-      Directory memberDir = Directory(memberDirPath);
-
-      // إنشاء مجلد العضو إذا لم يكن موجوداً
-      if (!await memberDir.exists()) {
-        await memberDir.create(recursive: true);
+    List<String> currentUrls = [];
+    if (member.fileUrl.isNotEmpty) {
+      if (member.fileUrl.startsWith('[')) {
+        try {
+          currentUrls = List<String>.from(jsonDecode(member.fileUrl));
+        } catch (e) {
+          currentUrls = [member.fileUrl];
+        }
+      } else {
+        currentUrls = [member.fileUrl];
       }
+    }
+
+    List<String> finalLocalPaths = [];
+    List<String> finalUrls = [];
+
+    String cleanName = member.name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    Directory appDocDir = await getApplicationDocumentsDirectory();
+    String memberDirPath =
+        p.join(appDocDir.path, 'AcademicAffairs', 'FacultyFiles', cleanName);
+    Directory memberDir = Directory(memberDirPath);
+    if (!await memberDir.exists()) {
+      await memberDir.create(recursive: true);
+    }
+
+    int maxCount = paths.length > currentUrls.length ? paths.length : currentUrls.length;
+    
+    for (int i = 0; i < maxCount; i++) {
+      String path = i < paths.length ? paths[i] : '';
+      String url = i < currentUrls.length ? currentUrls[i] : '';
+      
+      if (path.isEmpty || path.startsWith('CLOUD_FILE:')) {
+        finalLocalPaths.add('');
+        finalUrls.add(url);
+        continue;
+      }
+
+      if (!File(path).existsSync()) {
+        finalLocalPaths.add(path);
+        finalUrls.add(url);
+        continue;
+      }
+
+      // إذا كان الملف داخل مجلد العضو بالفعل، لا ننسخه مرة أخرى
+      if (p.isWithin(memberDirPath, path)) {
+        finalLocalPaths.add(path);
+        finalUrls.add(url);
+        continue;
+      }
+
+      File sourceFile = File(path);
+      String extension = p.extension(sourceFile.path);
+      String fileName = 'document_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
 
       String newLocalPath = p.join(memberDir.path, fileName);
       await sourceFile.copy(newLocalPath);
       debugPrint('✅ تم حفظ الملف محلياً في مجلد العضو: $newLocalPath');
 
-      // --- 2. التنظيم السحابي: faculty_files/اسم_العضو/الملف ---
-      String downloadUrl = member.fileUrl;
+      String downloadUrl = url;
+
       try {
         debugPrint('☁️ جاري رفع الملف إلى Firebase Storage بتنظيم المجلدات...');
-        // إنشاء مرجع في الفايربيز: faculty_files -> اسم العضو -> الملف
         Reference ref = FirebaseStorage.instance
             .ref()
             .child('faculty_files/$cleanName/$fileName');
@@ -86,15 +128,14 @@ class FacultyMembersViewModel extends ChangeNotifier {
         debugPrint('⚠️ فشل الرفع السحابي: $firebaseError');
       }
 
-      // إرجاع المودل المحدث بالمسارات الجديدة
-      return member.copyWith(
-        localFilePath: newLocalPath,
-        fileUrl: downloadUrl,
-      );
-    } catch (e) {
-      debugPrint('❌ خطأ أثناء تنظيم وحفظ الملف: $e');
-      return member;
+      finalLocalPaths.add(newLocalPath);
+      finalUrls.add(downloadUrl);
     }
+
+    return member.copyWith(
+      localFilePath: jsonEncode(finalLocalPaths),
+      fileUrl: jsonEncode(finalUrls),
+    );
   }
 
   // ==================== 3. إضافة عضو ====================

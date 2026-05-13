@@ -74,7 +74,7 @@ class MyApp extends StatelessWidget {
         primarySwatch: Colors.blue,
         fontFamily: 'Cairo', // يفضل استخدامه لدعم العربية بشكل جميل
       ),
-      home://MobileHomePage(),
+      home: //MobileHomePage(),
           initialScreen,
       builder: (context, child) =>
           Directionality(textDirection: TextDirection.rtl, child: child!),

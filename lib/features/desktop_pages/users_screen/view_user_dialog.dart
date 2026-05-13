@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'users_view_model.dart';
 import 'user_model.dart';
 
 class ViewUserDialog extends StatelessWidget {
@@ -34,7 +35,7 @@ class ViewUserDialog extends StatelessWidget {
             _buildInfoRow(Icons.person, 'الاسم الكامل:', user.name),
             _buildInfoRow(Icons.email, 'البريد الإلكتروني:', user.email),
             _buildInfoRow(Icons.phone, 'رقم الجوال:', user.phone),
-            _buildInfoRow(Icons.security, 'الدور والصلاحية:', user.role),
+            _buildInfoRow(Icons.security, 'الدور والصلاحية:', user.rolesList.map((r) => UsersViewModel.roleTranslations[r] ?? r).join('، ')),
             _buildInfoRow(Icons.date_range, 'تاريخ الإنشاء:', user.createdAt),
             
             const SizedBox(height: DesktopSpacing.lg),

@@ -89,6 +89,11 @@ class SyncService {
           }
         }
 
+        // حذف حقل level القديم من السحابة إذا كان الجدول هو users
+        if (tableName == 'users') {
+          dataToUpload['level'] = FieldValue.delete();
+        }
+
         // دمج البيانات: SetOptions(merge: true) تضمن أننا لا نمسح حقولاً في السحابة قد لا تكون موجودة محلياً
         batch.set(ref, dataToUpload, SetOptions(merge: true));
       }
@@ -183,6 +188,11 @@ class SyncService {
               localData['created_at'] =
                   _toLocalIsoString(data['createdAt'] ?? data['created_at']);
               localData.remove('createdAt');
+            }
+            
+            // تجاهل حقل level القديم إذا كان موجوداً لمنع حدوث خطأ في SQLite
+            if (tableName == 'users' && localData.containsKey('level')) {
+              localData.remove('level');
             }
           }
 

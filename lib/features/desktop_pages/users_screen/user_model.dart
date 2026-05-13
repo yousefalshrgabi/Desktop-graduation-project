@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class UserModel {
@@ -12,6 +13,18 @@ class UserModel {
   final String? faculty;
   final String? department;
   final String? status;
+
+  List<String> get rolesList {
+    if (role.isEmpty) return [];
+    if (role.startsWith('[')) {
+      try {
+        return List<String>.from(jsonDecode(role));
+      } catch (e) {
+        return [role];
+      }
+    }
+    return [role];
+  }
 
   UserModel({
     required this.id,

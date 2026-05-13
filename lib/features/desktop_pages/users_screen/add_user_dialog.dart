@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart'; // 👈 استدعاء قاعدة البيانات
@@ -25,14 +26,13 @@ class _AddUserDialogState extends State<AddUserDialog> {
   String? _selectedFaculty;
   String? _selectedDepartment;
 
-  String? _selectedRole;
+  List<String> _selectedRoles = ['Faculty Member']; // صلاحية افتراضية
   String _selectedStatus = 'نشط';
   bool _isLoading = false;
 
+  // الأدوار اليدوية فقط (الإدارية تعيين تلقائياً عبر صفحة الكليات/الأقسام)
   final List<String> _roles = [
     'Public Prosecution',
-    'Deputy Dean',
-    'Head of department',
     'Faculty Member',
     'super_admin',
   ];
@@ -100,9 +100,9 @@ class _AddUserDialogState extends State<AddUserDialog> {
 
   Future<void> _saveUser() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedRole == null) {
+    if (_selectedRoles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرجاء اختيار الدور والصلاحية')),
+        const SnackBar(content: Text('الرجاء اختيار دور واحد على الأقل')),
       );
       return;
     }
@@ -110,15 +110,17 @@ class _AddUserDialogState extends State<AddUserDialog> {
     setState(() => _isLoading = true);
 
     try {
-      await widget.viewModel.addUser({
+      final userData = {
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'phone': _phoneController.text.trim(),
-        'role': _selectedRole,
-        'faculty': _selectedFaculty, // 👈 إرسال الكلية المختارة
-        'department': _selectedDepartment, // 👈 إرسال القسم المختار
+        'role': jsonEncode(_selectedRoles), // 👈 حفظ مصفوفة الصلاحيات
         'status': _selectedStatus,
-      });
+        'faculty': _selectedFaculty,
+        'department': _selectedDepartment,
+      };
+
+      await widget.viewModel.addUser(userData);
 
       if (mounted) {
         Navigator.of(context).pop();
@@ -277,25 +279,64 @@ class _AddUserDialogState extends State<AddUserDialog> {
                     ),
                     const SizedBox(height: DesktopSpacing.sm),
 
+                    const SizedBox(height: DesktopSpacing.md),
+                    _buildLabel('الدور والصلاحية'),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      margin: const EdgeInsets.only(bottom: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.blue.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.blue.shade100),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(Icons.info_outline,
+                              size: 14, color: Colors.blue.shade600),
+                          const SizedBox(width: 6),
+                          Expanded(
+                            child: Text(
+                              'ملاحظة: أدوار عميد / نائب عميد / رئيس قسم تُعيَّن تلقائياً عند تعيين المستخدم في صفحات الكليات والأقسام.',
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.blue.shade700),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Wrap(
+                      spacing: 8.0,
+                      runSpacing: 8.0,
+                      children: _roles.map((role) {
+                        final isSelected = _selectedRoles.contains(role);
+                        return FilterChip(
+                          label: Text(
+                              UsersViewModel.roleTranslations[role] ?? role),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedRoles.add(role);
+                              } else {
+                                _selectedRoles.remove(role);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    if (_selectedRoles.isEmpty)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'يجب اختيار دور واحد على الأقل',
+                          style: TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
+                    const SizedBox(height: DesktopSpacing.md),
+
                     Row(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('الدور والصلاحية'),
-                              _buildDynamicDropdown(
-                                hintText: 'اختر الصلاحية',
-                                value: _selectedRole,
-                                items: _roles,
-                                icon: Icons.security,
-                                onChanged: (val) =>
-                                    setState(() => _selectedRole = val),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: DesktopSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

@@ -8,12 +8,18 @@ class DatabaseHelper {
 
   DatabaseHelper._init();
 
+  Future<Database>? _initDatabaseFuture;
+
   Future<Database> get database async {
     if (_database != null) return _database!;
 
-    debugPrint(
-        '[SQLITE DEBUG] 🟡 لم يتم العثور على قاعدة بيانات نشطة، جاري التهيئة...');
-    _database = await _initDB('academic_affairss.db');
+    if (_initDatabaseFuture == null) {
+      debugPrint(
+          '[SQLITE DEBUG] 🟡 لم يتم العثور على قاعدة بيانات نشطة، جاري التهيئة...');
+      _initDatabaseFuture = _initDB('academic_affairss.db');
+    }
+    
+    _database = await _initDatabaseFuture!;
     return _database!;
   }
 

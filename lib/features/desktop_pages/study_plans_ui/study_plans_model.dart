@@ -231,7 +231,7 @@ class StudyPlanModel {
           .toList(),
       isSynced: map['is_synced'] == 1,
       createdAt: map['created_at'] != null
-          ? DateTime.parse(map['created_at'])
+          ? (DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now())
           : DateTime.now(),
     );
   }

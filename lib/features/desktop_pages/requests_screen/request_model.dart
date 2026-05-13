@@ -43,10 +43,12 @@ class RequestModel {
       dateSent: map['dateSent'] != null
           ? (map['dateSent'] is Timestamp 
               ? (map['dateSent'] as Timestamp).toDate() 
-              : DateTime.parse(map['dateSent'].toString()))
+              : DateTime.tryParse(map['dateSent'].toString()) ?? DateTime.now())
           : DateTime.now(),
       dateReplied: map['dateReplied'] != null
-          ? (map['dateReplied'] as Timestamp).toDate()
+          ? (map['dateReplied'] is Timestamp
+              ? (map['dateReplied'] as Timestamp).toDate()
+              : DateTime.tryParse(map['dateReplied'].toString()))
           : null,
       status: map['status'] ?? 'قيد الانتظار',
       rejectionReason: map['rejectionReason'],

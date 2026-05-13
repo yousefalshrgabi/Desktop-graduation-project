@@ -73,11 +73,11 @@ class DepartmentModel {
       id: doc.id,
       // استخدام toString() للوقاية من أي أخطاء تحويل (Casting)
       name: data['name']?.toString() ?? 'غير محدد',
-      collegeId: data['collegeId']?.toString() ?? '',
+      collegeId: (data['college_id'] ?? data['collegeId'])?.toString() ?? '',
       // تأكد من مطابقة اسم الحقل في Firestore (HODId أم hodId)
-      hodId: (data['HODId'] ?? data['hodId'])?.toString() ?? '',
+      hodId: (data['hod_id'] ?? data['hodId'] ?? data['HODId'])?.toString() ?? '',
       // معالجة التاريخ بأمان
-      createdAt: _safeParseDate(data['createdAt']),
+      createdAt: _safeParseDate(data['created_at'] ?? data['createdAt']),
     );
   }
 }

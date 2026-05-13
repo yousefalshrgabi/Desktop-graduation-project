@@ -31,7 +31,8 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
   String? _selectedDegree;
   String? _selectedStatus = 'نشط';
   bool _isLoading = false;
-  String? _selectedLocalFilePath;
+  List<String> _selectedLocalFilePaths = [];
+  List<String> _selectedFileUrls = [];
 
   // قائمة ديناميكية تُجلب من قاعدة البيانات
   List<String> _departments = [];
@@ -96,16 +97,22 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
     }
   }
 
-  // 🌟 دالة اختيار ملف الدكتور (PDF أو صور)
+  // 🌟 دالة اختيار ملفات الدكتور (PDF أو صور)
   Future<void> _pickFile() async {
     FilePickerResult? result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png'],
+      allowMultiple: true, // 👈 تفعيل اختيار أكثر من ملف
     );
 
-    if (result != null && result.files.single.path != null) {
+    if (result != null && result.paths.isNotEmpty) {
       setState(() {
-        _selectedLocalFilePath = result.files.single.path;
+        for (var path in result.paths) {
+          if (path != null && !_selectedLocalFilePaths.contains(path)) {
+            _selectedLocalFilePaths.add(path);
+            _selectedFileUrls.add(''); // إضافة رابط فارغ للملف الجديد
+          }
+        }
       });
     }
   }
@@ -214,6 +221,32 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
           _unpaidList =
               decoded.map((e) => Map<String, String>.from(e)).toList();
         }
+        
+        // تحميل الملفات المرفقة السابقة (المحلية والسحابية)
+        List<String> paths = [];
+        if (m.localFilePath.isNotEmpty) {
+          if (m.localFilePath.startsWith('[')) {
+            try { paths = List<String>.from(jsonDecode(m.localFilePath)); } catch(e) { paths = [m.localFilePath]; }
+          } else { paths = [m.localFilePath]; }
+        }
+        
+        List<String> urls = [];
+        if (m.fileUrl.isNotEmpty) {
+          if (m.fileUrl.startsWith('[')) {
+            try { urls = List<String>.from(jsonDecode(m.fileUrl)); } catch(e) { urls = [m.fileUrl]; }
+          } else { urls = [m.fileUrl]; }
+        }
+        
+        int count = paths.length > urls.length ? paths.length : urls.length;
+        for (int i = 0; i < count; i++) {
+           String p = i < paths.length ? paths[i] : '';
+           String u = i < urls.length ? urls[i] : '';
+           
+           if (p.isNotEmpty || u.isNotEmpty) {
+             _selectedLocalFilePaths.add(p);
+             _selectedFileUrls.add(u);
+           }
+        }
       } catch (e) {
         debugPrint('Error parsing leaves JSON: $e');
       }
@@ -288,9 +321,8 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
         currentAcademicTitle: _selectedDegree ?? 'غير محدد',
 
         // 👈 تمرير مسارات الملف (سيتم معالجتها في الـ ViewModel للرفع المحلي والسحابي)
-        localFilePath:
-            _selectedLocalFilePath ?? widget.memberToEdit?.localFilePath ?? '',
-        fileUrl: widget.memberToEdit?.fileUrl ?? '',
+        localFilePath: jsonEncode(_selectedLocalFilePaths),
+        fileUrl: jsonEncode(_selectedFileUrls),
 
         fileNumber: _controllers['fileNumber']!.text.trim(),
         idCardNumber: _controllers['idCardNumber']!.text.trim(),
@@ -412,45 +444,75 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildLabel('إرفاق ملف الدكتور (PDF/صورة)'),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 12, vertical: 14),
-                                    decoration: BoxDecoration(
-                                      color: Colors.grey[100],
-                                      border:
-                                          Border.all(color: Colors.grey[300]!),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Text(
-                                      _selectedLocalFilePath != null
-                                          ? _selectedLocalFilePath!
-                                              .split(RegExp(r'[\\/]'))
-                                              .last
-                                          : (widget.memberToEdit
-                                                          ?.localFilePath !=
-                                                      null &&
-                                                  widget.memberToEdit!
-                                                      .localFilePath.isNotEmpty)
-                                              ? widget
-                                                  .memberToEdit!.localFilePath
-                                                  .split(RegExp(r'[\\/]'))
-                                                  .last
-                                              : 'لم يتم اختيار ملف',
-                                      overflow: TextOverflow.ellipsis,
+                            _buildLabel('الوثائق والمرفقات (PDF/صور)'),
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: Colors.grey[100],
+                                border: Border.all(color: Colors.grey[300]!),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: [
+                                  Wrap(
+                                    spacing: 8.0,
+                                    runSpacing: 8.0,
+                                    children: List.generate(_selectedLocalFilePaths.length, (index) {
+                                      String path = _selectedLocalFilePaths[index];
+                                      String url = _selectedFileUrls.length > index ? _selectedFileUrls[index] : '';
+                                      
+                                      String fileName;
+                                      if (path.isEmpty && url.isNotEmpty) {
+                                        Uri parsedUrl = Uri.parse(url);
+                                        fileName = 'ملف سحابي: ${parsedUrl.pathSegments.last.split('%2F').last.split('?').first}';
+                                      } else {
+                                        fileName = path.split(RegExp(r'[\\/]')).last;
+                                      }
+                                      return Chip(
+                                        label: Text(
+                                          fileName,
+                                          style: const TextStyle(fontSize: 12),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        onDeleted: () {
+                                          setState(() {
+                                            _selectedLocalFilePaths.removeAt(index);
+                                            if (index < _selectedFileUrls.length) {
+                                              _selectedFileUrls.removeAt(index);
+                                            }
+                                          });
+                                        },
+                                        deleteIcon: const Icon(Icons.close, size: 16),
+                                        backgroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(4),
+                                          side: BorderSide(color: Colors.grey.shade300),
+                                        ),
+                                      );
+                                    }),
+                                  ),
+                                  if (_selectedLocalFilePaths.isNotEmpty)
+                                    const SizedBox(height: 12),
+                                  Align(
+                                    alignment: Alignment.centerRight,
+                                    child: ElevatedButton.icon(
+                                      onPressed: _pickFile,
+                                      icon: const Icon(Icons.attach_file),
+                                      label: const Text('إضافة ملفات أخرى'),
                                     ),
                                   ),
-                                ),
-                                const SizedBox(width: 8),
-                                ElevatedButton.icon(
-                                  onPressed: _pickFile,
-                                  icon: const Icon(Icons.attach_file),
-                                  label: const Text('إرفاق'),
-                                ),
-                              ],
+                                  if (_selectedLocalFilePaths.isEmpty)
+                                    const Padding(
+                                      padding: EdgeInsets.only(top: 8.0),
+                                      child: Text(
+                                        'لم يتم إرفاق أي ملفات',
+                                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                                      ),
+                                    ),
+                                ],
+                              ),
                             ),
                           ],
                         ),

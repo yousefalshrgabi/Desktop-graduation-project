@@ -288,7 +288,7 @@ class _UsersState extends State<Users> {
                     DataCell(Text(user.name, style: DesktopTextStyles.body)),
                     DataCell(Text(user.email, style: DesktopTextStyles.body)),
                     DataCell(Text(user.phone, style: DesktopTextStyles.body)),
-                    DataCell(_buildRoleBadge(user.role)),
+                    DataCell(_buildRolesCell(user.rolesList)),
                     DataCell(
                       PopupMenuButton<String>(
                         icon: const Icon(Icons.more_vert, color: Colors.grey),
@@ -353,41 +353,102 @@ class _UsersState extends State<Users> {
     );
   }
 
-  // 5. دالة تلوين الشارة
-  Widget _buildRoleBadge(String role) {
-    Color color;
-    final String displayRole = UsersViewModel.roleTranslations[role] ?? role;
-
-    switch (role) {
-      case 'super_admin':
-        color = Colors.red;
-        break;
-      case 'Public Prosecution':
-        color = Colors.blue;
-        break;
-      case 'Deputy Dean':
-        color = Colors.green;
-        break;
-      case 'Head of department':
-        color = Colors.yellow;
-        break;
-      default:
-        color = Colors.grey;
+  // 5. دالة عرض خلية الأدوار بشكل أنيق
+  Widget _buildRolesCell(List<String> roles) {
+    if (roles.isEmpty) {
+      return _buildRoleBadge('Faculty Member');
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(
-          horizontal: DesktopSpacing.xs, vertical: DesktopSpacing.xs / 2),
+    // كل الأدوار مترجمة لعرضها في الـ Tooltip
+    final String allRolesText = roles
+        .map((r) => UsersViewModel.roleTranslations[r] ?? r)
+        .join('\n');
+
+    return Tooltip(
+      message: roles.length > 1 ? allRolesText : '',
+      preferBelow: false,
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withOpacity(0.5)),
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(8),
       ),
-      child: Text(
-        displayRole,
-        style:
-            TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.bold),
+      textStyle: const TextStyle(color: Colors.white, fontSize: 12, height: 1.6),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _buildRoleBadge(roles.first),
+          if (roles.length > 1) ...
+            [
+              const SizedBox(width: 4),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: DesktopColors.primary.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: DesktopColors.primary.withOpacity(0.4)),
+                ),
+                child: Text(
+                  '+${roles.length - 1}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: DesktopColors.primary,
+                  ),
+                ),
+              ),
+            ],
+        ],
       ),
     );
+  }
+
+  // دالة بناء شارة دور واحد
+  Widget _buildRoleBadge(String role) {
+    final Color color = _getRoleColor(role);
+    final String displayRole = UsersViewModel.roleTranslations[role] ?? role;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.5)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            displayRole,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _getRoleColor(String role) {
+    switch (role) {
+      case 'super_admin': return Colors.red.shade700;
+      case 'Public Prosecution': return Colors.blue.shade700;
+      case 'Dean': return Colors.green.shade700;
+      case 'Vice Dean for Academic Affairs': return Colors.teal.shade700;
+      case 'Vice Dean for Student Affairs': return Colors.cyan.shade700;
+      case 'Head of department': return Colors.orange.shade700;
+      case 'Faculty Member': return Colors.blueGrey.shade600;
+      default: return Colors.grey.shade600;
+    }
   }
 }

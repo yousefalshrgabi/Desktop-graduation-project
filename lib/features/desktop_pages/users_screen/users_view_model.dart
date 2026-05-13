@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:sqflite/sqflite.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'user_model.dart';
 
@@ -15,8 +17,7 @@ class UsersViewModel extends ChangeNotifier {
 
   // استخراج الأدوار المتاحة من البيانات الموجودة لتعبئة الـ Dropdown الديناميكي
   List<String> get availableRoles => allUsers
-      .map((u) => u.role)
-      .whereType<String>()
+      .expand((u) => u.rolesList)
       .where((s) => s.isNotEmpty)
       .toSet()
       .toList();
@@ -29,7 +30,9 @@ class UsersViewModel extends ChangeNotifier {
   static const Map<String, String> roleTranslations = {
     'super_admin': 'مدير النظام',
     'Public Prosecution': 'النيابة العامة',
-    'Deputy Dean': 'نائب العميد',
+    'Dean': 'عميد',
+    'Vice Dean for Academic Affairs': 'نائب العميد للشؤون الاكاديمية',
+    'Vice Dean for Student Affairs': 'نائب العميد لشؤون الطلاب',
     'Head of department': 'رئيس قسم',
     'Faculty Member': 'عضو هيئة تدريس',
   };
@@ -93,7 +96,7 @@ class UsersViewModel extends ChangeNotifier {
           u.phone.contains(searchQuery);
 
       final matchesRole = (selectedRole == null || selectedRole == 'الكل') ||
-          u.role == selectedRole;
+          u.rolesList.contains(selectedRole);
 
       // 👈 إضافة شرط فلتر الكلية
       final matchesFaculty =
@@ -205,7 +208,9 @@ class UsersViewModel extends ChangeNotifier {
         // ب. التحقق من الدور (Role). إذا كان أكاديمياً، ننشئ له ملفاً في faculty_members
         List<String> academicRoles = [
           'Head of department',
-          'Deputy Dean',
+          'Dean',
+          'Vice Dean for Academic Affairs',
+          'Vice Dean for Student Affairs',
           'Faculty Member'
         ];
 
@@ -231,4 +236,67 @@ class UsersViewModel extends ChangeNotifier {
       rethrow;
     }
   }
+
+  // ==================== دوال مساعدة للتعامل مع مصفوفة الصلاحيات ====================
+
+  // الأدوار الإدارية التي تلغي ظهور "عضو هيئة تدريس"
+  static const List<String> _adminRoles = [
+    'Dean',
+    'Vice Dean for Academic Affairs',
+    'Vice Dean for Student Affairs',
+    'Head of department',
+  ];
+
+  static List<String> _parseRoles(String roleStr) {
+    if (roleStr.isEmpty) return [];
+    if (roleStr.startsWith('[')) {
+      try { return List<String>.from(jsonDecode(roleStr)); } catch(e) { return [roleStr]; }
+    }
+    return [roleStr];
+  }
+
+  static bool _hasAdminRole(List<String> roles) =>
+      roles.any((r) => _adminRoles.contains(r));
+
+  static Future<void> addRoleToUser(DatabaseExecutor txnOrDb, String userId, String newRole) async {
+    final res = await txnOrDb.query('users', where: 'id = ?', whereArgs: [userId], limit: 1);
+    if (res.isEmpty) return;
+
+    List<String> roles = _parseRoles(res.first['role']?.toString() ?? '');
+
+    if (!roles.contains(newRole)) {
+      roles.add(newRole);
+    }
+
+    // إذا أصبح للمستخدم دور إداري، احذف "عضو هيئة تدريس" تلقائياً (لا داعي لعرضه)
+    if (_hasAdminRole(roles)) {
+      roles.remove('Faculty Member');
+    }
+
+    await txnOrDb.update('users', {'role': jsonEncode(roles)}, where: 'id = ?', whereArgs: [userId]);
+  }
+
+  static Future<void> removeRoleFromUser(DatabaseExecutor txnOrDb, String userId, String roleToRemove) async {
+    final res = await txnOrDb.query('users', where: 'id = ?', whereArgs: [userId], limit: 1);
+    if (res.isEmpty) return;
+
+    List<String> roles = _parseRoles(res.first['role']?.toString() ?? '');
+
+    if (roles.contains(roleToRemove)) {
+      roles.remove(roleToRemove);
+    }
+
+    // إذا لم يبقَ أي دور إداري، أعد "عضو هيئة تدريس" كدور افتراضي
+    if (!_hasAdminRole(roles)) {
+      if (!roles.contains('Faculty Member')) {
+        roles.add('Faculty Member');
+      }
+    }
+
+    // إذا أصبحت القائمة فارغة تماماً (احتياط)
+    if (roles.isEmpty) roles.add('Faculty Member');
+
+    await txnOrDb.update('users', {'role': jsonEncode(roles)}, where: 'id = ?', whereArgs: [userId]);
+  }
 }
+

@@ -1,4 +1,8 @@
 import 'dart:io';
+import 'dart:convert';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as p;
 
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
@@ -75,16 +79,104 @@ class _FacultyMembersState extends State<FacultyMembers> {
     }
   }
 
-  Future<void> _openLocalFile(String path) async {
-    final File file = File(path);
+  Future<void> _openLocalFile(BuildContext context, String path, String url, String memberName) async {
+    String actualPath = path;
+
+    // إذا كان المسار المحلي فارغاً ولكن يوجد رابط، ننشئ مساراً جديداً للحفظ
+    if (actualPath.isEmpty && url.isNotEmpty) {
+      String cleanName = memberName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+      Directory appDocDir = await getApplicationDocumentsDirectory();
+      
+      Uri parsedUrl = Uri.parse(url);
+      String ext = '.pdf';
+      // محاولة استخراج الامتداد من الرابط
+      if (parsedUrl.path.contains('.')) {
+        String possibleExt = parsedUrl.path.split('.').last;
+        if (possibleExt.length <= 4) ext = '.$possibleExt';
+      }
+      String fileName = 'document_${DateTime.now().millisecondsSinceEpoch}$ext';
+      
+      actualPath = p.join(appDocDir.path, 'AcademicAffairs', 'FacultyFiles', cleanName, fileName);
+    }
+
+    if (actualPath.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لا يمكن فتح الملف، المسار غير متوفر')),
+        );
+      }
+      return;
+    }
+
+    final File file = File(actualPath);
     if (await file.exists()) {
-      // تشغيل الملف باستخدام البرنامج الافتراضي في الويندوز (مثل Acrobat Reader للـ PDF)
       final Uri uri = Uri.file(path);
       if (!await launchUrl(uri)) {
-        throw 'تعذر فتح الملف في المسار: $path';
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('تعذر فتح الملف في المسار: $path')),
+          );
+        }
       }
     } else {
-      print("الملف غير موجود محلياً في هذا المسار");
+      if (url.isNotEmpty) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => const AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 16),
+                Text('جاري تحميل الملف من السحابة...'),
+              ],
+            ),
+          ),
+        );
+
+        try {
+          final dir = file.parent;
+          if (!await dir.exists()) {
+            await dir.create(recursive: true);
+          }
+          
+          // استخدام HttpClient للتحميل المباشر والموثوق
+          final request = await HttpClient().getUrl(Uri.parse(url));
+          final response = await request.close();
+          
+          if (response.statusCode == 200) {
+            await response.pipe(file.openWrite());
+          } else {
+            throw Exception('فشل التحميل، كود الخطأ: ${response.statusCode}');
+          }
+
+          if (context.mounted) {
+            Navigator.pop(context); // إغلاق مربع التحميل
+          }
+
+          final Uri uri = Uri.file(actualPath);
+          if (!await launchUrl(uri)) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('تعذر فتح الملف بعد التحميل: $actualPath')),
+              );
+            }
+          }
+        } catch (e) {
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('فشل تحميل الملف: $e')),
+            );
+          }
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('الملف غير موجود محلياً ولا يوجد رابط سحابي له.')),
+          );
+        }
+      }
     }
   }
 
@@ -485,9 +577,80 @@ class _FacultyMembersState extends State<FacultyMembers> {
                               ),
                             );
                           } else if (value == 'view_file') {
-                            // 👈 تم تعديل المنطق هنا ليتناسب مع القيمة الجديدة
-                            if (member.localFilePath.isNotEmpty) {
-                              await _openLocalFile(member.localFilePath);
+                            if (member.localFilePath.isNotEmpty || member.fileUrl.isNotEmpty) {
+                              List<String> paths = [];
+                              if (member.localFilePath.isNotEmpty) {
+                                if (member.localFilePath.startsWith('[')) {
+                                  try {
+                                    paths = List<String>.from(jsonDecode(member.localFilePath));
+                                  } catch (e) {
+                                    paths = [member.localFilePath];
+                                  }
+                                } else {
+                                  paths = [member.localFilePath];
+                                }
+                              }
+
+                              List<String> urls = [];
+                              if (member.fileUrl.isNotEmpty) {
+                                if (member.fileUrl.startsWith('[')) {
+                                  try {
+                                    urls = List<String>.from(jsonDecode(member.fileUrl));
+                                  } catch (e) {
+                                    urls = [member.fileUrl];
+                                  }
+                                } else {
+                                  urls = [member.fileUrl];
+                                }
+                              }
+
+                              int count = paths.length > urls.length ? paths.length : urls.length;
+
+                              if (count == 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('لا يوجد ملف مرفق لهذا العضو')),
+                                );
+                              } else if (count == 1) {
+                                String p = paths.isNotEmpty ? paths[0] : '';
+                                String u = urls.isNotEmpty ? urls[0] : '';
+                                await _openLocalFile(context, p, u, member.name);
+                              } else {
+                                showDialog(
+                                  context: context,
+                                  builder: (ctx) => AlertDialog(
+                                    title: const Text('اختيار الملف المرفق'),
+                                    content: SizedBox(
+                                      width: 400,
+                                      child: ListView.builder(
+                                        shrinkWrap: true,
+                                        itemCount: count,
+                                        itemBuilder: (c, i) {
+                                          String p = i < paths.length ? paths[i] : '';
+                                          String u = i < urls.length ? urls[i] : '';
+                                          String fileName = p.isNotEmpty 
+                                              ? p.split(RegExp(r'[\\/]')).last 
+                                              : 'ملف ${i + 1} من السحابة';
+                                              
+                                          return ListTile(
+                                            leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
+                                            title: Text(fileName),
+                                            onTap: () {
+                                              Navigator.pop(ctx);
+                                              _openLocalFile(context, p, u, member.name);
+                                            },
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    actions: [
+                                      TextButton(
+                                        onPressed: () => Navigator.pop(ctx),
+                                        child: const Text('إغلاق'),
+                                      )
+                                    ],
+                                  ),
+                                );
+                              }
                             } else {
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(

@@ -1,6 +1,7 @@
+import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'package:academic_affairs_management/features/desktop_pages/departments_screen/department_model.dart';
-import 'package:flutter/material.dart';
+import 'package:academic_affairs_management/features/desktop_pages/users_screen/users_view_model.dart';
 
 class DepartmentsViewModel extends ChangeNotifier {
   List<DepartmentModel> allDepartments = [];
@@ -192,7 +193,15 @@ class DepartmentsViewModel extends ChangeNotifier {
       data['college_id'] = data['college_id'] ?? '';
       data['hod_id'] = data['hod_id'] ?? '';
 
-      await db.insert('departments', data);
+      await db.transaction((txn) async {
+        await txn.insert('departments', data);
+
+        // 👈 تحديث دور رئيس القسم بمصفوفة الصلاحيات
+        if (data['hod_id'] != null && data['hod_id'].toString().isNotEmpty) {
+          await UsersViewModel.addRoleToUser(txn, data['hod_id'].toString(), 'Head of department');
+        }
+      });
+      
       await fetchDepartments();
       debugPrint('Department added successfully: ${data['name']}');
     } catch (e) {
@@ -206,6 +215,17 @@ class DepartmentsViewModel extends ChangeNotifier {
     try {
       final db = await DatabaseHelper.instance.database;
 
+      // 1. جلب البيانات القديمة للمقارنة
+      final List<Map<String, dynamic>> oldData = await db.query(
+        'departments',
+        where: 'id = ?',
+        whereArgs: [departmentId],
+        limit: 1,
+      );
+
+      final String oldHodId =
+          oldData.isNotEmpty ? oldData.first['hod_id'] ?? '' : '';
+
       // تحويل المفاتيح القديمة إلى الجديدة
       if (data.containsKey('collegeId'))
         data['college_id'] = data.remove('collegeId');
@@ -213,12 +233,27 @@ class DepartmentsViewModel extends ChangeNotifier {
       if (data.containsKey('HODId')) data['hod_id'] = data.remove('HODId');
       data.remove('createdAt');
 
-      await db.update(
-        'departments',
-        data,
-        where: 'id = ?',
-        whereArgs: [departmentId],
-      );
+      // 3. تحديث القسم والصلاحيات في عملية واحدة
+      await db.transaction((txn) async {
+        await txn.update(
+          'departments',
+          data,
+          where: 'id = ?',
+          whereArgs: [departmentId],
+        );
+
+        // 👈 إرجاع صلاحية رئيس القسم القديم
+        if (oldHodId.isNotEmpty && data['hod_id'] != oldHodId) {
+          await UsersViewModel.removeRoleFromUser(txn, oldHodId, 'Head of department');
+        }
+        
+        // 👈 تحديث صلاحيات رئيس القسم الجديد
+        if (data['hod_id'] != null &&
+            data['hod_id'].toString().isNotEmpty &&
+            data['hod_id'] != oldHodId) {
+          await UsersViewModel.addRoleToUser(txn, data['hod_id'].toString(), 'Head of department');
+        }
+      });
 
       await fetchDepartments();
       debugPrint('Department updated successfully: $departmentId');
@@ -232,6 +267,14 @@ class DepartmentsViewModel extends ChangeNotifier {
     try {
       final db = await DatabaseHelper.instance.database;
 
+      final List<Map<String, dynamic>> oldData = await db.query(
+        'departments',
+        where: 'id = ?',
+        whereArgs: [departmentId],
+        limit: 1,
+      );
+      final String oldHodId = oldData.isNotEmpty ? oldData.first['hod_id'] ?? '' : '';
+
       await db.transaction((txn) async {
         // 1. الحذف من الجدول الأساسي
         await txn
@@ -239,6 +282,11 @@ class DepartmentsViewModel extends ChangeNotifier {
         // 2. التسجيل في سلة المهملات
         await txn.insert('deleted_records',
             {'id': departmentId, 'table_name': 'departments'});
+            
+        // 3. إزالة صلاحية رئيس القسم
+        if (oldHodId.isNotEmpty) {
+          await UsersViewModel.removeRoleFromUser(txn, oldHodId, 'Head of department');
+        }
       });
 
       await fetchDepartments(); // تحديث الواجهة

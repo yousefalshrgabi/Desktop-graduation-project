@@ -1,5 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'subject_model.dart';
 
 class SubjectsViewModel extends ChangeNotifier {
@@ -11,13 +12,14 @@ class SubjectsViewModel extends ChangeNotifier {
   bool isLoading = true;
   String errorMessage = '';
   String searchQuery = '';
+  StreamSubscription? _subscription;
 
   SubjectsViewModel() {
     _initStream();
   }
 
   void _initStream() {
-    _firestore.collection('subjects').snapshots().listen((snapshot) {
+    _subscription = _firestore.collection('subjects').snapshots().listen((snapshot) {
       isLoading = true;
       notifyListeners();
       allSubjects =
@@ -84,5 +86,11 @@ class SubjectsViewModel extends ChangeNotifier {
       debugPrint('Error deleting subject: $e');
       rethrow;
     }
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
   }
 }

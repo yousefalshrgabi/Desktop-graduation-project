@@ -81,11 +81,11 @@ class CollegeModel {
       arName: data['ar_name']?.toString() ?? 'غير محدد',
       enName: data['en_name']?.toString() ?? 'غير محدد',
       code: data['code']?.toString() ?? 'غير محدد',
-      deanId: data['deanId']?.toString() ?? '',
-      academicViceDeanId: data['academicViceDeanId']?.toString() ?? '',
-      studentViceDeanId: data['studentViceDeanId']?.toString() ?? '',
+      deanId: (data['dean_id'] ?? data['deanId'])?.toString() ?? '',
+      academicViceDeanId: (data['academic_vice_dean_id'] ?? data['academicViceDeanId'])?.toString() ?? '',
+      studentViceDeanId: (data['student_vice_dean_id'] ?? data['studentViceDeanId'])?.toString() ?? '',
       // استخدام الدالة الذكية لمعالجة التاريخ لتجنب الـ Crash
-      createdAt: _parseDate(data['createdAt']),
+      createdAt: _parseDate(data['created_at'] ?? data['createdAt']),
     );
   }
 }

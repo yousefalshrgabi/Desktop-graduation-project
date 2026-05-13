@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart'; // 👈 استدعاء قاعدة البيانات
@@ -28,16 +29,23 @@ class _EditUserDialogState extends State<EditUserDialog> {
   String? _selectedFaculty;
   String? _selectedDepartment;
 
-  String? _selectedRole;
+  List<String> _selectedRoles = [];
   late String _selectedStatus;
   bool _isLoading = false;
 
+  // الأدوار اليدوية فقط (الإدارية تعيين تلقائياً عبر صفحة الكليات/الأقسام)
   final List<String> _roles = [
     'Public Prosecution',
-    'Deputy Dean',
-    'Head of department',
     'Faculty Member',
     'super_admin',
+  ];
+
+  // الأدوار الإدارية المحمية (لا يمكن تعديلها يدوياً)
+  static const List<String> _adminRoles = [
+    'Dean',
+    'Vice Dean for Academic Affairs',
+    'Vice Dean for Student Affairs',
+    'Head of department',
   ];
 
   final List<String> _statuses = ['نشط', 'غير نشط', 'موقوف'];
@@ -52,7 +60,7 @@ class _EditUserDialogState extends State<EditUserDialog> {
     _selectedFaculty = widget.user.faculty;
     _selectedDepartment = widget.user.department;
 
-    _selectedRole = _roles.contains(widget.user.role) ? widget.user.role : null;
+    _selectedRoles = widget.user.rolesList;
     _selectedStatus =
         _statuses.contains(widget.user.status) ? widget.user.status! : 'نشط';
 
@@ -130,9 +138,9 @@ class _EditUserDialogState extends State<EditUserDialog> {
 
   Future<void> _updateUser() async {
     if (!_formKey.currentState!.validate()) return;
-    if (_selectedRole == null) {
+    if (_selectedRoles.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الرجاء اختيار الدور والصلاحية')),
+        const SnackBar(content: Text('الرجاء اختيار دور واحد على الأقل')),
       );
       return;
     }
@@ -144,10 +152,10 @@ class _EditUserDialogState extends State<EditUserDialog> {
         'name': _nameController.text.trim(),
         'email': _emailController.text.trim(),
         'phone': _phoneController.text.trim(),
-        'role': _selectedRole,
+        'role': jsonEncode(_selectedRoles), // 👈 حفظ مصفوفة الصلاحيات
+        'status': _selectedStatus,
         'faculty': _selectedFaculty, // 👈 إرسال الكلية المختارة
         'department': _selectedDepartment, // 👈 إرسال القسم المختار
-        'status': _selectedStatus,
       });
 
       if (mounted) {
@@ -264,7 +272,6 @@ class _EditUserDialogState extends State<EditUserDialog> {
                     ),
                     const SizedBox(height: DesktopSpacing.sm),
 
-                    // 👈 قوائم الكلية والقسم
                     Row(
                       children: [
                         Expanded(
@@ -301,27 +308,95 @@ class _EditUserDialogState extends State<EditUserDialog> {
                         ),
                       ],
                     ),
-                    const SizedBox(height: DesktopSpacing.sm),
+                    const SizedBox(height: DesktopSpacing.md),
+                    _buildLabel('الدور والصلاحية'),
+
+                    // الأدوار اليدوية القابلة للتعديل
+                    Wrap(
+                      spacing: 8.0,
+                      runSpacing: 8.0,
+                      children: _roles.map((role) {
+                        final isSelected = _selectedRoles.contains(role);
+                        return FilterChip(
+                          label: Text(UsersViewModel.roleTranslations[role] ?? role),
+                          selected: isSelected,
+                          onSelected: (selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedRoles.add(role);
+                              } else {
+                                _selectedRoles.remove(role);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
+                    if (_selectedRoles.where((r) => !_adminRoles.contains(r)).isEmpty &&
+                        _selectedRoles.every((r) => _adminRoles.contains(r)))
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8.0),
+                        child: Text(
+                          'يجب اختيار دور يدوي واحد على الأقل',
+                          style: TextStyle(color: Colors.red, fontSize: 12),
+                        ),
+                      ),
+
+                    // عرض الأدوار الإدارية المحمية (إن وجدت)
+                    Builder(builder: (context) {
+                      final lockedRoles = _selectedRoles
+                          .where((r) => _adminRoles.contains(r))
+                          .toList();
+                      if (lockedRoles.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 10),
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: Colors.orange.shade200),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(Icons.lock_outline, size: 13, color: Colors.orange.shade700),
+                                    const SizedBox(width: 5),
+                                    Text(
+                                      'أدوار إدارية (تُعيَّن تلقائياً - غير قابلة للتعديل يدوياً)',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  runSpacing: 6,
+                                  children: lockedRoles.map((role) => Chip(
+                                    avatar: Icon(Icons.lock, size: 12, color: Colors.orange.shade700),
+                                    label: Text(
+                                      UsersViewModel.roleTranslations[role] ?? role,
+                                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                                    ),
+                                    backgroundColor: Colors.orange.shade100,
+                                    side: BorderSide(color: Colors.orange.shade300),
+                                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                                  )).toList(),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      );
+                    }),
+                    const SizedBox(height: DesktopSpacing.md),
 
                     Row(
                       children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('الدور والصلاحية'),
-                              _buildDynamicDropdown(
-                                hintText: 'اختر الصلاحية',
-                                value: _selectedRole,
-                                items: _roles,
-                                icon: Icons.security,
-                                onChanged: (val) =>
-                                    setState(() => _selectedRole = val),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: DesktopSpacing.md),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,

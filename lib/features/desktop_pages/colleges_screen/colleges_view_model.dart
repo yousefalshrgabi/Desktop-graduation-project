@@ -1,5 +1,6 @@
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'package:academic_affairs_management/features/desktop_pages/colleges_screen/college_model.dart';
+import 'package:academic_affairs_management/features/desktop_pages/users_screen/users_view_model.dart';
 import 'package:flutter/material.dart';
 
 class CollegesViewModel extends ChangeNotifier {
@@ -113,9 +114,11 @@ class CollegesViewModel extends ChangeNotifier {
   void _applyFilters() {
     filteredColleges = allColleges.where((c) {
       final deanName = userNames[c.deanId]?.toLowerCase() ?? '';
-      final academicViceDeanName = userNames[c.academicViceDeanId]?.toLowerCase() ?? '';
-      final studentViceDeanName = userNames[c.studentViceDeanId]?.toLowerCase() ?? '';
-      
+      final academicViceDeanName =
+          userNames[c.academicViceDeanId]?.toLowerCase() ?? '';
+      final studentViceDeanName =
+          userNames[c.studentViceDeanId]?.toLowerCase() ?? '';
+
       final matchesSearch = c.arName.toLowerCase().contains(searchQuery) ||
           c.enName.toLowerCase().contains(searchQuery) ||
           c.code.toLowerCase().contains(searchQuery) ||
@@ -161,7 +164,22 @@ class CollegesViewModel extends ChangeNotifier {
       data['en_name'] = data['en_name'] ?? 'No Name';
       data['code'] = data['code'] ?? '';
 
-      await db.insert('colleges', data);
+      await db.transaction((txn) async {
+        await txn.insert('colleges', data);
+
+        // 👈 تحديث صلاحيات المستخدمين المختارين للعمادة والنواب بمصفوفة الصلاحيات
+        if (data['dean_id'] != null && data['dean_id'].toString().isNotEmpty) {
+          await UsersViewModel.addRoleToUser(txn, data['dean_id'].toString(), 'Dean');
+        }
+        if (data['academic_vice_dean_id'] != null &&
+            data['academic_vice_dean_id'].toString().isNotEmpty) {
+          await UsersViewModel.addRoleToUser(txn, data['academic_vice_dean_id'].toString(), 'Vice Dean for Academic Affairs');
+        }
+        if (data['student_vice_dean_id'] != null &&
+            data['student_vice_dean_id'].toString().isNotEmpty) {
+          await UsersViewModel.addRoleToUser(txn, data['student_vice_dean_id'].toString(), 'Vice Dean for Student Affairs');
+        }
+      });
 
       await fetchColleges();
       debugPrint('College added successfully: ${data['ar_name']}');
@@ -170,7 +188,6 @@ class CollegesViewModel extends ChangeNotifier {
       rethrow;
     }
   }
-
 
   Future<void> updateCollege(
       String collegeId, Map<String, dynamic> data) async {
@@ -185,9 +202,13 @@ class CollegesViewModel extends ChangeNotifier {
         limit: 1,
       );
 
-      final String oldDeanId = oldData.isNotEmpty ? oldData.first['dean_id'] ?? '' : '';
-      final String oldAcademicViceDeanId = oldData.isNotEmpty ? oldData.first['academic_vice_dean_id'] ?? '' : '';
-      final String oldStudentViceDeanId = oldData.isNotEmpty ? oldData.first['student_vice_dean_id'] ?? '' : '';
+      final String oldDeanId =
+          oldData.isNotEmpty ? oldData.first['dean_id'] ?? '' : '';
+      final String oldAcademicViceDeanId = oldData.isNotEmpty
+          ? oldData.first['academic_vice_dean_id'] ?? ''
+          : '';
+      final String oldStudentViceDeanId =
+          oldData.isNotEmpty ? oldData.first['student_vice_dean_id'] ?? '' : '';
 
       // 2. تجهيز البيانات الجديدة
       if (data.containsKey('arName')) data['ar_name'] = data.remove('arName');
@@ -202,13 +223,50 @@ class CollegesViewModel extends ChangeNotifier {
 
       data.remove('createdAt');
 
-      // 3. تحديث الكلية
-      await db.update(
-        'colleges',
-        data,
-        where: 'id = ?',
-        whereArgs: [collegeId],
-      );
+      // 3. تحديث الكلية والصلاحيات في عملية واحدة
+      await db.transaction((txn) async {
+        await txn.update(
+          'colleges',
+          data,
+          where: 'id = ?',
+          whereArgs: [collegeId],
+        );
+
+        // 👈 إرجاع صلاحية العميد القديم
+        if (oldDeanId.isNotEmpty && data['dean_id'] != oldDeanId) {
+          await UsersViewModel.removeRoleFromUser(txn, oldDeanId, 'Dean');
+        }
+        // 👈 تحديث صلاحيات العميد الجديد
+        if (data['dean_id'] != null &&
+            data['dean_id'].toString().isNotEmpty &&
+            data['dean_id'] != oldDeanId) {
+          await UsersViewModel.addRoleToUser(txn, data['dean_id'].toString(), 'Dean');
+        }
+
+        // 👈 إرجاع صلاحية النائب الأكاديمي القديم
+        if (oldAcademicViceDeanId.isNotEmpty &&
+            data['academic_vice_dean_id'] != oldAcademicViceDeanId) {
+          await UsersViewModel.removeRoleFromUser(txn, oldAcademicViceDeanId, 'Vice Dean for Academic Affairs');
+        }
+        // 👈 تحديث صلاحيات النائب الأكاديمي الجديد
+        if (data['academic_vice_dean_id'] != null &&
+            data['academic_vice_dean_id'].toString().isNotEmpty &&
+            data['academic_vice_dean_id'] != oldAcademicViceDeanId) {
+          await UsersViewModel.addRoleToUser(txn, data['academic_vice_dean_id'].toString(), 'Vice Dean for Academic Affairs');
+        }
+
+        // 👈 إرجاع صلاحية نائب شؤون الطلاب القديم
+        if (oldStudentViceDeanId.isNotEmpty &&
+            data['student_vice_dean_id'] != oldStudentViceDeanId) {
+          await UsersViewModel.removeRoleFromUser(txn, oldStudentViceDeanId, 'Vice Dean for Student Affairs');
+        }
+        // 👈 تحديث صلاحيات نائب شؤون الطلاب الجديد
+        if (data['student_vice_dean_id'] != null &&
+            data['student_vice_dean_id'].toString().isNotEmpty &&
+            data['student_vice_dean_id'] != oldStudentViceDeanId) {
+          await UsersViewModel.addRoleToUser(txn, data['student_vice_dean_id'].toString(), 'Vice Dean for Student Affairs');
+        }
+      });
 
       await fetchColleges();
       debugPrint('College updated successfully: $collegeId');
@@ -228,6 +286,23 @@ class CollegesViewModel extends ChangeNotifier {
       // 2. تسجيل عملية الحذف في سلة المهملات للمزامنة لاحقاً
       await txn.insert(
           'deleted_records', {'id': collegeId, 'table_name': 'colleges'});
+
+      // 3. إزالة الصلاحيات من العميد والنواب عند حذف الكلية
+      final List<Map<String, dynamic>> oldData = await txn.query(
+        'colleges',
+        where: 'id = ?',
+        whereArgs: [collegeId],
+        limit: 1,
+      );
+      if (oldData.isNotEmpty) {
+        final String oldDeanId = oldData.first['dean_id'] ?? '';
+        final String oldAcademicViceDeanId = oldData.first['academic_vice_dean_id'] ?? '';
+        final String oldStudentViceDeanId = oldData.first['student_vice_dean_id'] ?? '';
+        
+        if (oldDeanId.isNotEmpty) await UsersViewModel.removeRoleFromUser(txn, oldDeanId, 'Dean');
+        if (oldAcademicViceDeanId.isNotEmpty) await UsersViewModel.removeRoleFromUser(txn, oldAcademicViceDeanId, 'Vice Dean for Academic Affairs');
+        if (oldStudentViceDeanId.isNotEmpty) await UsersViewModel.removeRoleFromUser(txn, oldStudentViceDeanId, 'Vice Dean for Student Affairs');
+      }
     });
 
     fetchColleges(); // تحديث الواجهة
