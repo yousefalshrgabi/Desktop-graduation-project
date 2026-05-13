@@ -8,6 +8,9 @@ import 'package:academic_affairs_management/features/desktop_pages/departments_s
 import 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_members.dart';
 import 'package:academic_affairs_management/features/desktop_pages/users_screen/users_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/requests_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/programs_screen/programs_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/subjects_screen/subjects_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/study_plans_view.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -19,6 +22,7 @@ class MainShell extends StatefulWidget {
 class _MainShellState extends State<MainShell>
     with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
+  int _dashboardKeyCount = 0;
   bool _sidebarVisible = true;
 
   late final AnimationController _animController;
@@ -57,7 +61,10 @@ class _MainShellState extends State<MainShell>
 
   /// Called from DashboardView quick-access buttons
   void _navigateTo(int index) {
-    setState(() => _selectedIndex = index);
+    setState(() {
+      _selectedIndex = index;
+      if (index == 0) _dashboardKeyCount++;
+    });
   }
 
   @override
@@ -82,12 +89,16 @@ class _MainShellState extends State<MainShell>
                 IndexedStack(
                   index: _selectedIndex,
                   children: [
-                    DashboardView(onNavigate: _navigateTo),
-                    // 👈 أزلنا const وأضفنا مفتاحاً فريداً (Key) لكل صفحة
+                    DashboardView(
+                        key: ValueKey('dash_$_dashboardKeyCount'),
+                        onNavigate: _navigateTo),
                     Colleges(key: ValueKey('colleges_$_selectedIndex')),
                     DepartmentsView(key: ValueKey('depts_$_selectedIndex')),
                     FacultyMembers(key: ValueKey('faculty_$_selectedIndex')),
                     Users(key: ValueKey('users_$_selectedIndex')),
+                    ProgramsView(key: ValueKey('programs_$_selectedIndex')),
+                    SubjectsView(key: ValueKey('subjects_$_selectedIndex')),
+                    StudyPlansView(key: ValueKey('study_plans_$_selectedIndex')),
                     RequestsView(key: ValueKey('requests_$_selectedIndex')),
                   ],
                 ),
@@ -144,14 +155,22 @@ class _MainShellState extends State<MainShell>
         children: [
           _buildSidebarHeader(),
           const Divider(height: 1),
-          const SizedBox(height: DesktopSpacing.md),
-          _buildSidebarItem(0, 'لوحة التحكم', Icons.dashboard_outlined),
-          _buildSidebarItem(1, 'إدارة الكليات', Icons.business_outlined),
-          _buildSidebarItem(2, 'الأقسام', Icons.account_tree_outlined),
-          _buildSidebarItem(3, 'هيئة التدريس', Icons.people_outline),
-          _buildSidebarItem(4, 'المستخدمين', Icons.manage_accounts_outlined),
-          _buildSidebarItem(5, 'الطلبات', Icons.request_page_outlined),
-          const Spacer(),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.symmetric(vertical: DesktopSpacing.md),
+              children: [
+                _buildSidebarItem(0, 'لوحة التحكم', Icons.dashboard_outlined),
+                _buildSidebarItem(1, 'إدارة الكليات', Icons.business_outlined),
+                _buildSidebarItem(2, 'الأقسام', Icons.account_tree_outlined),
+                _buildSidebarItem(3, 'هيئة التدريس', Icons.people_outline),
+                _buildSidebarItem(4, 'المستخدمين', Icons.manage_accounts_outlined),
+                _buildSidebarItem(5, 'إدارة البرامج', Icons.school_outlined),
+                _buildSidebarItem(6, 'المقررات', Icons.menu_book_outlined),
+                _buildSidebarItem(7, 'الخطط الدراسية', Icons.schema_outlined),
+                _buildSidebarItem(8, 'الطلبات', Icons.request_page_outlined),
+              ],
+            ),
+          ),
           _buildSidebarFooter(),
         ],
       ),
@@ -189,8 +208,8 @@ class _MainShellState extends State<MainShell>
       child: InkWell(
         onTap: () {
           setState(() {
-            // 1. تصفير الاندكس للحظة (اختياري لضمان التحديث)
             _selectedIndex = index;
+            if (index == 0) _dashboardKeyCount++;
           });
         },
         borderRadius: BorderRadius.circular(8),

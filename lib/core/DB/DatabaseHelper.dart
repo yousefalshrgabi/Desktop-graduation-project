@@ -26,13 +26,91 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
     return await openDatabase(
       path,
-      version: 1,
+      version: 8,
       // 👈 تفعيل القيود المرجعية (Foreign Keys) لضمان صحة الربط بين الجداول
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
       },
       onCreate: _createDB,
+      onUpgrade: _upgradeDB,
     );
+  }
+
+  Future<void> _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    debugPrint(
+        '[SQLITE DEBUG] 🛠️ جاري الترقية من $oldVersion إلى $newVersion');
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS programs (
+          id TEXT PRIMARY KEY, 
+          name_ar TEXT NOT NULL, 
+          name_en TEXT NOT NULL,
+          total_levels INTEGER NOT NULL, 
+          status TEXT NOT NULL, 
+          tracks TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول programs خلال الترقية');
+    }
+
+    if (oldVersion < 5) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS studyPlans (
+          id TEXT PRIMARY KEY,
+          program_id TEXT NOT NULL,
+          track_id TEXT,
+          ar_level TEXT NOT NULL,
+          en_level TEXT NOT NULL,
+          ar_semester TEXT NOT NULL,
+          en_semester TEXT NOT NULL,
+          semester_totals TEXT NOT NULL,
+          courses TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول studyPlans خلال الترقية');
+    }
+
+    if (oldVersion < 6) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS studyPlans (
+          id TEXT PRIMARY KEY,
+          program_id TEXT NOT NULL,
+          track_id TEXT,
+          ar_level TEXT NOT NULL,
+          en_level TEXT NOT NULL,
+          ar_semester TEXT NOT NULL,
+          en_semester TEXT NOT NULL,
+          semester_totals TEXT NOT NULL,
+          courses TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول studyPlans (v6) خلال الترقية');
+    }
+
+    if (oldVersion < 7) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS study_plans_storage (
+          id TEXT PRIMARY KEY,
+          dept_id TEXT NOT NULL,
+          url TEXT NOT NULL,
+          date TEXT NOT NULL,
+          local_path TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول study_plans_storage (v7) خلال الترقية');
+    }
+
+    if (oldVersion < 8) {
+      await db.execute('ALTER TABLE colleges ADD COLUMN academic_vice_dean_id TEXT');
+      await db.execute('ALTER TABLE colleges ADD COLUMN student_vice_dean_id TEXT');
+      debugPrint('[SQLITE DEBUG] ✅ تم إضافة أعمدة نواب العميد لجدول colleges');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -59,7 +137,9 @@ class DatabaseHelper {
       await db.execute('''
         CREATE TABLE colleges (
           id TEXT PRIMARY KEY, ar_name TEXT NOT NULL, en_name TEXT NOT NULL,
-          code TEXT NOT NULL, dean_id TEXT NOT NULL, created_at TEXT NOT NULL
+          code TEXT NOT NULL, dean_id TEXT NOT NULL, 
+          academic_vice_dean_id TEXT, student_vice_dean_id TEXT,
+          created_at TEXT NOT NULL
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول colleges');
@@ -166,6 +246,20 @@ class DatabaseHelper {
 
       // 7. جدول سلة المهملات
       await db.execute('''
+        CREATE TABLE programs (
+          id TEXT PRIMARY KEY, 
+          name_ar TEXT NOT NULL, 
+          name_en TEXT NOT NULL,
+          total_levels INTEGER NOT NULL, 
+          status TEXT NOT NULL, 
+          tracks TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول programs');
+
+      await db.execute('''
         CREATE TABLE deleted_records (
           id TEXT PRIMARY KEY,
           table_name TEXT NOT NULL
@@ -192,6 +286,34 @@ class DatabaseHelper {
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول requests');
+
+      await db.execute('''
+        CREATE TABLE studyPlans (
+          id TEXT PRIMARY KEY,
+          program_id TEXT NOT NULL,
+          track_id TEXT,
+          ar_level TEXT NOT NULL,
+          en_level TEXT NOT NULL,
+          ar_semester TEXT NOT NULL,
+          en_semester TEXT NOT NULL,
+          semester_totals TEXT NOT NULL,
+          courses TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول studyPlans');
+
+      await db.execute('''
+        CREATE TABLE study_plans_storage (
+          id TEXT PRIMARY KEY,
+          dept_id TEXT NOT NULL,
+          url TEXT NOT NULL,
+          date TEXT NOT NULL,
+          local_path TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول study_plans_storage');
 
       debugPrint('[SQLITE DEBUG] 🎉 اكتمل بناء قاعدة البيانات المحلية بنجاح!');
     } catch (e) {
@@ -242,9 +364,10 @@ class DatabaseHelper {
       await db.delete('departments');
       await db.delete('faculty_members');
       await db.delete('users');
-      await db.delete('study_plans');
       await db.delete('subjects');
       await db.delete('requests');
+      await db.delete('programs');
+      await db.delete('studyPlans');
       debugPrint('[SQLITE DEBUG] ✅ تم تنظيف قاعدة البيانات بنجاح.');
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ فشل عملية التنظيف: $e');

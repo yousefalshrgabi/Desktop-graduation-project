@@ -38,6 +38,14 @@ class DashboardViewModel extends ChangeNotifier {
       final usersCountResult = await db.rawQuery('SELECT COUNT(*) as count FROM users');
       final int totalUsers = Sqflite.firstIntValue(usersCountResult) ?? 0;
 
+      final programsCountResult =
+          await db.rawQuery('SELECT COUNT(*) as count FROM programs');
+      final int totalPrograms = Sqflite.firstIntValue(programsCountResult) ?? 0;
+
+      final studyPlansCountResult =
+          await db.rawQuery('SELECT COUNT(*) as count FROM studyPlans');
+      final int totalStudyPlans = Sqflite.firstIntValue(studyPlansCountResult) ?? 0;
+
       // =======================================================
       // 2. جلب أحدث الكليات المضافة
       // =======================================================
@@ -47,16 +55,9 @@ class DashboardViewModel extends ChangeNotifier {
         limit: 5,
       );
 
-      // تأمين التحويل لـ CollegeModel لمنع أخطاء Null
+      // تحويل الـ Map القادم من SQLite إلى CollegeModel بطريقة آمنة
       final recentColleges = recentCollegesLocal.map((map) {
-        return CollegeModel(
-          id: map['id']?.toString() ?? '',
-          arName: map['ar_name']?.toString() ?? 'غير محدد',
-          enName: map['en_name']?.toString() ?? 'غير محدد',
-          code: map['code']?.toString() ?? '',
-          deanId: map['dean_id']?.toString() ?? '',
-          createdAt: map['created_at']?.toString() ?? '',
-        );
+        return CollegeModel.fromMap(map);
       }).toList();
 
       // =======================================================
@@ -68,8 +69,7 @@ class DashboardViewModel extends ChangeNotifier {
         limit: 5,
       );
 
-      // 👈 التعديل الأهم: استخدام دالة fromMap الجاهزة والشاملة
-      // هذا يضمن توافق جميع الحقول الـ 30 التي أضفناها مؤخراً!
+      // استخدام دالة fromMap الجاهزة والشاملة
       final recentFaculty = recentFacultyLocal.map((map) => FacultyMemberModel.fromMap(map)).toList();
 
       // =======================================================
@@ -79,6 +79,8 @@ class DashboardViewModel extends ChangeNotifier {
         totalColleges: totalColleges,
         totalFacultyMembers: totalFaculty,
         totalUsers: totalUsers,
+        totalPrograms: totalPrograms,
+        totalStudyPlans: totalStudyPlans,
         recentColleges: recentColleges,
         recentFaculty: recentFaculty,
       );
@@ -103,6 +105,7 @@ class DashboardViewModel extends ChangeNotifier {
       final collegesCount = await _firestore.collection('colleges').count().get();
       final facultyCount = await _firestore.collection('faculty_members').count().get();
       final usersCount = await _firestore.collection('users').count().get();
+      final programsCount = await _firestore.collection('programs').count().get();
 
       final recentCollegesSnapshot = await _firestore
           .collection('colleges')
@@ -128,6 +131,7 @@ class DashboardViewModel extends ChangeNotifier {
         totalColleges: collegesCount.count ?? 0,
         totalFacultyMembers: facultyCount.count ?? 0,
         totalUsers: usersCount.count ?? 0,
+        totalPrograms: programsCount.count ?? 0,
         recentColleges: recentColleges,
         recentFaculty: recentFaculty,
       );

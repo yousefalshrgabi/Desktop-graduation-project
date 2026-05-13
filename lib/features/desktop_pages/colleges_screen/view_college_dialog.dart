@@ -15,8 +15,10 @@ class ViewCollegeDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // جلب اسم العميد من الـ ViewModel إذا كان متاحاً
-    final deanName = viewModel.deanNames[college.deanId] ?? 'غير محدد';
+    // جلب الأسماء من الـ ViewModel إذا كانت متاحة
+    final deanName = viewModel.userNames[college.deanId] ?? 'غير محدد';
+    final academicViceDeanName = viewModel.userNames[college.academicViceDeanId] ?? 'غير محدد';
+    final studentViceDeanName = viewModel.userNames[college.studentViceDeanId] ?? 'غير محدد';
 
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -43,6 +45,8 @@ class ViewCollegeDialog extends StatelessWidget {
             _buildDetailRow('اسم الكلية (إنجليزي):', college.enName),
             _buildDetailRow('الرمز الأكاديمي:', college.code),
             _buildDetailRow('العميد:', deanName),
+            _buildDetailRow('نائب الشؤون الأكاديمية:', academicViceDeanName),
+            _buildDetailRow('نائب شؤون الطلاب:', studentViceDeanName),
             _buildDetailRow('تاريخ الإنشاء:', college.createdAt),
             const SizedBox(height: DesktopSpacing.lg),
             Align(

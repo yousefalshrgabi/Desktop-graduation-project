@@ -17,6 +17,8 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
   final TextEditingController _codeController = TextEditingController();
   
   String? _selectedDeanId;
+  String? _selectedAcademicViceDeanId;
+  String? _selectedStudentViceDeanId;
   bool _isLoading = false;
 
   @override
@@ -44,6 +46,8 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
         'en_name': _enNameController.text.trim(),
         'code': _codeController.text.trim(),
         'deanId': _selectedDeanId ?? '',
+        'academicViceDeanId': _selectedAcademicViceDeanId ?? '',
+        'studentViceDeanId': _selectedStudentViceDeanId ?? '',
       });
 
       if (mounted) {
@@ -138,8 +142,28 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
                 ),
                 const SizedBox(height: DesktopSpacing.sm),
 
-                _buildLabel('قائم بأعمال العميد (اختياري)'),
-                _buildDeanDropdown(),
+                _buildLabel('العميد'),
+                _buildUserDropdown(
+                  value: _selectedDeanId,
+                  hint: 'اختر العميد',
+                  onChanged: (val) => setState(() => _selectedDeanId = val),
+                ),
+                const SizedBox(height: DesktopSpacing.sm),
+
+                _buildLabel('نائب الشؤون الأكاديمية'),
+                _buildUserDropdown(
+                  value: _selectedAcademicViceDeanId,
+                  hint: 'اختر النائب الأكاديمي',
+                  onChanged: (val) => setState(() => _selectedAcademicViceDeanId = val),
+                ),
+                const SizedBox(height: DesktopSpacing.sm),
+
+                _buildLabel('نائب شؤون الطلاب'),
+                _buildUserDropdown(
+                  value: _selectedStudentViceDeanId,
+                  hint: 'اختر نائب الطلاب',
+                  onChanged: (val) => setState(() => _selectedStudentViceDeanId = val),
+                ),
                 const SizedBox(height: DesktopSpacing.lg),
 
                 Row(
@@ -206,10 +230,14 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
     );
   }
 
-  Widget _buildDeanDropdown() {
+  Widget _buildUserDropdown({
+    required String? value,
+    required String hint,
+    required void Function(String?) onChanged,
+  }) {
     // التحقق من وجود القيمة تجنباً لـ Assertion Error أثناء التحميل
-    final bool valueExists = widget.viewModel.potentialDeans.any((user) => user['id'] == _selectedDeanId);
-    final String? effectiveValue = valueExists ? _selectedDeanId : null;
+    final bool valueExists = widget.viewModel.potentialDeans.any((user) => user['id'] == value);
+    final String? effectiveValue = valueExists ? value : null;
 
     return DropdownButtonFormField<String>(
       value: effectiveValue,
@@ -220,7 +248,7 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
         fillColor: Colors.grey[50],
         prefixIcon: const Icon(Icons.person, color: Colors.grey),
       ),
-      hint: const Text('اختر العميد'),
+      hint: Text(hint),
       items: [
         const DropdownMenuItem(value: null, child: Text('لا يوجد (غير محدد)')),
         ...widget.viewModel.potentialDeans.map((user) {
@@ -230,7 +258,7 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
           );
         }),
       ],
-      onChanged: (val) => setState(() => _selectedDeanId = val),
+      onChanged: onChanged,
     );
   }
 
