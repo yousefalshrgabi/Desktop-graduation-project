@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
@@ -37,16 +38,48 @@ class _StudyPlansViewState extends State<StudyPlansView> {
     return Scaffold(
       backgroundColor: DesktopColors.background,
       appBar: _buildAppBar(),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(DesktopSpacing.md),
+      body: DefaultTabController(
+        length: 2,
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _buildHeader(),
-            const SizedBox(height: DesktopSpacing.lg),
-            _buildFiltersAndActions(context),
-            const SizedBox(height: DesktopSpacing.md),
-            _buildTable(),
+            Padding(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: DesktopSpacing.md),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildHeader(),
+                  const SizedBox(height: DesktopSpacing.lg),
+                  _buildFiltersAndActions(context),
+                  const SizedBox(height: DesktopSpacing.md),
+                  TabBar(
+                    tabs: const [
+                      Tab(text: 'الخطط المهيكلة (النظام)'),
+                      Tab(text: 'ملفات الإكسل (المخزنة)'),
+                    ],
+                    labelStyle: DesktopTextStyles.body
+                        .copyWith(fontWeight: FontWeight.bold),
+                    labelColor: DesktopColors.primary,
+                    unselectedLabelColor: Colors.grey,
+                    indicatorColor: DesktopColors.primary,
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(DesktopSpacing.md),
+                    child: _buildTable(),
+                  ),
+                  SingleChildScrollView(
+                    padding: const EdgeInsets.all(DesktopSpacing.md),
+                    child: _buildExcelPlansTable(),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -386,6 +419,198 @@ class _StudyPlansViewState extends State<StudyPlansView> {
           ),
         );
       }),
+    );
+  }
+
+  // ── Excel Plans Table ──────────────────────────────────────────────────────
+  Widget _buildExcelPlansTable() {
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: DesktopSpacing.sm),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton.icon(
+                onPressed: () async {
+                  try {
+                    await _viewModel.fetchExcelPlansFromCloud();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                          content: Text('✅ تمت مزامنة ملفات الإكسل مع السحاب'),
+                          backgroundColor: Colors.green),
+                    );
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text('❌ فشل التحديث: $e'),
+                          backgroundColor: Colors.red),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.refresh, size: 18),
+                label: const Text('تحديث من السحاب'),
+                style: TextButton.styleFrom(
+                    foregroundColor: DesktopColors.primary),
+              ),
+            ],
+          ),
+        ),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: DesktopColors.border),
+          ),
+          child: Builder(builder: (context) {
+            if (_viewModel.isLoading) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(DesktopSpacing.lg),
+                  child: CircularProgressIndicator(),
+                ),
+              );
+            }
+
+            if (_viewModel.excelPlans.isEmpty) {
+              return const Center(
+                child: Padding(
+                  padding: EdgeInsets.all(DesktopSpacing.lg),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.file_copy_outlined,
+                          size: 48, color: Colors.grey),
+                      SizedBox(height: 12),
+                      Text('لا توجد ملفات إكسل مرفوعة حالياً',
+                          style: TextStyle(color: Colors.grey, fontSize: 15)),
+                    ],
+                  ),
+                ),
+              );
+            }
+
+            return CustomDataTable(
+              columns: const [
+                DataColumn(
+                    label: Text('اسم الملف', style: DesktopTextStyles.caption)),
+                DataColumn(
+                    label: Text('القسم', style: DesktopTextStyles.caption)),
+                DataColumn(
+                    label:
+                        Text('تاريخ الرفع', style: DesktopTextStyles.caption)),
+                DataColumn(
+                    label: Text('إجراءات', style: DesktopTextStyles.caption)),
+              ],
+              rows: _viewModel.excelPlans.map((excel) {
+                final dept = _viewModel.departments.firstWhere(
+                  (d) => d['id'].toString() == excel['dept_id'].toString(),
+                  orElse: () => {'name': 'غير معروف'},
+                );
+
+                // استخراج اسم الملف من الرابط بشكل نظيف
+                String fileName =
+                    _viewModel.getCleanFileName(excel['url'] ?? '');
+
+                // التحقق من التوفر المحلي
+                final bool isLocal = excel['local_path'] != null &&
+                    File(excel['local_path']).existsSync();
+
+                return DataRow(cells: [
+                  DataCell(Text(fileName, style: DesktopTextStyles.body)),
+                  DataCell(Text(dept['name'] ?? 'غير معروف',
+                      style: DesktopTextStyles.body)),
+                  DataCell(Text(excel['date'].toString().split('T')[0],
+                      style: DesktopTextStyles.body)),
+                  DataCell(
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                              isLocal
+                                  ? Icons.phonelink_setup
+                                  : Icons.cloud_download_outlined,
+                              color: isLocal
+                                  ? Colors.green
+                                  : DesktopColors.primary),
+                          tooltip: isLocal
+                              ? 'ملف متوفر محلياً (سيتم نسخ نسخة منه)'
+                              : 'تحميل من السحابة',
+                          onPressed: () async {
+                            try {
+                              await _viewModel.downloadExcelFile(excel);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text(isLocal
+                                        ? '✅ تم حفظ نسخة من الملف المحلي'
+                                        : '✅ تم بدء تحميل الملف من السحاب'),
+                                    backgroundColor: Colors.green),
+                              );
+                            } catch (e) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text('❌ فشل العملية: $e'),
+                                    backgroundColor: Colors.red),
+                              );
+                            }
+                          },
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.delete_outline,
+                              color: Colors.red),
+                          tooltip: 'حذف نهائي (محلي وسحابي)',
+                          onPressed: () =>
+                              _showDeleteExcelConfirm(context, excel, fileName),
+                        ),
+                      ],
+                    ),
+                  ),
+                ]);
+              }).toList(),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+
+  void _showDeleteExcelConfirm(
+      BuildContext context, Map<String, dynamic> excel, String fileName) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('تأكيد الحذف النهائي'),
+        content: Text(
+            'سيتم حذف الملف "$fileName" نهائياً. لا يمكن التراجع عن هذا الإجراء.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('إلغاء')),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              try {
+                await _viewModel.deleteExcelPlan(excel);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                      content: Text('✅ تم حذف الملف والبيانات بنجاح'),
+                      backgroundColor: Colors.red),
+                );
+              } catch (e) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                      content: Text('❌ فشل الحذف: $e'),
+                      backgroundColor: Colors.red),
+                );
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child:
+                const Text('حذف نهائي', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
     );
   }
 

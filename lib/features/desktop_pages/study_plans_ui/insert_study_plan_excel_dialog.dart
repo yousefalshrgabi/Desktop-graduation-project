@@ -60,8 +60,9 @@ class _InsertStudyPlanExcelDialogState
     });
 
     try {
-      await widget.viewModel.uploadStudyPlanExcel(_selectedDeptId!, _selectedFile!);
-      
+      await widget.viewModel
+          .uploadStudyPlanExcel(_selectedDeptId!, _selectedFile!);
+
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -73,6 +74,7 @@ class _InsertStudyPlanExcelDialogState
       }
     } catch (e) {
       if (mounted) {
+        print(e);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('حدث خطأ أثناء الرفع: $e'),
