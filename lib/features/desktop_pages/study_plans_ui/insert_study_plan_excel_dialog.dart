@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'package:academic_affairs_management/core/widgets/searchable_user_dropdown.dart';
 import 'package:file_picker/file_picker.dart';
 import 'study_plans_viewmodel.dart';
 
@@ -109,22 +110,10 @@ class _InsertStudyPlanExcelDialogState
               style: DesktopTextStyles.caption,
             ),
             const SizedBox(height: DesktopSpacing.xs),
-            DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
+            SearchableUserDropdown(
               value: _selectedDeptId,
-              hint: const Text('اختر القسم'),
-              items: widget.viewModel.departments.map((dept) {
-                return DropdownMenuItem<String>(
-                  value: dept['id'].toString(),
-                  child: Text(dept['name'].toString()),
-                );
-              }).toList(),
+              hint: 'اختر القسم',
+              items: widget.viewModel.departments,
               onChanged: (val) {
                 setState(() {
                   _selectedDeptId = val;

@@ -176,6 +176,10 @@ class SyncService {
           if (isFaculty) {
             final faculty = FacultyMemberModel.fromFirestore(doc);
             localData = faculty.toMap();
+            // 👈 حل مشكلة الـ Foreign Key: إذا كان الـ user_id فارغاً، نجعله null
+            if (localData['user_id'] == null || localData['user_id'].toString().trim().isEmpty) {
+              localData['user_id'] = null;
+            }
           } else {
             // تحويل مفاتيح الفايربيس (camelCase) إلى SQLite (snake_case) إن تطلب الأمر
             localData = {

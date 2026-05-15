@@ -18,7 +18,7 @@ class DatabaseHelper {
           '[SQLITE DEBUG] 🟡 لم يتم العثور على قاعدة بيانات نشطة، جاري التهيئة...');
       _initDatabaseFuture = _initDB('academic_affairss.db');
     }
-    
+
     _database = await _initDatabaseFuture!;
     return _database!;
   }
@@ -32,7 +32,7 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
     return await openDatabase(
       path,
-      version: 8,
+      version: 10,
       // 👈 تفعيل القيود المرجعية (Foreign Keys) لضمان صحة الربط بين الجداول
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -109,13 +109,36 @@ class DatabaseHelper {
           local_path TEXT NOT NULL
         )
       ''');
-      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول study_plans_storage (v7) خلال الترقية');
+      debugPrint(
+          '[SQLITE DEBUG] ✅ تم إنشاء جدول study_plans_storage (v7) خلال الترقية');
     }
 
     if (oldVersion < 8) {
-      await db.execute('ALTER TABLE colleges ADD COLUMN academic_vice_dean_id TEXT');
-      await db.execute('ALTER TABLE colleges ADD COLUMN student_vice_dean_id TEXT');
+      await db.execute(
+          'ALTER TABLE colleges ADD COLUMN academic_vice_dean_id TEXT');
+      await db
+          .execute('ALTER TABLE colleges ADD COLUMN student_vice_dean_id TEXT');
       debugPrint('[SQLITE DEBUG] ✅ تم إضافة أعمدة نواب العميد لجدول colleges');
+    }
+
+    if (oldVersion < 10) {
+      debugPrint('[SQLITE DEBUG] 🛠️ إضافة الأعمدة الناقصة لجدول faculty_members بشكل مستقل...');
+      final columns = [
+        'status', 'file_number', 'file_url', 'local_file_path',
+        'bsc_academic_title', 'bsc_title_transfer_date', 'bsc_specialization',
+        'msc_academic_title', 'msc_title_transfer_date', 'msc_decision_number',
+        'msc_exact_specialization', 'assistant_prof_date', 'assistant_prof_decision',
+        'assoc_prof_date', 'assoc_prof_decision', 'sabbatical_leaves', 'unpaid_leaves'
+      ];
+
+      for (var column in columns) {
+        try {
+          await db.execute('ALTER TABLE faculty_members ADD COLUMN $column TEXT');
+          debugPrint('[SQLITE DEBUG] ✅ تم إضافة العمود: $column');
+        } catch (e) {
+          debugPrint('[SQLITE DEBUG] ℹ️ العمود $column موجود مسبقاً: $e');
+        }
+      }
     }
   }
 

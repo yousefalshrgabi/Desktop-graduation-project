@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'package:academic_affairs_management/core/widgets/searchable_user_dropdown.dart';
 import 'colleges_view_model.dart';
 
 class AddCollegeDialog extends StatefulWidget {
@@ -235,29 +236,10 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
     required String hint,
     required void Function(String?) onChanged,
   }) {
-    // التحقق من وجود القيمة تجنباً لـ Assertion Error أثناء التحميل
-    final bool valueExists = widget.viewModel.potentialDeans.any((user) => user['id'] == value);
-    final String? effectiveValue = valueExists ? value : null;
-
-    return DropdownButtonFormField<String>(
-      value: effectiveValue,
-      decoration: InputDecoration(
-        enabledBorder: DesktopInputTheme.inputDecorationTheme.enabledBorder,
-        focusedBorder: DesktopInputTheme.inputDecorationTheme.focusedBorder,
-        filled: true,
-        fillColor: Colors.grey[50],
-        prefixIcon: const Icon(Icons.person, color: Colors.grey),
-      ),
-      hint: Text(hint),
-      items: [
-        const DropdownMenuItem(value: null, child: Text('لا يوجد (غير محدد)')),
-        ...widget.viewModel.potentialDeans.map((user) {
-          return DropdownMenuItem<String>(
-            value: user['id'],
-            child: Text(user['name']),
-          );
-        }),
-      ],
+    return SearchableUserDropdown(
+      value: value,
+      hint: hint,
+      items: widget.viewModel.potentialDeans,
       onChanged: onChanged,
     );
   }

@@ -19,8 +19,10 @@ class StudyPlansViewModel extends ChangeNotifier {
   bool _isLoading = true;
   String? _errorMessage;
   List<Map<String, dynamic>> _departments = [];
+  bool _disposed = false; // 👈 إضافة متغير لمتابعة حالة الكائن
 
   List<StudyPlanModel> get plans => _plans;
+  bool get disposed => _disposed; // 👈 إضافة Getter
   List<ProgramModel> get programs => _programs;
   List<Map<String, dynamic>> get departments => _departments;
   bool get isLoading => _isLoading;
@@ -67,14 +69,14 @@ class StudyPlansViewModel extends ChangeNotifier {
 
   void updateSearchQuery(String query) {
     _searchQuery = query;
-    notifyListeners();
+    if (!disposed) notifyListeners();
   }
 
   // ── Load ───────────────────────────────────────────────────────────────────
   Future<void> loadData() async {
     _isLoading = true;
     _errorMessage = null;
-    notifyListeners();
+    if (!disposed) notifyListeners();
 
     try {
       final db = await DatabaseHelper.instance.database;
@@ -98,7 +100,7 @@ class StudyPlansViewModel extends ChangeNotifier {
       _errorMessage = 'خطأ في تحميل الخطط الدراسية: $e';
     } finally {
       _isLoading = false;
-      notifyListeners();
+      if (!disposed) notifyListeners();
     }
   }
 
@@ -112,7 +114,7 @@ class StudyPlansViewModel extends ChangeNotifier {
       await db.insert('studyPlans', plan.toSQLiteMap(),
           conflictAlgorithm: ConflictAlgorithm.replace);
       _plans.add(plan);
-      notifyListeners();
+      if (!disposed) notifyListeners();
 
       await _syncSinglePlan(plan);
     } catch (e) {
@@ -132,7 +134,7 @@ class StudyPlansViewModel extends ChangeNotifier {
       final index = _plans.indexWhere((p) => p.id == plan.id);
       if (index != -1) {
         _plans[index] = plan;
-        notifyListeners();
+        if (!disposed) notifyListeners();
       }
 
       await _syncSinglePlan(plan);
@@ -147,7 +149,7 @@ class StudyPlansViewModel extends ChangeNotifier {
       final db = await DatabaseHelper.instance.database;
       await db.delete('studyPlans', where: 'id = ?', whereArgs: [id]);
       _plans.removeWhere((p) => p.id == id);
-      notifyListeners();
+      if (!disposed) notifyListeners();
 
       try {
         await _firestore.collection('studyPlans').doc(id).delete();
@@ -188,7 +190,7 @@ class StudyPlansViewModel extends ChangeNotifier {
       final index = _plans.indexWhere((p) => p.id == plan.id);
       if (index != -1) {
         _plans[index].isSynced = true;
-        notifyListeners();
+        if (!disposed) notifyListeners();
       }
     } catch (e) {
       debugPrint('لم يتم رفع الخطة الآن، سيتم الرفع لاحقاً: $e');
@@ -234,7 +236,16 @@ class StudyPlansViewModel extends ChangeNotifier {
       // 2. Upload to Firebase
       String downloadUrl = '';
       if (await hasInternet()) {
-        final storageRef = FirebaseStorage.instance.ref().child('study_plans/${const Uuid().v4()}_${file.name}');
+        // 👈 الحصول على اسم القسم لاستخدامه في مسار التخزين
+        final deptName = _departments.firstWhere(
+          (d) => d['id'].toString() == deptId, 
+          orElse: () => {'name': 'Unknown'}
+        )['name'];
+
+        final storageRef = FirebaseStorage.instance
+            .ref()
+            .child('study_plans/$deptName/${const Uuid().v4()}_${file.name}');
+            
         UploadTask uploadTask;
         if (file.bytes != null) {
           uploadTask = storageRef.putData(file.bytes!);
@@ -271,5 +282,10 @@ class StudyPlansViewModel extends ChangeNotifier {
       debugPrint('خطأ في إدراج ملف الخطة الدراسية: $e');
       rethrow;
     }
+  }
+  @override
+  void dispose() {
+    _disposed = true; // 👈 تحديث الحالة عند الإغلاق
+    super.dispose();
   }
 }

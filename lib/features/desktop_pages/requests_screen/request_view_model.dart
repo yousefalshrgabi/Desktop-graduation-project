@@ -20,8 +20,10 @@ class RequestViewModel extends ChangeNotifier {
   bool _isLoading = false;
   bool _isSending = false;
   String _errorMessage = '';
+  bool _disposed = false; // 👈 إضافة متغير لمتابعة حالة الكائن
 
   List<RequestModel> get receivedRequests => _receivedRequests;
+  bool get disposed => _disposed; // 👈 إضافة Getter
   List<RequestModel> get sentRequests => _sentRequests;
   bool get isLoading => _isLoading;
   bool get isSending => _isSending;
@@ -74,7 +76,7 @@ class RequestViewModel extends ChangeNotifier {
     _sentSubscription?.cancel();
 
     _isLoading = true;
-    notifyListeners();
+    if (!disposed) notifyListeners();
 
     Query queryReceived;
     if (_currentUserRole == 'Admin' ||
@@ -116,12 +118,12 @@ class RequestViewModel extends ChangeNotifier {
       }
 
       _isLoading = false;
-      notifyListeners();
+      if (!disposed) notifyListeners();
     }, onError: (e) async {
       debugPrint('خطأ في جلب الطلبات الواردة (ربما بسبب الأوفلاين): $e');
       await _loadLocalRequests();
       _isLoading = false;
-      notifyListeners();
+      if (!disposed) notifyListeners();
     });
 
     _sentSubscription = _firestore
@@ -151,7 +153,7 @@ class RequestViewModel extends ChangeNotifier {
         }
       }
 
-      notifyListeners();
+      if (!disposed) notifyListeners();
     }, onError: (e) {
       debugPrint('خطأ في جلب الطلبات الصادرة: $e');
     });
@@ -180,12 +182,6 @@ class RequestViewModel extends ChangeNotifier {
     }
   }
 
-  @override
-  void dispose() {
-    _receivedSubscription?.cancel();
-    _sentSubscription?.cancel();
-    super.dispose();
-  }
 
   Future<void> refreshRequests() async {
     startListening();
@@ -204,7 +200,7 @@ class RequestViewModel extends ChangeNotifier {
       }
     } catch (e) {
       _errorMessage = 'خطأ في اختيار الملف: $e';
-      notifyListeners();
+      if (!disposed) notifyListeners();
     }
     return null;
   }
@@ -259,7 +255,7 @@ class RequestViewModel extends ChangeNotifier {
 
     try {
       _isLoading = true;
-      notifyListeners();
+      if (!disposed) notifyListeners();
 
       final directory = await getApplicationDocumentsDirectory();
       final archiveDir = Directory(p.join(directory.path, 'archived_requests'));
@@ -279,12 +275,12 @@ class RequestViewModel extends ChangeNotifier {
           .updateRequestLocalPath(request.id, localPath);
 
       _isLoading = false;
-      notifyListeners();
+      if (!disposed) notifyListeners();
       return localPath;
     } catch (e) {
       debugPrint('خطأ أثناء تحميل الملف: $e');
       _isLoading = false;
-      notifyListeners();
+      if (!disposed) notifyListeners();
       return null;
     }
   }
@@ -300,7 +296,7 @@ class RequestViewModel extends ChangeNotifier {
   }) async {
     _isSending = true;
     _errorMessage = '';
-    notifyListeners();
+    if (!disposed) notifyListeners();
 
     try {
       String? fileUrl;
@@ -312,7 +308,7 @@ class RequestViewModel extends ChangeNotifier {
 
         if (fileUrl == null) {
           _isSending = false;
-          notifyListeners();
+          if (!disposed) notifyListeners();
           return false;
         }
       }
@@ -334,12 +330,12 @@ class RequestViewModel extends ChangeNotifier {
       await _firestore.collection('requests').add(newRequest.toMap());
 
       _isSending = false;
-      notifyListeners();
+      if (!disposed) notifyListeners();
       return true;
     } catch (e) {
       _errorMessage = 'فشل في إرسال الطلب: $e';
       _isSending = false;
-      notifyListeners();
+      if (!disposed) notifyListeners();
       return false;
     }
   }
@@ -355,8 +351,15 @@ class RequestViewModel extends ChangeNotifier {
       return true;
     } catch (e) {
       _errorMessage = 'فشل في الرد على الطلب: $e';
-      notifyListeners();
+      if (!disposed) notifyListeners();
       return false;
     }
+  }
+  @override
+  void dispose() {
+    _disposed = true; // 👈 تحديث الحالة عند التخلص من الكائن
+    _receivedSubscription?.cancel();
+    _sentSubscription?.cancel();
+    super.dispose();
   }
 }

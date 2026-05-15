@@ -50,6 +50,7 @@ class _SyncDialogState extends State<SyncDialog> {
           Icons.signal_wifi_bad);
     } catch (e) {
       _setErrorState('حدث خطأ: $e', Icons.error_outline);
+      print("ERROR $e");
     } finally {
       if (mounted && _syncIcon != Icons.check_circle_outline) {
         setState(() {
