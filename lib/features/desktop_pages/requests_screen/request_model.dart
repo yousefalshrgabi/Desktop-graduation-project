@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'dart:convert';
 
 class RequestModel {
   final String id;
@@ -14,6 +15,8 @@ class RequestModel {
   final String? rejectionReason;
   final String? fileUrl;
   final String? localFilePath;
+  final String? senderId;
+  final Map<String, dynamic>? extraData; // 👈 لتخزين البيانات التقنية المطلوب تعديلها
 
   RequestModel({
     required this.id,
@@ -29,6 +32,8 @@ class RequestModel {
     this.rejectionReason,
     this.fileUrl,
     this.localFilePath,
+    this.senderId,
+    this.extraData,
   });
 
   factory RequestModel.fromMap(Map<String, dynamic> map, String documentId) {
@@ -54,6 +59,12 @@ class RequestModel {
       rejectionReason: map['rejectionReason'],
       fileUrl: map['fileUrl'],
       localFilePath: map['localFilePath'],
+      senderId: map['senderId'],
+      extraData: map['extraData'] != null
+          ? (map['extraData'] is String
+              ? jsonDecode(map['extraData'])
+              : Map<String, dynamic>.from(map['extraData']))
+          : null,
     );
   }
 
@@ -72,6 +83,8 @@ class RequestModel {
       'rejectionReason': rejectionReason,
       'fileUrl': fileUrl,
       'localFilePath': localFilePath,
+      'senderId': senderId,
+      'extraData': extraData,
     };
   }
 }

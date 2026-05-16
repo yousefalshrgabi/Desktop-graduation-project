@@ -1,3 +1,4 @@
+import 'package:academic_affairs_management/main.dart';
 import 'package:academic_affairs_management/features/authentiction/login_view.dart';
 import 'package:academic_affairs_management/features/authentiction/login_view_model.dart';
 import 'package:flutter/material.dart';
@@ -323,12 +324,9 @@ class _MainShellState extends State<MainShell>
 
                 // 4. التحقق من النتيجة لتوجيه المستخدم
                 if (success) {
-                  // إذا نجح الخروج والرفع، ننتقل لصفحة الدخول
+                  // إذا نجح الخروج والرفع، نقوم بإعادة تشغيل التطبيق بالكامل
                   if (context.mounted) {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(builder: (_) => const LoginView()),
-                      (route) => false,
-                    );
+                    MyApp.restartApp(context, loggedIn: false);
                   }
                 } else {
                   // إذا فشل (بسبب انقطاع النت)، نظهر رسالة الخطأ

@@ -14,8 +14,7 @@ void main() {
   testWidgets('Counter increments smoke test', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp(
-      isLoggedIn: false, // يمكنك تغييرها إلى true لاختبار شاشة الدخول
-      userRole: null, // أو تمرير 'admin' أو 'student'
+      isLoggedIn: false,
     ));
     // Verify that our counter starts at 0.
     expect(find.text('0'), findsOneWidget);

@@ -1,7 +1,10 @@
+import 'package:academic_affairs_management/main.dart';
 import 'package:flutter/material.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/features/authentiction/login_view_model.dart';
 import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/main_shell.dart';
+import 'package:academic_affairs_management/features/mobile_pages/mobile_shell.dart';
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -27,44 +30,27 @@ class _LoginViewState extends State<LoginView> {
   // في ملف LoginView.dart، ابحث عن دالة _handleLogin وقم بتحديثها كالتالي:
 
   Future<void> _handleLogin() async {
-    FocusScope.of(context).unfocus(); // إغلاق الكيبورد
+    FocusScope.of(context).unfocus();
 
     try {
       await _viewModel.login(
         email: _emailController.text,
         password: _passwordController.text,
-        rememberMe: _rememberMe, // تمرير حالة "تذكرني"
+        rememberMe: _rememberMe,
       );
 
       if (!mounted) return;
 
       if (_viewModel.status == LoginStatus.success) {
-        // توجيه المستخدم حسب الصلاحية (Role)
-        Widget nextScreen;
-
-        switch (_viewModel.currentUserRole) {
-          case 'admin':
-            // قم بتغييرها لصفحة الإدمن الخاصة بك
-            nextScreen = const MainShell();
-            break;
-          case 'faculty_member':
-            // قم بتغييرها لصفحة عضو هيئة التدريس
-            nextScreen = const MainShell();
-            break;
-          case 'student':
-            // قم بتغييرها لصفحة الطالب
-            nextScreen = const MainShell();
-            break;
-          default:
-            nextScreen = const MainShell(); // الواجهة الافتراضية
-        }
-
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => nextScreen),
-        );
+        // تحميل بيانات الجلسة
+        await AppSession().loadFromPrefs();
+        if (!mounted) return;
+        
+        // إعادة تشغيل التطبيق ليدخل في حالة "مسجل دخول" وينتقل للواجهة الصحيحة
+        MyApp.restartApp(context, loggedIn: true);
       }
     } catch (e) {
-      debugPrint('[LOGIN DEBUG] _handleLogin TOP LEVEL ERROR: $e');
+      debugPrint('[LOGIN DEBUG] _handleLogin ERROR: $e');
     }
   }
 

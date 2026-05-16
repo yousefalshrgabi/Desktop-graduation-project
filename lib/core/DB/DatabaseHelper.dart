@@ -32,7 +32,7 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
     return await openDatabase(
       path,
-      version: 8,
+      version: 12,
       // 👈 تفعيل القيود المرجعية (Foreign Keys) لضمان صحة الربط بين الجداول
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -117,6 +117,44 @@ class DatabaseHelper {
       await db.execute('ALTER TABLE colleges ADD COLUMN student_vice_dean_id TEXT');
       debugPrint('[SQLITE DEBUG] ✅ تم إضافة أعمدة نواب العميد لجدول colleges');
     }
+
+    if (oldVersion < 10) {
+      // 👈 التأكد من وجود كافة الأعمدة المطلوبة في جدول الطلبات (للمستخدمين القدامى)
+      try {
+        await db.execute('ALTER TABLE requests ADD COLUMN localFilePath TEXT');
+      } catch (e) {
+        debugPrint('Column localFilePath already exists');
+      }
+      try {
+        await db.execute('ALTER TABLE requests ADD COLUMN senderId TEXT');
+      } catch (e) {
+        debugPrint('Column senderId already exists');
+      }
+      debugPrint('[SQLITE DEBUG] ✅ تم التأكد من تحديث أعمدة جدول requests');
+    }
+
+    if (oldVersion < 11) {
+      try {
+        await db.execute('ALTER TABLE requests ADD COLUMN extraData TEXT');
+      } catch (e) {
+        debugPrint('Column extraData already exists');
+      }
+      debugPrint('[SQLITE DEBUG] ✅ تم إضافة عمود extraData لجدول requests');
+    }
+
+    if (oldVersion < 12) {
+      try {
+        await db.execute('ALTER TABLE users ADD COLUMN idCardNumber TEXT');
+      } catch (e) {
+        debugPrint('Column idCardNumber already exists');
+      }
+      try {
+        await db.execute('ALTER TABLE users ADD COLUMN phone TEXT');
+      } catch (e) {
+        debugPrint('Column phone already exists');
+      }
+      debugPrint('[SQLITE DEBUG] ✅ تم إضافة أعمدة جديدة لجدول users');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -134,7 +172,8 @@ class DatabaseHelper {
           created_at TEXT NOT NULL,
           faculty TEXT, 
           department TEXT, 
-          status TEXT
+          status TEXT,
+          idCardNumber TEXT
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول users');
@@ -288,7 +327,9 @@ class DatabaseHelper {
           status TEXT NOT NULL,
           rejectionReason TEXT,
           fileUrl TEXT,
-          localFilePath TEXT
+          localFilePath TEXT,
+          senderId TEXT,
+          extraData TEXT
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول requests');
@@ -381,6 +422,31 @@ class DatabaseHelper {
   }
 
   // =================================================================
+  // دوال التحديث المحلي (Offline-First Updates)
+  // =================================================================
+  Future<void> updateRecordLocal(String table, String id, Map<String, dynamic> data, {String whereColumn = 'id'}) async {
+    try {
+      final db = await instance.database;
+      
+      // التحديث المحلي
+      int rowsAffected = await db.update(
+        table,
+        data,
+        where: '$whereColumn = ?',
+        whereArgs: [id],
+      );
+      
+      if (rowsAffected > 0) {
+        debugPrint('[SQLITE DEBUG] ✅ تم تحديث السجل $id محلياً في جدول $table (الصفوف: $rowsAffected)');
+      } else {
+        debugPrint('[SQLITE DEBUG] ⚠️ لم يتم العثور على السجل $id في جدول $table لتحديثه!');
+      }
+    } catch (e) {
+      debugPrint('[SQLITE DEBUG] ❌ فشل تحديث السجل محلياً في جدول $table: $e');
+    }
+  }
+
+  // =================================================================
   // دوال الطلبات (Requests)
   // =================================================================
 
@@ -392,8 +458,7 @@ class DatabaseHelper {
         requestMap,
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
-      debugPrint(
-          '[SQLITE DEBUG] ✅ تم حفظ الطلب محلياً: ${requestMap['title']}');
+      // تم إزالة جملة الطباعة هنا لمنع التكرار المزعج في السجلات
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ فشل حفظ الطلب محلياً: $e');
     }
@@ -415,7 +480,7 @@ class DatabaseHelper {
       final db = await instance.database;
       await db.update(
         'requests',
-        {'local_file_path': localPath},
+        {'localFilePath': localPath},
         where: 'id = ?',
         whereArgs: [requestId],
       );

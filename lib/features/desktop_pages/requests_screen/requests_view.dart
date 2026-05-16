@@ -1,5 +1,5 @@
 import 'dart:io';
-
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:file_picker/file_picker.dart';
@@ -36,37 +36,50 @@ class _RequestsViewState extends State<RequestsView>
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
   }
 
-  Future<void> _openFile(RequestModel request) async {
-    String? path = request.localFilePath;
-    String? url = request.fileUrl;
+  Future<void> _openSpecificFile(RequestModel request, int index) async {
+    List<String> urls = [];
+    List<String> paths = [];
 
-    if ((path == null || path.isEmpty) && (url == null || url.isEmpty)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('لا يوجد ملف مرفق')),
-      );
-      return;
+    if (request.fileUrl != null) {
+      if (request.fileUrl!.startsWith('[')) {
+        urls = List<String>.from(jsonDecode(request.fileUrl!));
+      } else {
+        urls = [request.fileUrl!];
+      }
     }
-    
+
+    if (request.localFilePath != null) {
+      if (request.localFilePath!.startsWith('[')) {
+        paths = List<String>.from(jsonDecode(request.localFilePath!));
+      } else {
+        paths = [request.localFilePath!];
+      }
+    }
+
+    if (index >= urls.length) return;
+
+    String? path = index < paths.length ? paths[index] : null;
+    String url = urls[index];
+
     Uri uri;
     if (path != null && path.isNotEmpty && await File(path).exists()) {
       uri = Uri.file(path);
-    } else if (url != null && url.isNotEmpty) {
+    } else {
       // إذا لم يكن موجوداً محلياً، نقوم بتحميله أولاً
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('جاري تحميل الملف للمرة الأولى للوصول إليه مستقبلاً بدون إنترنت...')),
+        const SnackBar(
+            content: Text(
+                'جاري تحميل الملف للمرة الأولى للوصول إليه مستقبلاً بدون إنترنت...')),
       );
       String? downloadedPath = await _viewModel.downloadFile(request);
       if (downloadedPath != null) {
+        // بعد التحميل، نعيد قراءة المسارات من الـ request المحدث أو نستخدم المسار الراجع
         uri = Uri.file(downloadedPath);
-      } else {
-        // إذا فشل التحميل لسبب ما، نحاول فتحه مباشرة من الرابط كحل أخير
+      } else if (url.isNotEmpty) {
         uri = Uri.parse(url);
+      } else {
+        return;
       }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('الملف المرفق غير متاح محلياً ولا يوجد رابط سحابي')),
-      );
-      return;
     }
 
     if (await canLaunchUrl(uri)) {
@@ -86,7 +99,8 @@ class _RequestsViewState extends State<RequestsView>
       context: context,
       builder: (context) {
         return AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           title: Text('الرد على: ${request.title}'),
           content: SizedBox(
             width: 450,
@@ -95,13 +109,18 @@ class _RequestsViewState extends State<RequestsView>
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildInfoRow('مقدم الطلب:', request.applicantName.isNotEmpty ? request.applicantName : 'غير محدد'),
+                  _buildInfoRow(
+                      'مقدم الطلب:',
+                      request.applicantName.isNotEmpty
+                          ? request.applicantName
+                          : 'غير محدد'),
                   const SizedBox(height: 8),
                   _buildInfoRow('الكلية:', request.senderCollege),
                   const SizedBox(height: 8),
                   _buildInfoRow('نوع الطلب:', request.type),
                   const SizedBox(height: 8),
-                  const Text('تفاصيل الطلب:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('تفاصيل الطلب:',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Container(
                     width: double.infinity,
@@ -111,26 +130,58 @@ class _RequestsViewState extends State<RequestsView>
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.blue[100]!),
                     ),
-                    child: Text(request.description.isNotEmpty ? request.description : 'لا توجد تفاصيل إضافية'),
+                    child: Text(request.description.isNotEmpty
+                        ? request.description
+                        : 'لا توجد تفاصيل إضافية'),
                   ),
                   const SizedBox(height: 16),
-                  if (request.fileUrl != null) ...[
-                    OutlinedButton.icon(
-                      onPressed: () => _openFile(request),
-                      icon: const Icon(Icons.attach_file),
-                      label: const Text('فتح الملف المرفق للاطلاع'),
-                    ),
+                  if (request.fileUrl != null &&
+                      request.fileUrl!.isNotEmpty) ...[
+                    const Text('الملفات المرفقة:',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 8),
+                    Builder(builder: (context) {
+                      List<String> urls = [];
+                      if (request.fileUrl!.startsWith('[')) {
+                        try {
+                          urls =
+                              List<String>.from(jsonDecode(request.fileUrl!));
+                        } catch (e) {
+                          urls = [request.fileUrl!];
+                        }
+                      } else {
+                        urls = [request.fileUrl!];
+                      }
+
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: urls.asMap().entries.map((entry) {
+                          int idx = entry.key;
+                          String url = entry.value;
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: OutlinedButton.icon(
+                              onPressed: () => _openSpecificFile(request, idx),
+                              icon: const Icon(Icons.attach_file),
+                              label: Text('فتح الملف المرفق (${idx + 1})'),
+                            ),
+                          );
+                        }).toList(),
+                      );
+                    }),
                     const SizedBox(height: 16),
                   ],
                   _buildInfoRow('وقت الاستلام:', _formatDate(request.dateSent)),
                   const SizedBox(height: 16),
-                  const Text('سبب الرفض (مطلوب في حالة الرفض فقط):', style: TextStyle(fontWeight: FontWeight.bold)),
+                  const Text('سبب الرفض (مطلوب في حالة الرفض فقط):',
+                      style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: reasonController,
                     decoration: InputDecoration(
                       hintText: 'اكتب سبب الرفض هنا...',
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       filled: true,
                       fillColor: Colors.grey[50],
                     ),
@@ -203,8 +254,8 @@ class _RequestsViewState extends State<RequestsView>
     final descriptionController = TextEditingController();
     String selectedDestination = 'نيابة الشؤون الأكاديمية';
     String selectedType = 'طلب اجازة مرضية';
-    PlatformFile? selectedFile;
-    
+    List<PlatformFile> selectedFiles = [];
+
     final List<String> requestTypes = [
       'طلب اجازة مرضية',
       'طلب اجازة من غير راتب',
@@ -216,150 +267,201 @@ class _RequestsViewState extends State<RequestsView>
     showDialog(
       context: context,
       builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (statefulContext, setDialogState) {
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              title: const Text('إنشاء طلب جديد'),
-              content: SizedBox(
-                width: 500,
-                child: SingleChildScrollView(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      TextField(
-                        controller: titleController,
-                        decoration: InputDecoration(
-                          labelText: 'عنوان الطلب',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
+        return StatefulBuilder(builder: (statefulContext, setDialogState) {
+          return AlertDialog(
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            title: const Text('إنشاء طلب جديد'),
+            content: SizedBox(
+              width: 500,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextField(
+                      controller: titleController,
+                      decoration: InputDecoration(
+                        labelText: 'عنوان الطلب',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: selectedDestination,
-                        decoration: InputDecoration(
-                          labelText: 'الجهة الموجه إليها',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        items: ['جميع الكليات', 'كلية الهندسة', 'كلية الحاسبات', 'كلية العلوم', 'نيابة الشؤون الأكاديمية']
-                            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                            .toList(),
-                        onChanged: (v) {
-                          if (v != null) setDialogState(() => selectedDestination = v);
-                        },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: selectedDestination,
+                      decoration: InputDecoration(
+                        labelText: 'الجهة الموجه إليها',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
-                      const SizedBox(height: 12),
-                      DropdownButtonFormField<String>(
-                        value: selectedType,
-                        decoration: InputDecoration(
-                          labelText: 'نوع الطلب',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        items: requestTypes
-                            .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                            .toList(),
-                        onChanged: (v) {
-                          if (v != null) setDialogState(() => selectedType = v);
-                        },
+                      items: [
+                        'جميع الكليات',
+                        'كلية الهندسة',
+                        'كلية الحاسبات',
+                        'كلية العلوم',
+                        'نيابة الشؤون الأكاديمية'
+                      ]
+                          .map(
+                              (e) => DropdownMenuItem(value: e, child: Text(e)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null)
+                          setDialogState(() => selectedDestination = v);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    DropdownButtonFormField<String>(
+                      value: selectedType,
+                      decoration: InputDecoration(
+                        labelText: 'نوع الطلب',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
-                      const SizedBox(height: 12),
-                      TextField(
-                        controller: descriptionController,
-                        decoration: InputDecoration(
-                          labelText: 'تفاصيل أو ملاحظات حول الطلب',
-                          hintText: 'اكتب تفاصيل إضافية هنا...',
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        maxLines: 4,
+                      items: requestTypes
+                          .map(
+                              (e) => DropdownMenuItem(value: e, child: Text(e)))
+                          .toList(),
+                      onChanged: (v) {
+                        if (v != null) setDialogState(() => selectedType = v);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: descriptionController,
+                      decoration: InputDecoration(
+                        labelText: 'تفاصيل أو ملاحظات حول الطلب',
+                        hintText: 'اكتب تفاصيل إضافية هنا...',
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
-                      const SizedBox(height: 12),
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey[300]!),
-                        ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                selectedFile != null 
-                                  ? 'الملف المختيار: ${selectedFile!.name}' 
-                                  : 'لم يتم اختيار ملف بعد',
-                                style: TextStyle(
-                                  color: selectedFile != null ? Colors.blue[800] : Colors.grey,
-                                  fontWeight: selectedFile != null ? FontWeight.bold : FontWeight.normal,
+                      maxLines: 4,
+                    ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.grey[100],
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: Colors.grey[300]!),
+                      ),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  selectedFiles.isNotEmpty
+                                      ? 'تم اختيار (${selectedFiles.length}) ملفات'
+                                      : 'لم يتم اختيار ملفات بعد',
+                                  style: TextStyle(
+                                    color: selectedFiles.isNotEmpty
+                                        ? Colors.blue[800]
+                                        : Colors.grey,
+                                    fontWeight: selectedFiles.isNotEmpty
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            if (selectedFile != null)
-                              IconButton(
-                                icon: const Icon(Icons.close, color: Colors.red),
-                                onPressed: () {
-                                  setDialogState(() => selectedFile = null);
+                              ElevatedButton.icon(
+                                onPressed: () async {
+                                  FilePickerResult? result =
+                                      await FilePicker.pickFiles(
+                                    type: FileType.custom,
+                                    allowedExtensions: [
+                                      'pdf',
+                                      'jpg',
+                                      'png',
+                                      'doc',
+                                      'docx'
+                                    ],
+                                    allowMultiple: true,
+                                  );
+                                  if (result != null) {
+                                    setDialogState(
+                                        () => selectedFiles = result.files);
+                                  }
                                 },
+                                icon: const Icon(Icons.upload_file),
+                                label: const Text('اختيار ملفات'),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: DesktopColors.primary,
+                                  foregroundColor: Colors.white,
+                                ),
                               ),
-                            ElevatedButton.icon(
-                              onPressed: () async {
-                                final file = await _viewModel.pickFile();
-                                if (file != null) {
-                                  setDialogState(() => selectedFile = file);
-                                }
-                              },
-                              icon: const Icon(Icons.upload_file),
-                              label: const Text('اختيار ملف'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: DesktopColors.primary,
-                                foregroundColor: Colors.white,
+                            ],
+                          ),
+                          if (selectedFiles.isNotEmpty)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 8),
+                              child: Column(
+                                children: selectedFiles
+                                    .map((f) => Row(
+                                          children: [
+                                            const Icon(Icons.description,
+                                                size: 14, color: Colors.blue),
+                                            const SizedBox(width: 4),
+                                            Expanded(
+                                                child: Text(f.name,
+                                                    style: const TextStyle(
+                                                        fontSize: 11))),
+                                            IconButton(
+                                              icon: const Icon(Icons.close,
+                                                  size: 14, color: Colors.red),
+                                              onPressed: () => setDialogState(
+                                                  () =>
+                                                      selectedFiles.remove(f)),
+                                            )
+                                          ],
+                                        ))
+                                    .toList(),
                               ),
                             ),
-                          ],
-                        ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('إلغاء'),
-                ),
-                ElevatedButton(
-                  onPressed: () async {
-                    if (titleController.text.trim().isEmpty) return;
-                    Navigator.pop(statefulContext);
-                    
-                    bool success = await _viewModel.sendRequest(
-                      title: titleController.text.trim(),
-                      destinationCollege: selectedDestination,
-                      type: selectedType,
-                      description: descriptionController.text.trim(),
-                      attachedFile: selectedFile,
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('إلغاء'),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  if (titleController.text.trim().isEmpty) return;
+                  Navigator.pop(statefulContext);
+
+                  bool success = await _viewModel.sendRequest(
+                    title: titleController.text.trim(),
+                    destinationCollege: selectedDestination,
+                    type: selectedType,
+                    description: descriptionController.text.trim(),
+                    attachedFiles: selectedFiles,
+                  );
+
+                  if (success && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('تم إرسال الطلب بنجاح')),
                     );
-                    
-                    if (success && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('تم إرسال الطلب بنجاح')),
-                      );
-                    } else if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(_viewModel.errorMessage)),
-                      );
-                    }
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: DesktopColors.primary,
-                    foregroundColor: Colors.white,
-                  ),
-                  child: const Text('إرسال'),
+                  } else if (mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(_viewModel.errorMessage)),
+                    );
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: DesktopColors.primary,
+                  foregroundColor: Colors.white,
                 ),
-              ],
-            );
-          }
-        );
+                child: const Text('إرسال'),
+              ),
+            ],
+          );
+        });
       },
     );
   }
@@ -367,7 +469,9 @@ class _RequestsViewState extends State<RequestsView>
   Widget _buildInfoRow(String label, String value) {
     return Row(
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold, color: Colors.grey)),
         const SizedBox(width: 8),
         Expanded(child: Text(value)),
       ],
@@ -377,109 +481,112 @@ class _RequestsViewState extends State<RequestsView>
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _viewModel,
-      builder: (context, child) {
-        return Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(DesktopSpacing.lg),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'إدارة الطلبات',
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: DesktopColors.textPrimary,
+        animation: _viewModel,
+        builder: (context, child) {
+          return Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(DesktopSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            const Text(
+                              'إدارة الطلبات',
+                              style: TextStyle(
+                                fontSize: 24,
+                                fontWeight: FontWeight.bold,
+                                color: DesktopColors.textPrimary,
+                              ),
                             ),
+                            const SizedBox(width: 16),
+                            IconButton(
+                              onPressed: () => _viewModel.refreshRequests(),
+                              icon: const Icon(Icons.refresh,
+                                  color: DesktopColors.primary),
+                              tooltip: 'تحديث البيانات',
+                            ),
+                          ],
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: _showNewRequestDialog,
+                          icon: const Icon(Icons.add),
+                          label: const Text('طلب جديد'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: DesktopColors.primary,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 20, vertical: 16),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
                           ),
-                          const SizedBox(width: 16),
-                          IconButton(
-                            onPressed: () => _viewModel.refreshRequests(),
-                            icon: const Icon(Icons.refresh, color: DesktopColors.primary),
-                            tooltip: 'تحديث البيانات',
-                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: DesktopSpacing.lg),
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          )
                         ],
                       ),
-                      ElevatedButton.icon(
-                        onPressed: _showNewRequestDialog,
-                        icon: const Icon(Icons.add),
-                        label: const Text('طلب جديد'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: DesktopColors.primary,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
+                      child: TabBar(
+                        controller: _tabController,
+                        labelColor: DesktopColors.primary,
+                        unselectedLabelColor: Colors.grey,
+                        indicatorColor: DesktopColors.primary,
+                        tabs: const [
+                          Tab(icon: Icon(Icons.inbox), text: 'الطلبات الواردة'),
+                          Tab(icon: Icon(Icons.send), text: 'الطلبات الصادرة'),
+                        ],
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: DesktopSpacing.lg),
-                  Container(
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        )
-                      ],
                     ),
-                    child: TabBar(
-                      controller: _tabController,
-                      labelColor: DesktopColors.primary,
-                      unselectedLabelColor: Colors.grey,
-                      indicatorColor: DesktopColors.primary,
-                      tabs: const [
-                        Tab(icon: Icon(Icons.inbox), text: 'الطلبات الواردة'),
-                        Tab(icon: Icon(Icons.send), text: 'الطلبات الصادرة'),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: DesktopSpacing.md),
-                  Expanded(
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _buildReceivedRequestsTab(),
-                        _buildSentRequestsTab(),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            if (_viewModel.isSending || _viewModel.isLoading)
-              Container(
-                color: Colors.black.withOpacity(0.3),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const CircularProgressIndicator(color: Colors.white),
-                      const SizedBox(height: 16),
-                      Text(
-                        _viewModel.isSending 
-                            ? 'جاري المعالجة ورفع الملف...' 
-                            : 'جاري تحديث الصفحة...', 
-                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
+                    const SizedBox(height: DesktopSpacing.md),
+                    Expanded(
+                      child: TabBarView(
+                        controller: _tabController,
+                        children: [
+                          _buildReceivedRequestsTab(),
+                          _buildSentRequestsTab(),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-          ],
-        );
-      }
-    );
+              if (_viewModel.isSending || _viewModel.isLoading)
+                Container(
+                  color: Colors.black.withOpacity(0.3),
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const CircularProgressIndicator(color: Colors.white),
+                        const SizedBox(height: 16),
+                        Text(
+                            _viewModel.isSending
+                                ? 'جاري المعالجة ورفع الملف...'
+                                : 'جاري تحديث الصفحة...',
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          );
+        });
   }
 
   Widget _buildReceivedRequestsTab() {
@@ -497,7 +604,8 @@ class _RequestsViewState extends State<RequestsView>
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           child: Padding(
             padding: const EdgeInsets.all(16.0),
             child: Column(
@@ -508,10 +616,12 @@ class _RequestsViewState extends State<RequestsView>
                   children: [
                     Text(
                       req.title,
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                      style: const TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(20),
@@ -519,7 +629,8 @@ class _RequestsViewState extends State<RequestsView>
                       ),
                       child: Text(
                         req.status,
-                        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                            color: statusColor, fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
@@ -527,8 +638,15 @@ class _RequestsViewState extends State<RequestsView>
                 const SizedBox(height: 12),
                 Row(
                   children: [
-                    Expanded(child: _buildInfoRow('الجهة المرسلة:', req.senderCollege)),
-                    Expanded(child: _buildInfoRow('مقدم الطلب:', req.applicantName.isNotEmpty ? req.applicantName : 'غير محدد')),
+                    Expanded(
+                        child:
+                            _buildInfoRow('الجهة المرسلة:', req.senderCollege)),
+                    Expanded(
+                        child: _buildInfoRow(
+                            'مقدم الطلب:',
+                            req.applicantName.isNotEmpty
+                                ? req.applicantName
+                                : 'غير محدد')),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -539,7 +657,8 @@ class _RequestsViewState extends State<RequestsView>
                 ),
                 if (req.description.isNotEmpty) ...[
                   const SizedBox(height: 8),
-                  Text('التفاصيل: ${req.description}', style: const TextStyle(color: Colors.grey, fontSize: 14)),
+                  Text('التفاصيل: ${req.description}',
+                      style: const TextStyle(color: Colors.grey, fontSize: 14)),
                 ],
                 const SizedBox(height: 8),
                 Row(
@@ -547,7 +666,8 @@ class _RequestsViewState extends State<RequestsView>
                     Expanded(
                       child: Row(
                         children: [
-                          const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                          const Icon(Icons.access_time,
+                              size: 16, color: Colors.grey),
                           const SizedBox(width: 4),
                           Text('الاستلام: ${_formatDate(req.dateSent)}'),
                         ],
@@ -557,7 +677,8 @@ class _RequestsViewState extends State<RequestsView>
                       child: req.dateReplied != null
                           ? Row(
                               children: [
-                                const Icon(Icons.done_all, size: 16, color: Colors.grey),
+                                const Icon(Icons.done_all,
+                                    size: 16, color: Colors.grey),
                                 const SizedBox(width: 4),
                                 Text('الرد: ${_formatDate(req.dateReplied!)}'),
                               ],
@@ -577,7 +698,8 @@ class _RequestsViewState extends State<RequestsView>
                       ),
                       child: Row(
                         children: [
-                          const Icon(Icons.info_outline, color: Colors.red, size: 18),
+                          const Icon(Icons.info_outline,
+                              color: Colors.red, size: 18),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
@@ -593,15 +715,36 @@ class _RequestsViewState extends State<RequestsView>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    if (req.fileUrl != null)
-                      OutlinedButton.icon(
-                        onPressed: () => _openFile(req),
-                        icon: const Icon(Icons.visibility),
-                        label: const Text('فتح الملف المرفق'),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: Colors.blue[800],
-                        ),
-                      ),
+                    if (req.fileUrl != null && req.fileUrl!.isNotEmpty)
+                      Builder(builder: (context) {
+                        List<String> urls = [];
+                        if (req.fileUrl!.startsWith('[')) {
+                          try {
+                            urls = List<String>.from(jsonDecode(req.fileUrl!));
+                          } catch (e) {
+                            urls = [req.fileUrl!];
+                          }
+                        } else {
+                          urls = [req.fileUrl!];
+                        }
+
+                        return Row(
+                          children: urls.asMap().entries.map((entry) {
+                            int idx = entry.key;
+                            return Padding(
+                              padding: const EdgeInsets.only(left: 8.0),
+                              child: OutlinedButton.icon(
+                                onPressed: () => _openSpecificFile(req, idx),
+                                icon: const Icon(Icons.visibility),
+                                label: Text('فتح الملف (${idx + 1})'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.blue[800],
+                                ),
+                              ),
+                            );
+                          }).toList(),
+                        );
+                      }),
                     const SizedBox(width: 12),
                     if (req.status == 'قيد الانتظار')
                       ElevatedButton.icon(
@@ -634,12 +777,17 @@ class _RequestsViewState extends State<RequestsView>
         final req = _viewModel.sentRequests[index];
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
           child: ExpansionTile(
-            title: Text(req.title, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('الجهة: ${req.destinationCollege} | الحالة: ${req.status}'),
+            title: Text(req.title,
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            subtitle: Text(
+                'الجهة: ${req.destinationCollege} | الحالة: ${req.status}'),
             leading: CircleAvatar(
-              backgroundColor: req.status == 'مقبول' ? Colors.green : (req.status == 'مرفوض' ? Colors.red : Colors.orange),
+              backgroundColor: req.status == 'مقبول'
+                  ? Colors.green
+                  : (req.status == 'مرفوض' ? Colors.red : Colors.orange),
               child: const Icon(Icons.outbox, color: Colors.white, size: 20),
             ),
             children: [
@@ -650,22 +798,30 @@ class _RequestsViewState extends State<RequestsView>
                   children: [
                     _buildInfoRow('النوع:', req.type),
                     const SizedBox(height: 8),
-                    _buildInfoRow('التفاصيل:', req.description.isNotEmpty ? req.description : 'لا توجد'),
+                    _buildInfoRow(
+                        'التفاصيل:',
+                        req.description.isNotEmpty
+                            ? req.description
+                            : 'لا توجد'),
                     const SizedBox(height: 8),
                     _buildInfoRow('تاريخ الإرسال:', _formatDate(req.dateSent)),
                     if (req.dateReplied != null) ...[
                       const SizedBox(height: 8),
-                      _buildInfoRow('تاريخ الرد:', _formatDate(req.dateReplied!)),
+                      _buildInfoRow(
+                          'تاريخ الرد:', _formatDate(req.dateReplied!)),
                     ],
-                    if (req.status == 'مرفوض' && req.rejectionReason != null) ...[
+                    if (req.status == 'مرفوض' &&
+                        req.rejectionReason != null) ...[
                       const SizedBox(height: 8),
-                      Text('سبب الرفض: ${req.rejectionReason}', style: const TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                      Text('سبب الرفض: ${req.rejectionReason}',
+                          style: const TextStyle(
+                              color: Colors.red, fontWeight: FontWeight.bold)),
                     ],
                     if (req.fileUrl != null) ...[
                       const SizedBox(height: 16),
                       Center(
                         child: OutlinedButton.icon(
-                          onPressed: () => _openFile(req),
+                          onPressed: () => _openSpecificFile(req, 0),
                           icon: const Icon(Icons.file_download),
                           label: const Text('فتح/تحميل الملف المرسل'),
                         ),

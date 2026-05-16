@@ -1,4 +1,5 @@
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/services/sync_service.dart'; // استدعاء خدمة المزامنة
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -38,12 +39,10 @@ class LoginViewModel extends ChangeNotifier {
 
     try {
       // 1. تسجيل الدخول عبر Firebase Auth
-      UserCredential userCredential = await _auth.signInWithEmailAndPassword(
+      await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password.trim(),
       );
-
-      final String uid = userCredential.user!.uid;
 
       // 2. البحث بواسطة الإيميل في قاعدة المستخدمين
       QuerySnapshot userQuery = await _firestore
@@ -59,29 +58,32 @@ class LoginViewModel extends ChangeNotifier {
 
       // حفظ نوع المستخدم
       final userData = userQuery.docs.first.data() as Map<String, dynamic>;
+      final String systemUserId = userQuery.docs.first.id; // المعرف الداخلي الصحيح
       currentUserRole = userData['role'] ?? 'unknown';
 
       // 3. مزامنة جميع البيانات إلى SQLite للاستخدام بدون إنترنت
-      // نستخدم دالة pullFromFirebase من SyncService لضمان توحيد آلية التنزيل
       debugPrint('[LOGIN DEBUG] جاري تنزيل البيانات الأساسية للجهاز...');
       try {
-        await DatabaseHelper.instance.clearAllData(); // تنظيف القديم أولاً
-        await _syncService
-            .performSmartSync(); // تنزيل الأقسام والكليات والأعضاء والمستخدمين
-        await syncExtraData(); // دالة مخصصة لتنزيل الجداول الأخرى غير المشمولة في SyncService
+        await DatabaseHelper.instance.clearAllData();
+        await _syncService.performSmartSync();
+        await syncExtraData();
         debugPrint('[LOGIN DEBUG] تم تنزيل البيانات بنجاح.');
       } catch (e) {
         debugPrint('[LOGIN DEBUG] تحذير: فشلت المزامنة المحلية: $e');
       }
 
       // 4. حفظ حالة تسجيل الدخول في SharedPreferences
-      if (rememberMe) {
-        final prefs = await SharedPreferences.getInstance();
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool('isLoggedIn', true);
+      await prefs.setString('userId', systemUserId); // المعرف الداخلي
+      await prefs.setString('userRole', currentUserRole!);
+      await prefs.setString('userName', userData['name'] ?? 'مستخدم');
+      await prefs.setString('userEmail', email.trim());
+      await prefs.setString('college', userData['faculty'] ?? userData['college'] ?? 'غير محدد');
+      await prefs.setString('userDepartment', userData['department'] ?? '');
+      if (!rememberMe) {
+        // إذا لم يختر "تذكرني"، نحفظ الجلسة بشكل مؤقت فقط
         await prefs.setBool('isLoggedIn', true);
-        await prefs.setString('userId', uid);
-        await prefs.setString('userRole', currentUserRole!);
-        await prefs.setString('userName', userData['name'] ?? 'مستخدم');
-        await prefs.setString('college', userData['college'] ?? 'غير محدد');
       }
 
       status = LoginStatus.success;
@@ -122,8 +124,9 @@ class LoginViewModel extends ChangeNotifier {
       await prefs.remove('userId');
       await prefs.remove('userRole');
 
-      // 3. مسح البيانات المحلية من SQLite
+      // 3. مسح البيانات المحلية من SQLite والذاكرة المؤقتة
       await DatabaseHelper.instance.clearAllData();
+      await AppSession().clear(); // تم النقل لهنا لضمان التصفير الكامل
 
       // 4. تصفير المتغيرات
       currentUserRole = null;
@@ -173,11 +176,15 @@ class LoginViewModel extends ChangeNotifier {
       final subjectsSnapshot = await _firestore.collection('subjects').get();
       for (var doc in subjectsSnapshot.docs) {
         final data = doc.data();
-        batch.insert('subjects', {
-          'id': doc.id,
-          'ar_name': data['ar_name'] ?? 'غير محدد',
-          'en_name': data['en_name'] ?? 'غير محدد',
-        });
+        batch.insert(
+          'subjects',
+          {
+            'id': doc.id,
+            'ar_name': data['ar_name'] ?? 'غير محدد',
+            'en_name': data['en_name'] ?? 'غير محدد',
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
       }
 
       await batch.commit(noResult: true);

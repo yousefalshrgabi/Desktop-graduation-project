@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_model.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_view_model.dart';
 import 'package:file_picker/file_picker.dart';
@@ -13,19 +14,17 @@ class MobileRequestsView extends StatefulWidget {
 
 class _MobileRequestsViewState extends State<MobileRequestsView> {
   final RequestViewModel _viewModel = RequestViewModel();
-
-  // اسم وهمي للواجهة الحالية للتجربة
-  final String _mockApplicantName = 'د. عبدالله سعيد';
-  final String _mockSenderCollege = 'كلية الهندسة';
+  final _session = AppSession();
 
   @override
   void initState() {
     super.initState();
-    // تعيين بيانات المستخدم الوهمي للموبايل للتجربة
+    // استخدام بيانات الجلسة الحقيقية للفلترة والتعريف
     _viewModel.setUserData(
-      name: _mockApplicantName,
-      college: _mockSenderCollege,
-      role: 'User', // مستخدم كلية
+      name: _session.userName,
+      college: _session.userCollege,
+      role: _session.userRole,
+      userId: _session.userId,
     );
   }
 
@@ -46,7 +45,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
       );
       return;
     }
-    
+
     final Uri uri = Uri.parse(url);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
@@ -64,8 +63,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
     final descriptionController = TextEditingController();
     String selectedDestination = 'نيابة الشؤون الأكاديمية';
     String selectedType = 'طلب اجازة مرضية';
-    PlatformFile? selectedFile;
-    
+    List<PlatformFile> selectedFiles = [];
+
     final List<String> requestTypes = [
       'طلب اجازة مرضية',
       'طلب اجازة من غير راتب',
@@ -81,153 +80,184 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
-        return StatefulBuilder(
-          builder: (statefulContext, setSheetState) {
-            return Padding(
-              padding: EdgeInsets.only(
-                bottom: MediaQuery.of(context).viewInsets.bottom,
-                left: 16,
-                right: 16,
-                top: 24,
-              ),
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const Text(
-                      'إنشاء طلب جديد',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
+        return StatefulBuilder(builder: (statefulContext, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom,
+              left: 16,
+              right: 16,
+              top: 24,
+            ),
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  const Text(
+                    'إنشاء طلب جديد',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: titleController,
+                    decoration: InputDecoration(
+                      labelText: 'عنوان الطلب',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                    const SizedBox(height: 16),
-                    TextField(
-                      controller: titleController,
-                      decoration: InputDecoration(
-                        labelText: 'عنوان الطلب',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedDestination,
+                    decoration: InputDecoration(
+                      labelText: 'الجهة الموجه إليها',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedDestination,
-                      decoration: InputDecoration(
-                        labelText: 'الجهة الموجه إليها',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      items: ['نيابة الشؤون الأكاديمية', 'جميع الكليات', 'كلية الحاسبات']
-                          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) setSheetState(() => selectedDestination = v);
-                      },
+                    items: [
+                      'نيابة الشؤون الأكاديمية',
+                      'جميع الكليات',
+                      'كلية الحاسبات'
+                    ]
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null)
+                        setSheetState(() => selectedDestination = v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<String>(
+                    value: selectedType,
+                    decoration: InputDecoration(
+                      labelText: 'نوع الطلب',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedType,
-                      decoration: InputDecoration(
-                        labelText: 'نوع الطلب',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      items: requestTypes
-                          .map((e) => DropdownMenuItem(value: e, child: Text(e)))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) setSheetState(() => selectedType = v);
-                      },
+                    items: requestTypes
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setSheetState(() => selectedType = v);
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: descriptionController,
+                    decoration: InputDecoration(
+                      labelText: 'تفاصيل أو ملاحظات حول الطلب',
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                    const SizedBox(height: 12),
-                    TextField(
-                      controller: descriptionController,
-                      decoration: InputDecoration(
-                        labelText: 'تفاصيل أو ملاحظات حول الطلب',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      maxLines: 3,
+                    maxLines: 3,
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[100],
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.grey[300]!),
                     ),
-                    const SizedBox(height: 12),
-                    Container(
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: Column(
-                        children: [
-                          if (selectedFile != null)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8.0),
-                              child: Row(
-                                children: [
-                                  const Icon(Icons.file_present, color: Colors.blue),
-                                  const SizedBox(width: 8),
-                                  Expanded(child: Text(selectedFile!.name, overflow: TextOverflow.ellipsis)),
-                                  IconButton(
-                                    icon: const Icon(Icons.cancel, color: Colors.red),
-                                    onPressed: () => setSheetState(() => selectedFile = null),
-                                  )
-                                ],
-                              ),
-                            ),
-                          OutlinedButton.icon(
-                            onPressed: () async {
-                              final file = await _viewModel.pickFile();
-                              if (file != null) {
-                                setSheetState(() => selectedFile = file);
-                              }
-                            },
-                            icon: const Icon(Icons.attach_file),
-                            label: Text(selectedFile == null ? 'إرفاق ملف' : 'تغيير الملف'),
-                            style: OutlinedButton.styleFrom(
-                              minimumSize: const Size.fromHeight(45),
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    child: Column(
+                      children: [
+                        if (selectedFiles.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8.0),
+                            child: Column(
+                              children: selectedFiles
+                                  .map((f) => Row(
+                                        children: [
+                                          const Icon(Icons.file_present,
+                                              color: Colors.blue),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                              child: Text(f.name,
+                                                  overflow:
+                                                      TextOverflow.ellipsis)),
+                                          IconButton(
+                                            icon: const Icon(Icons.cancel,
+                                                color: Colors.red),
+                                            onPressed: () => setSheetState(
+                                                () => selectedFiles.remove(f)),
+                                          )
+                                        ],
+                                      ))
+                                  .toList(),
                             ),
                           ),
-                        ],
-                      ),
+                        OutlinedButton.icon(
+                          onPressed: () async {
+                            FilePickerResult? result =
+                                await FilePicker.pickFiles(
+                              type: FileType.custom,
+                              allowedExtensions: [
+                                'pdf',
+                                'jpg',
+                                'png',
+                                'doc',
+                                'docx'
+                              ],
+                              allowMultiple: true,
+                            );
+                            if (result != null) {
+                              setSheetState(() => selectedFiles = result.files);
+                            }
+                          },
+                          icon: const Icon(Icons.attach_file),
+                          label: Text(selectedFiles.isEmpty
+                              ? 'إرفاق ملفات'
+                              : 'تغيير الملفات'),
+                          style: OutlinedButton.styleFrom(
+                            minimumSize: const Size.fromHeight(45),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
                     ),
-                    const SizedBox(height: 24),
-                    ElevatedButton(
-                      onPressed: () async {
-                        if (titleController.text.trim().isEmpty) return;
-                        Navigator.pop(statefulContext);
-                        
-                        bool success = await _viewModel.sendRequest(
-                          title: titleController.text.trim(),
-                          destinationCollege: selectedDestination,
-                          type: selectedType,
-                          description: descriptionController.text.trim(),
-                          attachedFile: selectedFile,
-                          applicantName: _mockApplicantName,
-                          senderCollege: _mockSenderCollege,
+                  ),
+                  const SizedBox(height: 24),
+                  ElevatedButton(
+                    onPressed: () async {
+                      if (titleController.text.trim().isEmpty) return;
+                      Navigator.pop(statefulContext);
+
+                      bool success = await _viewModel.sendRequest(
+                        title: titleController.text.trim(),
+                        destinationCollege: selectedDestination,
+                        type: selectedType,
+                        description: descriptionController.text.trim(),
+                        attachedFiles: selectedFiles,
+                      );
+
+                      if (success && mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('تم الإرسال بنجاح')),
                         );
-                        
-                        if (success && mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(content: Text('تم الإرسال بنجاح')),
-                          );
-                        } else if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(_viewModel.errorMessage)),
-                          );
-                        }
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue[800],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                      ),
-                      child: const Text('إرسال الطلب', style: TextStyle(fontSize: 16)),
+                      } else if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(_viewModel.errorMessage)),
+                        );
+                      }
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue[800],
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(10)),
                     ),
-                    const SizedBox(height: 16),
-                  ],
-                ),
+                    child: const Text('إرسال الطلب',
+                        style: TextStyle(fontSize: 16)),
+                  ),
+                  const SizedBox(height: 16),
+                ],
               ),
-            );
-          }
-        );
+            ),
+          );
+        });
       },
     );
   }
@@ -255,7 +285,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
               children: [
                 Text(
                   'الرد على: ${request.title}',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  style: const TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold),
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 16),
@@ -263,8 +294,14 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                 const SizedBox(height: 8),
                 _buildInfoRow('نوع الطلب:', request.type),
                 const SizedBox(height: 8),
-                const Text('تفاصيل الطلب:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey)),
-                Text(request.description.isNotEmpty ? request.description : 'لا توجد تفاصيل'),
+                const Text('تفاصيل الطلب:',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                        color: Colors.grey)),
+                Text(request.description.isNotEmpty
+                    ? request.description
+                    : 'لا توجد تفاصيل'),
                 const SizedBox(height: 16),
                 if (request.fileUrl != null) ...[
                   OutlinedButton.icon(
@@ -278,7 +315,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                   controller: reasonController,
                   decoration: InputDecoration(
                     labelText: 'سبب الرفض (مطلوب للرفض فقط)',
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10)),
                     filled: true,
                     fillColor: Colors.grey[50],
                   ),
@@ -293,14 +331,16 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                           backgroundColor: Colors.red[600],
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                         icon: const Icon(Icons.close),
                         label: const Text('رفض'),
                         onPressed: () async {
                           if (reasonController.text.trim().isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('الرجاء إدخال سبب الرفض')),
+                              const SnackBar(
+                                  content: Text('الرجاء إدخال سبب الرفض')),
                             );
                             return;
                           }
@@ -320,13 +360,15 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                           backgroundColor: Colors.green[600],
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(10)),
                         ),
                         icon: const Icon(Icons.check),
                         label: const Text('قبول'),
                         onPressed: () async {
                           Navigator.pop(context);
-                          await _viewModel.respondToRequest(request.id, 'مقبول');
+                          await _viewModel.respondToRequest(
+                              request.id, 'مقبول');
                         },
                       ),
                     ),
@@ -345,7 +387,9 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 13)),
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold, color: Colors.grey, fontSize: 13)),
         const SizedBox(width: 8),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
       ],
@@ -385,8 +429,10 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
               children: [
                 TabBarView(
                   children: [
-                    _buildRequestsList(_viewModel.receivedRequests, isReceived: true),
-                    _buildRequestsList(_viewModel.sentRequests, isReceived: false),
+                    _buildRequestsList(_viewModel.receivedRequests,
+                        isReceived: true),
+                    _buildRequestsList(_viewModel.sentRequests,
+                        isReceived: false),
                   ],
                 ),
                 if (_viewModel.isSending || _viewModel.isLoading)
@@ -399,11 +445,12 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                           const CircularProgressIndicator(color: Colors.white),
                           const SizedBox(height: 16),
                           Text(
-                            _viewModel.isSending 
-                                ? 'جاري الإرسال ورفع الملف...' 
-                                : 'جاري تحديث الصفحة...', 
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)
-                          ),
+                              _viewModel.isSending
+                                  ? 'جاري الإرسال ورفع الملف...'
+                                  : 'جاري تحديث الصفحة...',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold)),
                         ],
                       ),
                     ),
@@ -422,7 +469,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
     );
   }
 
-  Widget _buildRequestsList(List<RequestModel> requests, {required bool isReceived}) {
+  Widget _buildRequestsList(List<RequestModel> requests,
+      {required bool isReceived}) {
     if (requests.isEmpty) {
       return Center(
         child: Column(
@@ -430,7 +478,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
           children: [
             Icon(Icons.assignment_outlined, size: 80, color: Colors.grey[300]),
             const SizedBox(height: 16),
-            Text('لا توجد طلبات ${isReceived ? 'واردة' : 'صادرة'}', style: TextStyle(color: Colors.grey[600], fontSize: 16)),
+            Text('لا توجد طلبات ${isReceived ? 'واردة' : 'صادرة'}',
+                style: TextStyle(color: Colors.grey[600], fontSize: 16)),
           ],
         ),
       );
@@ -448,7 +497,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
           elevation: 2,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           child: Padding(
             padding: const EdgeInsets.all(12.0),
             child: Column(
@@ -460,18 +510,23 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     Expanded(
                       child: Text(
                         req.title,
-                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                     ),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
                         color: statusColor.withOpacity(0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
                         req.status,
-                        style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                        style: TextStyle(
+                            color: statusColor,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12),
                       ),
                     ),
                   ],
@@ -481,7 +536,11 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     ? _buildInfoRow('الجهة المرسلة:', req.senderCollege)
                     : _buildInfoRow('الجهة المستقبلة:', req.destinationCollege),
                 const SizedBox(height: 4),
-                _buildInfoRow('مقدم الطلب:', req.applicantName.isNotEmpty ? req.applicantName : 'غير محدد'),
+                _buildInfoRow(
+                    'مقدم الطلب:',
+                    req.applicantName.isNotEmpty
+                        ? req.applicantName
+                        : 'غير محدد'),
                 const SizedBox(height: 4),
                 _buildInfoRow('النوع:', req.type),
                 if (req.description.isNotEmpty) ...[
@@ -498,8 +557,12 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(8)),
-                    child: Text('سبب الرفض: ${req.rejectionReason}', style: const TextStyle(color: Colors.red, fontSize: 13)),
+                    decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(8)),
+                    child: Text('سبب الرفض: ${req.rejectionReason}',
+                        style:
+                            const TextStyle(color: Colors.red, fontSize: 13)),
                   ),
                 ],
                 const SizedBox(height: 12),
@@ -512,8 +575,10 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue[800],
                           foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
                           minimumSize: Size.zero,
                         ),
                         child: const Text('رد'),
@@ -525,8 +590,10 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                         icon: const Icon(Icons.file_present),
                         label: const Text('عرض الملف'),
                         style: OutlinedButton.styleFrom(
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 8),
                           minimumSize: Size.zero,
                         ),
                       ),
