@@ -211,7 +211,7 @@ class FacultyMemberModel {
   Map<String, dynamic> toMap() {
     return {
       'id': id,
-      'user_id': userId,
+      'user_id': userId.isEmpty ? null : userId,
       'name': name,
       'status': status,
       'created_at': createdAt,
