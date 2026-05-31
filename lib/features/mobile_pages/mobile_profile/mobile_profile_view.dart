@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'mobile_profile_view_model.dart';
+import 'package:academic_affairs_management/core/widgets/change_password_dialog.dart';
 
 /// صفحة الملف الشخصي للعضو - تعرض معلوماته مع إمكانية طلب تعديلها
 class MobileProfilePage extends StatefulWidget {
@@ -344,6 +345,24 @@ class _MobileProfilePageState extends State<MobileProfilePage>
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.vpn_key),
+            tooltip: 'تغيير كلمة المرور',
+            onPressed: () async {
+              final success = await showDialog<bool>(
+                context: context,
+                builder: (context) => const ChangePasswordDialog(),
+              );
+              if (success == true && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('تم تغيير كلمة المرور بنجاح.'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'تحديث',
