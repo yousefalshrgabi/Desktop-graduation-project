@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:academic_affairs_management/core/services/app_session.dart';
-import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
-import 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_member_model.dart';
-import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
-import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_view_model.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'mobile_profile_view_model.dart';
 
 /// صفحة الملف الشخصي للعضو - تعرض معلوماته مع إمكانية طلب تعديلها
 class MobileProfilePage extends StatefulWidget {
@@ -18,18 +14,13 @@ class MobileProfilePage extends StatefulWidget {
 class _MobileProfilePageState extends State<MobileProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  FacultyMemberModel? _member;
-  bool _isLoading = true;
-  String? _error;
-
-  final _session = AppSession();
-  final _firestore = FirebaseFirestore.instance;
+  final MobileProfileViewModel _viewModel = MobileProfileViewModel();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _loadMemberData();
+    _viewModel.loadMemberData();
   }
 
   @override
@@ -38,43 +29,8 @@ class _MobileProfilePageState extends State<MobileProfilePage>
     super.dispose();
   }
 
-  Future<void> _loadMemberData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-
-      // البحث عن بيانات العضو محلياً باستخدام SQLite لضمان تكامل الأوفلاين
-      final db = await DatabaseHelper.instance.database;
-      final result = await db.query(
-        'faculty_members',
-        where: 'user_id = ?',
-        whereArgs: [_session.userId],
-        limit: 1,
-      );
-
-      if (result.isNotEmpty) {
-        setState(() {
-          _member = FacultyMemberModel.fromMap(result.first);
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _error = 'لم يتم العثور على بياناتك. تواصل مع النيابة الأكاديمية.';
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _error = 'خطأ في تحميل البيانات: $e';
-        _isLoading = false;
-      });
-    }
-  }
-
   void _showBulkEditDialog() {
-    final m = _member!;
+    final m = _viewModel.member!;
 
     // Map of labels to old values and their controllers
     final Map<String, Map<String, dynamic>> fields = {
@@ -157,8 +113,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                   children: [
                     const Text(
                       'طلب تعديل البيانات',
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -186,15 +141,13 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                         }).toList()
                           ..add(
                             Padding(
-                              padding:
-                                  const EdgeInsets.only(top: 8, bottom: 20),
+                              padding: const EdgeInsets.only(top: 8, bottom: 20),
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: Colors.blue.shade50,
                                   borderRadius: BorderRadius.circular(10),
-                                  border:
-                                      Border.all(color: Colors.blue.shade200),
+                                  border: Border.all(color: Colors.blue.shade200),
                                 ),
                                 child: Column(
                                   children: [
@@ -255,10 +208,8 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                                       const SizedBox(width: 4),
                                                       Expanded(
                                                           child: Text(f.name,
-                                                              style:
-                                                                  const TextStyle(
-                                                                      fontSize:
-                                                                          11))),
+                                                              style: const TextStyle(
+                                                                  fontSize: 11))),
                                                       IconButton(
                                                         icon: const Icon(
                                                             Icons.close,
@@ -290,7 +241,6 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                               height: 50,
                               child: ElevatedButton(
                                 onPressed: () async {
-                                  // 1. تجهيز البيانات المنظمة للتحديث الآلي
                                   Map<String, String> fieldMapping = {
                                     'الاسم الكامل': 'name',
                                     'رقم الملف': 'fileNumber',
@@ -299,8 +249,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                     'محل الميلاد': 'birthPlace',
                                     'تاريخ الميلاد': 'birthDate',
                                     'القسم': 'department',
-                                    'تاريخ التعيين':
-                                        'universityAppointmentDate',
+                                    'تاريخ التعيين': 'universityAppointmentDate',
                                     'البكالوريوس': 'bscDegree',
                                     'الماجستير': 'mscDegree',
                                     'الدرجة الحالية': 'currentDegree',
@@ -312,18 +261,15 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                   Map<String, dynamic> extraData = {};
 
                                   for (var entry in fields.entries) {
-                                    String oldVal =
-                                        entry.value['old'] ?? 'غير محدد';
-                                    String newVal =
-                                        entry.value['ctrl'].text.trim();
+                                    String oldVal = entry.value['old'] ?? 'غير محدد';
+                                    String newVal = entry.value['ctrl'].text.trim();
                                     if (oldVal == '') oldVal = 'غير محدد';
                                     if (newVal == '') newVal = 'غير محدد';
 
                                     if (oldVal != newVal) {
                                       changes.add(
                                           '- ${entry.key}: من [$oldVal] إلى [$newVal]');
-                                      String? technicalKey =
-                                          fieldMapping[entry.key];
+                                      String? technicalKey = fieldMapping[entry.key];
                                       if (technicalKey != null) {
                                         extraData[technicalKey] = newVal;
                                       }
@@ -333,35 +279,17 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                   if (changes.isEmpty && selectedFiles.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                          content: Text(
-                                              'لم تقم بإجراء أي تعديلات.')),
+                                          content: Text('لم تقم بإجراء أي تعديلات.')),
                                     );
                                     return;
                                   }
 
-                                  String description = changes.isEmpty
-                                      ? 'تم إرفاق ملفات جديدة للحفظ ضمن ملفات العضو.'
-                                      : 'التعديلات المطلوبة:\n${changes.join('\n')}';
-
                                   setSheetState(() => isSubmitting = true);
 
-                                  final requestVM = RequestViewModel();
-                                  requestVM.setUserData(
-                                    name: _session.userName,
-                                    college: _session.userCollege,
-                                    role: _session.userRole,
-                                    userId: _session.userId,
-                                  );
-
-                                  bool success = await requestVM.sendRequest(
-                                    title: 'طلب تعديل بيانات الملف الشخصي',
-                                    destinationCollege:
-                                        'نيابة الشؤون الأكاديمية',
-                                    type: 'تعديل معلومات',
-                                    description: description,
-                                    attachedFiles: selectedFiles,
-                                    extraData:
-                                        extraData.isNotEmpty ? extraData : null,
+                                  bool success = await _viewModel.sendEditRequest(
+                                    extraData: extraData,
+                                    changes: changes,
+                                    selectedFiles: selectedFiles,
                                   );
 
                                   setSheetState(() => isSubmitting = false);
@@ -419,7 +347,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'تحديث',
-            onPressed: _loadMemberData,
+            onPressed: _viewModel.loadMemberData,
           ),
         ],
         bottom: TabBar(
@@ -434,27 +362,41 @@ class _MobileProfilePageState extends State<MobileProfilePage>
           ],
         ),
       ),
-      floatingActionButton: _member != null
-          ? FloatingActionButton.extended(
-              onPressed: _showBulkEditDialog,
-              icon: const Icon(Icons.edit_note),
-              label: const Text('تعديل البيانات'),
-              backgroundColor: DesktopColors.primary,
-              foregroundColor: Colors.white,
-            )
-          : null,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? _buildErrorState()
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildPersonalInfoTab(),
-                    _buildEducationTab(),
-                    _buildCareerTab(),
-                  ],
-                ),
+      floatingActionButton: AnimatedBuilder(
+        animation: _viewModel,
+        builder: (context, child) {
+          return _viewModel.member != null
+              ? FloatingActionButton.extended(
+                  onPressed: _showBulkEditDialog,
+                  icon: const Icon(Icons.edit_note),
+                  label: const Text('تعديل البيانات'),
+                  backgroundColor: DesktopColors.primary,
+                  foregroundColor: Colors.white,
+                )
+              : const SizedBox.shrink();
+        },
+      ),
+      body: AnimatedBuilder(
+        animation: _viewModel,
+        builder: (context, child) {
+          if (_viewModel.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (_viewModel.error != null) {
+            return _buildErrorState();
+          }
+
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildPersonalInfoTab(),
+              _buildEducationTab(),
+              _buildCareerTab(),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -468,13 +410,13 @@ class _MobileProfilePageState extends State<MobileProfilePage>
             Icon(Icons.error_outline, size: 80, color: Colors.red.shade300),
             const SizedBox(height: 16),
             Text(
-              _error!,
+              _viewModel.error!,
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16, color: Colors.red),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: _loadMemberData,
+              onPressed: _viewModel.loadMemberData,
               icon: const Icon(Icons.refresh),
               label: const Text('إعادة المحاولة'),
               style: ElevatedButton.styleFrom(
@@ -490,7 +432,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
 
   // =================== التبويب 1: البيانات الشخصية ===================
   Widget _buildPersonalInfoTab() {
-    final m = _member!;
+    final m = _viewModel.member!;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -509,7 +451,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
             'university_appointment_date', m.universityAppointmentDate),
         const SizedBox(height: 8),
         _buildSectionHeader('معلومات الكلية والقسم', Icons.business_outlined),
-        _buildEditableInfoCard('الكلية', 'department', _session.userCollege,
+        _buildEditableInfoCard('الكلية', 'department', _viewModel.session.userCollege,
             editable: false),
         _buildEditableInfoCard('القسم', 'department', m.department),
       ],
@@ -518,7 +460,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
 
   // =================== التبويب 2: المؤهلات العلمية ===================
   Widget _buildEducationTab() {
-    final m = _member!;
+    final m = _viewModel.member!;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -557,7 +499,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
 
   // =================== التبويب 3: المسار الوظيفي ===================
   Widget _buildCareerTab() {
-    final m = _member!;
+    final m = _viewModel.member!;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [

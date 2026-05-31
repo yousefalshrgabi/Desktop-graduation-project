@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:academic_affairs_management/core/widgets/searchable_user_dropdown.dart';
 
 import '../models/timetable_entry.dart';
 import '../services/timetable_firestore_service.dart';
@@ -119,20 +120,14 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Expanded(
-                    child: DropdownButtonFormField<String>(
+                    child: SearchableUserDropdown(
                       value: _searchQuery != null &&
                               teachers.contains(_searchQuery)
                           ? _searchQuery
                           : null,
-                      decoration: const InputDecoration(
-                        labelText: 'اختر المعلم',
-                        border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      ),
+                      hint: 'اختر المعلم',
                       items: teachers
-                          .map(
-                              (t) => DropdownMenuItem(value: t, child: Text(t)))
+                          .map((t) => {'id': t, 'name': t})
                           .toList(),
                       onChanged: (val) => setState(() => _searchQuery = val),
                     ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'colleges_view_model.dart';
+import 'package:academic_affairs_management/core/widgets/searchable_user_dropdown.dart';
 
 class AddCollegeDialog extends StatefulWidget {
   final CollegesViewModel viewModel;
@@ -143,24 +144,27 @@ class _AddCollegeDialogState extends State<AddCollegeDialog> {
                 const SizedBox(height: DesktopSpacing.sm),
 
                 _buildLabel('العميد'),
-                _buildUserDropdown(
+                SearchableUserDropdown(
                   value: _selectedDeanId,
+                  items: widget.viewModel.potentialDeans,
                   hint: 'اختر العميد',
                   onChanged: (val) => setState(() => _selectedDeanId = val),
                 ),
                 const SizedBox(height: DesktopSpacing.sm),
 
                 _buildLabel('نائب الشؤون الأكاديمية'),
-                _buildUserDropdown(
+                SearchableUserDropdown(
                   value: _selectedAcademicViceDeanId,
+                  items: widget.viewModel.potentialDeans,
                   hint: 'اختر النائب الأكاديمي',
                   onChanged: (val) => setState(() => _selectedAcademicViceDeanId = val),
                 ),
                 const SizedBox(height: DesktopSpacing.sm),
 
                 _buildLabel('نائب شؤون الطلاب'),
-                _buildUserDropdown(
+                SearchableUserDropdown(
                   value: _selectedStudentViceDeanId,
+                  items: widget.viewModel.potentialDeans,
                   hint: 'اختر نائب الطلاب',
                   onChanged: (val) => setState(() => _selectedStudentViceDeanId = val),
                 ),
