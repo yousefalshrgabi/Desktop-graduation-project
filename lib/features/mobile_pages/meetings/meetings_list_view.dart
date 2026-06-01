@@ -382,21 +382,36 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Row(
+                          Wrap(
+                            spacing: 16,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              Icon(Icons.calendar_month, size: 16, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text('التاريخ: ${meeting.date}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                              const SizedBox(width: 16),
-                              Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                              const SizedBox(width: 4),
-                              Text('الوقت: ${meeting.time}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                              if (meeting.room.isNotEmpty) ...[
-                                const SizedBox(width: 16),
-                                Icon(Icons.room, size: 16, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text('القاعة: ${meeting.room}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-                              ],
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.calendar_month, size: 16, color: Colors.grey[600]),
+                                  const SizedBox(width: 4),
+                                  Text('التاريخ: ${meeting.date}', style: TextStyle(color: Colors.grey[600], fontSize: 13, fontFamily: 'Cairo')),
+                                ],
+                              ),
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
+                                  const SizedBox(width: 4),
+                                  Text('الوقت: ${meeting.time}', style: TextStyle(color: Colors.grey[600], fontSize: 13, fontFamily: 'Cairo')),
+                                ],
+                              ),
+                              if (meeting.room.isNotEmpty)
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(Icons.room, size: 16, color: Colors.grey[600]),
+                                    const SizedBox(width: 4),
+                                    Text('القاعة: ${meeting.room}', style: TextStyle(color: Colors.grey[600], fontSize: 13, fontFamily: 'Cairo')),
+                                  ],
+                                ),
                             ],
                           ),
                           const Divider(height: 24),
