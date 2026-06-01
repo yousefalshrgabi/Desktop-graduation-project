@@ -7,8 +7,12 @@ import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/widgets/searchable_user_dropdown.dart';
 import 'meetings_viewmodel.dart';
 
+import 'package:academic_affairs_management/features/mobile_pages/meetings/meeting_model.dart';
+
 class ScheduleMeetingView extends StatefulWidget {
-  const ScheduleMeetingView({super.key});
+  final MeetingModel? meeting; // في حالة التعديل، يتم تمرير الاجتماع الحالي
+
+  const ScheduleMeetingView({super.key, this.meeting});
 
   @override
   State<ScheduleMeetingView> createState() => _ScheduleMeetingViewState();
@@ -19,15 +23,46 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
   final _titleController = TextEditingController();
   final _dateController = TextEditingController();
   final _timeController = TextEditingController();
+  final _roomController = TextEditingController(); // حقل تحديد قاعة الاجتماع
   
-  final List<TextEditingController> _agendaControllers = [TextEditingController()];
-  final List<TextEditingController> _attendeeControllers = [TextEditingController()];
-  final List<String?> _selectedAttendeeIds = [null];
+  List<TextEditingController> _agendaControllers = [TextEditingController()];
+  List<TextEditingController> _attendeeControllers = [TextEditingController()];
+  List<String?> _selectedAttendeeIds = [null];
   List<Map<String, dynamic>> _facultyMembers = [];
 
   @override
   void initState() {
     super.initState();
+    
+    // تهيئة البيانات في حال كنا في وضع التعديل
+    if (widget.meeting != null) {
+      _titleController.text = widget.meeting!.title;
+      _dateController.text = widget.meeting!.date;
+      _timeController.text = widget.meeting!.time;
+      _roomController.text = widget.meeting!.room;
+      
+      _agendaControllers = widget.meeting!.agenda
+          .map((item) => TextEditingController(text: item))
+          .toList();
+      if (_agendaControllers.isEmpty) {
+        _agendaControllers.add(TextEditingController());
+      }
+      
+      _attendeeControllers = widget.meeting!.attendees
+          .map((item) => TextEditingController(text: item))
+          .toList();
+      _selectedAttendeeIds = List<String?>.from(widget.meeting!.attendeeIds);
+      
+      // التأكد من تطابق حجم القائمتين للحاضرين
+      while (_selectedAttendeeIds.length < _attendeeControllers.length) {
+        _selectedAttendeeIds.add(null);
+      }
+      if (_attendeeControllers.isEmpty) {
+        _attendeeControllers.add(TextEditingController());
+        _selectedAttendeeIds.add(null);
+      }
+    }
+    
     _loadFacultyMembers();
   }
 
@@ -77,6 +112,22 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
     if (mounted) {
       setState(() {
         _facultyMembers = temp;
+        
+        // ربط المعرفات للحاضرين بناءً على أسمائهم عند انتهاء التحميل في وضع التعديل
+        if (widget.meeting != null) {
+          for (int i = 0; i < _attendeeControllers.length; i++) {
+            if (_selectedAttendeeIds[i] == null) {
+              final name = _attendeeControllers[i].text.trim();
+              final match = _facultyMembers.firstWhere(
+                (m) => m['name'].toString().trim().toLowerCase() == name.toLowerCase(),
+                orElse: () => <String, dynamic>{},
+              );
+              if (match.isNotEmpty && match['id'] != null) {
+                _selectedAttendeeIds[i] = match['id'].toString();
+              }
+            }
+          }
+        }
       });
     }
   }
@@ -86,6 +137,7 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
     _titleController.dispose();
     _dateController.dispose();
     _timeController.dispose();
+    _roomController.dispose();
     for (var c in _agendaControllers) {
       c.dispose();
     }
@@ -203,14 +255,26 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
     }
 
     final meetingsViewModel = Provider.of<MeetingsViewModel>(context, listen: false);
-    final success = await meetingsViewModel.scheduleMeeting(
-      title: _titleController.text.trim(),
-      date: _dateController.text.trim(),
-      time: _timeController.text.trim(),
-      agenda: agenda,
-      attendees: attendees,
-      attendeeIds: attendeeIds,
-    );
+    final success = widget.meeting != null
+        ? await meetingsViewModel.updateMeeting(
+            meetingId: widget.meeting!.id,
+            title: _titleController.text.trim(),
+            date: _dateController.text.trim(),
+            time: _timeController.text.trim(),
+            room: _roomController.text.trim(),
+            agenda: agenda,
+            attendees: attendees,
+            attendeeIds: attendeeIds,
+          )
+        : await meetingsViewModel.scheduleMeeting(
+            title: _titleController.text.trim(),
+            date: _dateController.text.trim(),
+            time: _timeController.text.trim(),
+            room: _roomController.text.trim(),
+            agenda: agenda,
+            attendees: attendees,
+            attendeeIds: attendeeIds,
+          );
 
     if (success && mounted) {
       Navigator.pop(context, true);
@@ -227,9 +291,9 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
       textDirection: TextDirection.rtl,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text(
-            'جدولة اجتماع جديد',
-            style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold),
+          title: Text(
+            widget.meeting != null ? 'تعديل تفاصيل الاجتماع' : 'جدولة اجتماع جديد',
+            style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold),
           ),
           centerTitle: true,
         ),
@@ -305,6 +369,22 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                         ),
                       ),
                     ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // حقل تحديد قاعة الاجتماع
+                  const Text('قاعة الاجتماع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _roomController,
+                    validator: (v) => v!.isEmpty ? 'هذا الحقل مطلوب' : null,
+                    decoration: InputDecoration(
+                      hintText: 'مثال: قاعة مجلس الكلية، قاعة السمينار، مكتب رئيس القسم',
+                      hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                      prefixIcon: const Icon(Icons.room),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
                   ),
                   const SizedBox(height: 20),
 
@@ -445,9 +525,9 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                                       height: 20,
                                       child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
                                     )
-                                  : const Text(
-                                      'جدولة الاجتماع',
-                                      style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                                  : Text(
+                                      widget.meeting != null ? 'حفظ التعديلات' : 'جدولة الاجتماع',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
                                     ),
                             );
                           },

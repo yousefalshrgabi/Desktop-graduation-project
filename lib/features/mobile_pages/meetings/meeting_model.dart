@@ -7,6 +7,7 @@ enum MeetingStatus {
   pendingDean,
   forwardedToPresidency,
   rejected,
+  canceled, // حالة إلغاء الاجتماع
 }
 
 extension MeetingStatusExtension on MeetingStatus {
@@ -24,6 +25,8 @@ extension MeetingStatusExtension on MeetingStatus {
         return 'forwarded_to_presidency';
       case MeetingStatus.rejected:
         return 'rejected';
+      case MeetingStatus.canceled:
+        return 'canceled';
     }
   }
 
@@ -41,6 +44,8 @@ extension MeetingStatusExtension on MeetingStatus {
         return 'مكتمل (مرسل للنيابة)';
       case MeetingStatus.rejected:
         return 'مرفوض / يحتاج تعديل';
+      case MeetingStatus.canceled:
+        return 'ملغي';
     }
   }
 }
@@ -50,8 +55,10 @@ class MeetingModel {
   final String title;
   final String date;
   final String time;
+  final String room; // تحديد قاعة الاجتماع
   final List<String> agenda;
   final List<String> attendees;
+  final List<String> attendeeIds; // معرفات الحاضرين للإشعارات
   final String minutes;
   final String? documentUrl;
   final MeetingStatus status;
@@ -65,8 +72,10 @@ class MeetingModel {
     required this.title,
     required this.date,
     required this.time,
+    required this.room,
     required this.agenda,
     required this.attendees,
+    required this.attendeeIds,
     required this.minutes,
     this.documentUrl,
     required this.status,
@@ -82,8 +91,10 @@ class MeetingModel {
       'title': title,
       'date': date,
       'time': time,
+      'room': room,
       'agenda': agenda,
       'attendees': attendees,
+      'attendeeIds': attendeeIds,
       'minutes': minutes,
       'documentUrl': documentUrl,
       'status': status.key,
@@ -124,6 +135,9 @@ class MeetingModel {
       case 'rejected':
         parsedStatus = MeetingStatus.rejected;
         break;
+      case 'canceled':
+        parsedStatus = MeetingStatus.canceled;
+        break;
       default:
         parsedStatus = MeetingStatus.scheduled;
     }
@@ -133,8 +147,10 @@ class MeetingModel {
       title: map['title'] ?? '',
       date: map['date'] ?? '',
       time: map['time'] ?? '',
+      room: map['room'] ?? '',
       agenda: List<String>.from(map['agenda'] ?? []),
       attendees: List<String>.from(map['attendees'] ?? []),
+      attendeeIds: List<String>.from(map['attendeeIds'] ?? []),
       minutes: map['minutes'] ?? '',
       documentUrl: map['documentUrl'],
       status: parsedStatus,
@@ -150,8 +166,10 @@ class MeetingModel {
     String? title,
     String? date,
     String? time,
+    String? room,
     List<String>? agenda,
     List<String>? attendees,
+    List<String>? attendeeIds,
     String? minutes,
     String? documentUrl,
     MeetingStatus? status,
@@ -165,8 +183,10 @@ class MeetingModel {
       title: title ?? this.title,
       date: date ?? this.date,
       time: time ?? this.time,
+      room: room ?? this.room,
       agenda: agenda ?? this.agenda,
       attendees: attendees ?? this.attendees,
+      attendeeIds: attendeeIds ?? this.attendeeIds,
       minutes: minutes ?? this.minutes,
       documentUrl: documentUrl ?? this.documentUrl,
       status: status ?? this.status,

@@ -58,6 +58,8 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
         return Colors.green;
       case MeetingStatus.rejected:
         return Colors.red;
+      case MeetingStatus.canceled:
+        return Colors.black54;
     }
   }
 
@@ -104,6 +106,71 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
     }
   }
 
+  void _editMeeting(BuildContext context, MeetingModel meeting) {
+    final meetingsViewModel = Provider.of<MeetingsViewModel>(context, listen: false);
+    Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ChangeNotifierProvider.value(
+          value: meetingsViewModel,
+          child: ScheduleMeetingView(meeting: meeting),
+        ),
+      ),
+    ).then((success) {
+      if (success == true && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تعديل الاجتماع بنجاح!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        meetingsViewModel.loadMeetings();
+      }
+    });
+  }
+
+  void _confirmCancelMeeting(BuildContext context, MeetingModel meeting) {
+    final meetingsViewModel = Provider.of<MeetingsViewModel>(context, listen: false);
+    showDialog(
+      context: context,
+      builder: (context) => Directionality(
+        textDirection: TextDirection.rtl,
+        child: AlertDialog(
+          title: const Text('تأكيد إلغاء الاجتماع', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+          content: Text('هل أنت متأكد من رغبتك في إلغاء الاجتماع بعنوان "${meeting.title}"؟\nسيتم إرسال إشعار إلغاء للحاضرين.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('تراجع', style: TextStyle(fontFamily: 'Cairo')),
+            ),
+            TextButton(
+              onPressed: () async {
+                Navigator.pop(context);
+                final success = await meetingsViewModel.cancelMeeting(meeting);
+                if (success && mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('تم إلغاء الاجتماع بنجاح!'),
+                      backgroundColor: Colors.orange,
+                    ),
+                  );
+                } else if (mounted && meetingsViewModel.errorMessage != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(meetingsViewModel.errorMessage!),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              },
+              child: const Text('نعم، إلغاء', style: TextStyle(fontFamily: 'Cairo', color: Colors.red)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   void _showMeetingDetailDialog(MeetingModel meeting) {
     showDialog(
       context: context,
@@ -117,6 +184,10 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text('التاريخ: ${meeting.date}  |  الوقت: ${meeting.time}'),
+              if (meeting.room.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text('القاعة: ${meeting.room}'),
+              ],
               const SizedBox(height: 12),
               const Text('حالة الاعتماد:', style: TextStyle(fontWeight: FontWeight.bold)),
               Container(
@@ -270,6 +341,44 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
                                   ),
                                 ),
                               ),
+                              if (_isHOD &&
+                                  (meeting.status == MeetingStatus.scheduled ||
+                                   meeting.status == MeetingStatus.draft ||
+                                   meeting.status == MeetingStatus.rejected)) ...[
+                                const SizedBox(width: 8),
+                                PopupMenuButton<String>(
+                                  icon: const Icon(Icons.more_vert, size: 20),
+                                  onSelected: (value) {
+                                    if (value == 'edit') {
+                                      _editMeeting(context, meeting);
+                                    } else if (value == 'cancel') {
+                                      _confirmCancelMeeting(context, meeting);
+                                    }
+                                  },
+                                  itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
+                                    const PopupMenuItem<String>(
+                                      value: 'edit',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.edit, color: Colors.blue, size: 18),
+                                          SizedBox(width: 8),
+                                          Text('تعديل التفاصيل', style: TextStyle(fontFamily: 'Cairo', fontSize: 13)),
+                                        ],
+                                      ),
+                                    ),
+                                    const PopupMenuItem<String>(
+                                      value: 'cancel',
+                                      child: Row(
+                                        children: [
+                                          Icon(Icons.cancel, color: Colors.red, size: 18),
+                                          SizedBox(width: 8),
+                                          Text('إلغاء الاجتماع', style: TextStyle(fontFamily: 'Cairo', fontSize: 13)),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -282,6 +391,12 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
                               Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
                               const SizedBox(width: 4),
                               Text('الوقت: ${meeting.time}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                              if (meeting.room.isNotEmpty) ...[
+                                const SizedBox(width: 16),
+                                Icon(Icons.room, size: 16, color: Colors.grey[600]),
+                                const SizedBox(width: 4),
+                                Text('القاعة: ${meeting.room}', style: TextStyle(color: Colors.grey[600], fontSize: 13)),
+                              ],
                             ],
                           ),
                           const Divider(height: 24),

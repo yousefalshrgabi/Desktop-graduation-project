@@ -95,9 +95,10 @@ class MeetingsViewModel extends ChangeNotifier {
     required String title,
     required String date,
     required String time,
+    required String room,
     required List<String> agenda,
     required List<String> attendees,
-    List<String>? attendeeIds,
+    required List<String> attendeeIds,
   }) async {
     _isSaving = true;
     _errorMessage = null;
@@ -110,8 +111,10 @@ class MeetingsViewModel extends ChangeNotifier {
         title: title,
         date: date,
         time: time,
+        room: room,
         agenda: agenda,
         attendees: attendees,
+        attendeeIds: attendeeIds,
         minutes: '',
         status: MeetingStatus.scheduled,
         departmentId: _session.userDepartment,
@@ -125,22 +128,20 @@ class MeetingsViewModel extends ChangeNotifier {
           .set(newMeeting.toMap());
 
       // كتابة مستندات إشعار لكل حاضر في Firestore
-      if (attendeeIds != null) {
-        for (final attendeeId in attendeeIds) {
-          if (attendeeId.isNotEmpty) {
-            final notificationId = const Uuid().v4();
-            await _firestore.collection('notifications').doc(notificationId).set({
-              'id': notificationId,
-              'userId': attendeeId,
-              'title': 'اجتماع مجلس قسم جديد',
-              'body': 'تمت جدولة اجتماع جديد بعنوان: "$title" بتاريخ $date الساعة $time.',
-              'createdAt': FieldValue.serverTimestamp(),
-              'isRead': false,
-              'type': 'meeting',
-              'meetingId': id,
-            });
-            debugPrint('[NOTIFICATIONS] Sent meeting notification to user: $attendeeId');
-          }
+      for (final attendeeId in attendeeIds) {
+        if (attendeeId.isNotEmpty) {
+          final notificationId = const Uuid().v4();
+          await _firestore.collection('notifications').doc(notificationId).set({
+            'id': notificationId,
+            'userId': attendeeId,
+            'title': 'اجتماع مجلس قسم جديد',
+            'body': 'تمت جدولة اجتماع جديد بعنوان: "$title" بتاريخ $date الساعة $time في قاعة: "$room".',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'type': 'meeting',
+            'meetingId': id,
+          });
+          debugPrint('[NOTIFICATIONS] Sent meeting notification to user: $attendeeId');
         }
       }
 
@@ -148,6 +149,99 @@ class MeetingsViewModel extends ChangeNotifier {
       return true;
     } catch (e) {
       _errorMessage = 'حدث خطأ أثناء جدولة الاجتماع: $e';
+      return false;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  // تعديل تفاصيل اجتماع قائم وتجديد الإشعارات للحاضرين
+  Future<bool> updateMeeting({
+    required String meetingId,
+    required String title,
+    required String date,
+    required String time,
+    required String room,
+    required List<String> agenda,
+    required List<String> attendees,
+    required List<String> attendeeIds,
+  }) async {
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _firestore.collection('meetings').doc(meetingId).update({
+        'title': title,
+        'date': date,
+        'time': time,
+        'room': room,
+        'agenda': agenda,
+        'attendees': attendees,
+        'attendeeIds': attendeeIds,
+      });
+
+      // كتابة إشعارات التعديل لكل الحاضرين في Firestore
+      for (final attendeeId in attendeeIds) {
+        if (attendeeId.isNotEmpty) {
+          final notificationId = const Uuid().v4();
+          await _firestore.collection('notifications').doc(notificationId).set({
+            'id': notificationId,
+            'userId': attendeeId,
+            'title': 'تعديل موعد اجتماع مجلس القسم',
+            'body': 'تم تعديل موعد اجتماع "$title" ليصبح بتاريخ $date الساعة $time في قاعة: "$room".',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'type': 'meeting',
+            'meetingId': meetingId,
+          });
+        }
+      }
+
+      await loadMeetings(); // تحديث القائمة
+      return true;
+    } catch (e) {
+      _errorMessage = 'حدث خطأ أثناء تعديل الاجتماع: $e';
+      return false;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  // إلغاء اجتماع قائم وإرسال إشعارات الإلغاء
+  Future<bool> cancelMeeting(MeetingModel meeting) async {
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _firestore.collection('meetings').doc(meeting.id).update({
+        'status': MeetingStatus.canceled.key,
+      });
+
+      // إرسال إشعارات الإلغاء لجميع الحاضرين المسجلين
+      for (final attendeeId in meeting.attendeeIds) {
+        if (attendeeId.isNotEmpty) {
+          final notificationId = const Uuid().v4();
+          await _firestore.collection('notifications').doc(notificationId).set({
+            'id': notificationId,
+            'userId': attendeeId,
+            'title': 'إلغاء اجتماع مجلس القسم',
+            'body': 'تم إلغاء الاجتماع الذي كان مقرراً بعنوان: "${meeting.title}" بتاريخ ${meeting.date}.',
+            'createdAt': FieldValue.serverTimestamp(),
+            'isRead': false,
+            'type': 'meeting',
+            'meetingId': meeting.id,
+          });
+        }
+      }
+
+      await loadMeetings(); // تحديث القائمة
+      return true;
+    } catch (e) {
+      _errorMessage = 'حدث خطأ أثناء إلغاء الاجتماع: $e';
       return false;
     } finally {
       _isSaving = false;
