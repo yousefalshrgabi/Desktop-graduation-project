@@ -1,0 +1,304 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:file_saver/file_saver.dart';
+import 'package:uuid/uuid.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
+import 'package:academic_affairs_management/core/services/docx_export_service.dart';
+import 'meeting_model.dart';
+
+class MeetingsViewModel extends ChangeNotifier {
+  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseStorage _storage = FirebaseStorage.instance;
+  final AppSession _session = AppSession();
+
+  List<MeetingModel> _meetings = [];
+  bool _isLoading = false;
+  bool _isSaving = false;
+  String? _errorMessage;
+
+  List<MeetingModel> get meetings => _meetings;
+  bool get isLoading => _isLoading;
+  bool get isSaving => _isSaving;
+  String? get errorMessage => _errorMessage;
+
+  // Filter meetings based on role and department
+  List<MeetingModel> get filteredMeetings {
+    final deptId = _session.userDepartment;
+    final college = _session.userCollege;
+
+    if (_session.isDeptHead) {
+      return _meetings.where((m) => m.departmentId == deptId).toList();
+    } else if (_session.isViceDean) {
+      // Vice Dean sees meetings waiting for their approval, and those already approved/forwarded
+      return _meetings.where((m) =>
+          m.college == college &&
+          m.status != MeetingStatus.scheduled &&
+          m.status != MeetingStatus.draft).toList();
+    } else if (_session.isDean) {
+      // Dean sees meetings approved by Vice Dean, or fully approved, or rejected
+      return _meetings.where((m) =>
+          m.college == college &&
+          (m.status == MeetingStatus.pendingDean ||
+           m.status == MeetingStatus.forwardedToPresidency ||
+           m.status == MeetingStatus.rejected)).toList();
+    }
+    return [];
+  }
+
+  Future<bool> hasInternet() async {
+    try {
+      final result = await InternetAddress.lookup('google.com');
+      return result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // Load all meetings from Firestore
+  Future<void> loadMeetings() async {
+    _isLoading = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      debugPrint('[MEETINGS DEBUG] 🟢 1. Starting Firestore collection get() query...');
+      final snapshot = await _firestore
+          .collection('meetings')
+          .get()
+          .timeout(const Duration(seconds: 6));
+      debugPrint('[MEETINGS DEBUG] 🟢 2. Query completed. Received ${snapshot.docs.length} documents.');
+
+      final list = snapshot.docs
+          .map((doc) {
+            debugPrint('[MEETINGS DEBUG] 📦 Parsing document ID: ${doc.id}');
+            return MeetingModel.fromMap(doc.data());
+          })
+          .toList();
+
+      list.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      _meetings = list;
+      debugPrint('[MEETINGS DEBUG] 🟢 3. In-memory sorting finished. Loaded ${_meetings.length} meetings.');
+    } catch (e) {
+      debugPrint('[MEETINGS DEBUG] ❌ Error loading meetings: $e');
+      _errorMessage = 'حدث خطأ أثناء تحميل الاجتماعات: $e';
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
+  // Schedule a new meeting
+  Future<bool> scheduleMeeting({
+    required String title,
+    required String date,
+    required String time,
+    required List<String> agenda,
+    required List<String> attendees,
+  }) async {
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      final id = const Uuid().v4();
+      final newMeeting = MeetingModel(
+        id: id,
+        title: title,
+        date: date,
+        time: time,
+        agenda: agenda,
+        attendees: attendees,
+        minutes: '',
+        status: MeetingStatus.scheduled,
+        departmentId: _session.userDepartment,
+        college: _session.userCollege,
+        createdAt: DateTime.now(),
+      );
+
+      await _firestore
+          .collection('meetings')
+          .doc(id)
+          .set(newMeeting.toMap());
+
+      await loadMeetings(); // Refresh list
+      return true;
+    } catch (e) {
+      _errorMessage = 'حدث خطأ أثناء جدولة الاجتماع: $e';
+      return false;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  // Save drafts locally to Firestore
+  Future<bool> saveMinutesDraft(String meetingId, String minutesText) async {
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _firestore.collection('meetings').doc(meetingId).update({
+        'minutes': minutesText,
+        'status': MeetingStatus.draft.key,
+      });
+
+      await loadMeetings();
+      return true;
+    } catch (e) {
+      _errorMessage = 'حدث خطأ أثناء حفظ المسودة: $e';
+      return false;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  // Generate & Export minutes as .docx file locally using FileSaver
+  Future<bool> exportMinutesToDocx(MeetingModel meeting, String minutesText) async {
+    try {
+      final docxBytes = DocxExportService.createDocx(
+        title: meeting.title,
+        date: meeting.date,
+        time: meeting.time,
+        agenda: meeting.agenda,
+        attendees: meeting.attendees,
+        minutes: minutesText,
+      );
+
+      final cleanTitle = meeting.title.replaceAll(' ', '_');
+      final fileName = '${meeting.id}_$cleanTitle';
+
+      await FileSaver.instance.saveAs(
+        name: fileName,
+        bytes: Uint8List.fromList(docxBytes),
+        fileExtension: 'docx',
+        mimeType: MimeType.other, // Word files or other
+      );
+
+      return true;
+    } catch (e) {
+      _errorMessage = 'فشل تصدير ملف Word: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Upload minutes docx & Submit for Vice Dean approval
+  Future<bool> uploadAndSubmitMinutes({
+    required MeetingModel meeting,
+    required PlatformFile file,
+    required String minutesText,
+  }) async {
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      if (!await hasInternet()) {
+        throw Exception('لا يوجد اتصال بالإنترنت للرفع إلى الخادم.');
+      }
+
+      final cleanName = file.name.replaceAll(' ', '_');
+      final storagePath = 'meetings/${meeting.departmentId}/${meeting.id}_$cleanName';
+      final storageRef = _storage.ref().child(storagePath);
+
+      // Read file bytes safely (avoids Windows paths issues with Arabic characters)
+      Uint8List bytes;
+      if (file.bytes != null) {
+        bytes = file.bytes!;
+      } else if (file.path != null) {
+        bytes = await File(file.path!).readAsBytes();
+      } else {
+        throw Exception('ملف فارغ أو غير متاح.');
+      }
+
+      // Upload to Cloud Storage
+      final uploadTask = storageRef.putData(bytes);
+      final snapshot = await uploadTask;
+      final documentUrl = await snapshot.ref.getDownloadURL();
+
+      // Update in Firestore: set status to pendingViceDean
+      await _firestore.collection('meetings').doc(meeting.id).update({
+        'minutes': minutesText,
+        'documentUrl': documentUrl,
+        'status': MeetingStatus.pendingViceDean.key,
+        'rejectReason': null,
+      });
+
+      await loadMeetings();
+      return true;
+    } catch (e) {
+      _errorMessage = 'حدث خطأ أثناء رفع وتوثيق المحضر: $e';
+      return false;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  // Approve Meeting Minutes (Vice Dean -> Dean, Dean -> Forwarded to Presidency)
+  Future<bool> approveMeeting(MeetingModel meeting) async {
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      MeetingStatus nextStatus;
+
+      if (_session.isViceDean) {
+        nextStatus = MeetingStatus.pendingDean;
+      } else if (_session.isDean) {
+        nextStatus = MeetingStatus.forwardedToPresidency;
+      } else {
+        throw Exception('غير مصرح لك باتخاذ هذا القرار.');
+      }
+
+      await _firestore.collection('meetings').doc(meeting.id).update({
+        'status': nextStatus.key,
+        'rejectReason': null,
+      });
+
+      await loadMeetings();
+      return true;
+    } catch (e) {
+      _errorMessage = 'فشلت عملية الموافقة: $e';
+      return false;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+
+  // Reject Meeting Minutes with reason
+  Future<bool> rejectMeeting(MeetingModel meeting, String reason) async {
+    if (reason.trim().isEmpty) {
+      _errorMessage = 'يرجى كتابة سبب الرفض/طلب التعديل.';
+      notifyListeners();
+      return false;
+    }
+
+    _isSaving = true;
+    _errorMessage = null;
+    notifyListeners();
+
+    try {
+      await _firestore.collection('meetings').doc(meeting.id).update({
+        'status': MeetingStatus.rejected.key,
+        'rejectReason': reason,
+      });
+
+      await loadMeetings();
+      return true;
+    } catch (e) {
+      _errorMessage = 'فشلت عملية الرفض: $e';
+      return false;
+    } finally {
+      _isSaving = false;
+      notifyListeners();
+    }
+  }
+}

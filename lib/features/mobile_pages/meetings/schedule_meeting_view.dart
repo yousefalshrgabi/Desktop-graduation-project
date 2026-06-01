@@ -1,0 +1,376 @@
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'meetings_viewmodel.dart';
+
+class ScheduleMeetingView extends StatefulWidget {
+  const ScheduleMeetingView({super.key});
+
+  @override
+  State<ScheduleMeetingView> createState() => _ScheduleMeetingViewState();
+}
+
+class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _dateController = TextEditingController();
+  final _timeController = TextEditingController();
+  
+  final List<TextEditingController> _agendaControllers = [TextEditingController()];
+  final List<TextEditingController> _attendeeControllers = [TextEditingController()];
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _dateController.dispose();
+    _timeController.dispose();
+    for (var c in _agendaControllers) {
+      c.dispose();
+    }
+    for (var c in _attendeeControllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _selectDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+      lastDate: DateTime.now().add(const Duration(days: 365)),
+    );
+    if (picked != null) {
+      setState(() {
+        _dateController.text = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+      });
+    }
+  }
+
+  Future<void> _selectTime() async {
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+    );
+    if (picked != null) {
+      setState(() {
+        if (mounted) {
+          _timeController.text = picked.format(context);
+        }
+      });
+    }
+  }
+
+  void _addAgendaField() {
+    setState(() {
+      _agendaControllers.add(TextEditingController());
+    });
+  }
+
+  void _removeAgendaField(int index) {
+    if (_agendaControllers.length > 1) {
+      setState(() {
+        _agendaControllers[index].dispose();
+        _agendaControllers.removeAt(index);
+      });
+    }
+  }
+
+  void _addAttendeeField() {
+    setState(() {
+      _attendeeControllers.add(TextEditingController());
+    });
+  }
+
+  void _removeAttendeeField(int index) {
+    if (_attendeeControllers.length > 1) {
+      setState(() {
+        _attendeeControllers[index].dispose();
+        _attendeeControllers.removeAt(index);
+      });
+    }
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final agenda = _agendaControllers
+        .map((c) => c.text.trim())
+        .where((text) => text.isNotEmpty)
+        .toList();
+
+    final attendees = _attendeeControllers
+        .map((c) => c.text.trim())
+        .where((text) => text.isNotEmpty)
+        .toList();
+
+    if (agenda.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى إضافة بند واحد على الأقل لجدول الأعمال.')),
+      );
+      return;
+    }
+
+    if (attendees.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('يرجى إضافة حاضر واحد على الأقل.')),
+      );
+      return;
+    }
+
+    final meetingsViewModel = Provider.of<MeetingsViewModel>(context, listen: false);
+    final success = await meetingsViewModel.scheduleMeeting(
+      title: _titleController.text.trim(),
+      date: _dateController.text.trim(),
+      time: _timeController.text.trim(),
+      agenda: agenda,
+      attendees: attendees,
+    );
+
+    if (success && mounted) {
+      Navigator.pop(context, true);
+    } else if (mounted && meetingsViewModel.errorMessage != null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(meetingsViewModel.errorMessage!), backgroundColor: Colors.red),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text(
+            'جدولة اجتماع جديد',
+            style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold),
+          ),
+          centerTitle: true,
+        ),
+        body: SafeArea(
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Title Section
+                  const Text('عنوان الاجتماع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _titleController,
+                    validator: (v) => v!.isEmpty ? 'هذا الحقل مطلوب' : null,
+                    decoration: InputDecoration(
+                      hintText: 'مثال: الاجتماع الدوري الأول للفصل الدراسي الثاني',
+                      hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Date & Time Row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('التاريخ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _dateController,
+                              readOnly: true,
+                              validator: (v) => v!.isEmpty ? 'مطلوب' : null,
+                              onTap: _selectDate,
+                              decoration: InputDecoration(
+                                hintText: 'اختر التاريخ',
+                                hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                                prefixIcon: const Icon(Icons.calendar_month),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('الوقت', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                            const SizedBox(height: 8),
+                            TextFormField(
+                              controller: _timeController,
+                              readOnly: true,
+                              validator: (v) => v!.isEmpty ? 'مطلوب' : null,
+                              onTap: _selectTime,
+                              decoration: InputDecoration(
+                                hintText: 'اختر الوقت',
+                                hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                                prefixIcon: const Icon(Icons.access_time),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Agenda Section
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'جدول الأعمال (النقاط للمناقشة)',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo'),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _addAgendaField,
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('إضافة بند', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _agendaControllers.length,
+                    itemBuilder: (context, idx) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _agendaControllers[idx],
+                                validator: (v) => idx == 0 && v!.isEmpty ? 'يجب إدخال البند الأول على الأقل' : null,
+                                decoration: InputDecoration(
+                                  hintText: 'البند ${idx + 1}',
+                                  hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                ),
+                              ),
+                            ),
+                            if (_agendaControllers.length > 1)
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _removeAgendaField(idx),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Attendees Section
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'أسماء الحاضرين (أعضاء مجلس القسم)',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo'),
+                        ),
+                      ),
+                      TextButton.icon(
+                        onPressed: _addAttendeeField,
+                        icon: const Icon(Icons.add, size: 16),
+                        label: const Text('إضافة حاضر', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  ListView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: _attendeeControllers.length,
+                    itemBuilder: (context, idx) {
+                      return Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: TextFormField(
+                                controller: _attendeeControllers[idx],
+                                validator: (v) => idx == 0 && v!.isEmpty ? 'يجب إدخال عضو واحد على الأقل' : null,
+                                decoration: InputDecoration(
+                                  hintText: 'اسم العضو ${idx + 1}',
+                                  hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                ),
+                              ),
+                            ),
+                            if (_attendeeControllers.length > 1)
+                              IconButton(
+                                icon: const Icon(Icons.delete, color: Colors.red),
+                                onPressed: () => _removeAttendeeField(idx),
+                              ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 32),
+
+                  // Submit Buttons
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            side: const BorderSide(color: Colors.grey),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          child: const Text('إلغاء', style: TextStyle(color: Colors.black54, fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Consumer<MeetingsViewModel>(
+                          builder: (context, vm, child) {
+                            return ElevatedButton(
+                              onPressed: vm.isSaving ? null : _submit,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: DesktopColors.primary,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              child: vm.isSaving
+                                  ? const SizedBox(
+                                      width: 20,
+                                      height: 20,
+                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                    )
+                                  : const Text(
+                                      'جدولة الاجتماع',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                                    ),
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:academic_affairs_management/features/mobile_pages/meetings/meetings_list_view.dart';
 
 class TaskItem {
   final String title;
@@ -19,8 +20,13 @@ class TaskItem {
 class MobileRoleTasksViewModel extends ChangeNotifier {
   final String role;
   final Function(int)? onTabChange;
+  final void Function(Widget)? onNavigate;
 
-  MobileRoleTasksViewModel({required this.role, this.onTabChange});
+  MobileRoleTasksViewModel({
+    required this.role,
+    this.onTabChange,
+    this.onNavigate,
+  });
 
   bool get isDean => role == 'dean' || role == 'عميد';
   bool get isViceDean => role == 'vice_dean' || role == 'نائب العميد';
@@ -47,6 +53,13 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'مراجعة وتعديل الخطط الدراسية للأقسام',
           icon: Icons.schema_outlined,
           color: const Color(0xFF0CA678),
+        ),
+        TaskItem(
+          title: 'اعتماد محاضر الاجتماعات',
+          subtitle: 'مراجعة واعتماد محاضر اجتماعات مجالس الأقسام',
+          icon: Icons.rate_review_outlined,
+          color: const Color(0xFFE03131),
+          onTap: () => onNavigate?.call(const MeetingsListView()),
         ),
         TaskItem(
           title: 'إصدار القرارات الإدارية',
@@ -80,6 +93,13 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'متابعة جودة البرامج والمقررات الدراسية',
           icon: Icons.school_outlined,
           color: const Color(0xFF3B5BDB),
+        ),
+        TaskItem(
+          title: 'مراجعة محاضر الاجتماعات',
+          subtitle: 'مراجعة وتمرير محاضر اجتماعات الأقسام للعميد',
+          icon: Icons.rate_review_outlined,
+          color: const Color(0xFF7048E8),
+          onTap: () => onNavigate?.call(const MeetingsListView()),
         ),
         TaskItem(
           title: 'جداول المحاضرات',
@@ -126,6 +146,7 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'تنظيم وتوثيق اجتماعات مجلس القسم',
           icon: Icons.meeting_room_outlined,
           color: const Color(0xFFF59F00),
+          onTap: () => onNavigate?.call(const MeetingsListView()),
         ),
         TaskItem(
           title: 'طلبات القسم',

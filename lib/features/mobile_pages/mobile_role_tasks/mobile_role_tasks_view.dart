@@ -20,6 +20,12 @@ class _MobileRoleTasksPageState extends State<MobileRoleTasksPage> {
     _viewModel = MobileRoleTasksViewModel(
       role: widget.role,
       onTabChange: widget.onTabChange,
+      onNavigate: (page) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (context) => page),
+        );
+      },
     );
   }
 
