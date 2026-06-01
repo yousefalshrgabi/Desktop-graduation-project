@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
+import 'package:academic_affairs_management/core/widgets/searchable_user_dropdown.dart';
 import 'meetings_viewmodel.dart';
 
 class ScheduleMeetingView extends StatefulWidget {
@@ -18,6 +22,64 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
   
   final List<TextEditingController> _agendaControllers = [TextEditingController()];
   final List<TextEditingController> _attendeeControllers = [TextEditingController()];
+  final List<String?> _selectedAttendeeIds = [null];
+  List<Map<String, dynamic>> _facultyMembers = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFacultyMembers();
+  }
+
+  Future<void> _loadFacultyMembers() async {
+    final List<Map<String, dynamic>> temp = [];
+    final college = AppSession().userCollege;
+    
+    // 1. Try local SQLite query
+    try {
+      final db = await DatabaseHelper.instance.database;
+      final List<Map<String, dynamic>> localUsers = await db.query(
+        'users',
+        where: 'faculty = ?',
+        whereArgs: [college],
+      );
+      for (final u in localUsers) {
+        final name = u['name']?.toString() ?? '';
+        final id = u['id']?.toString() ?? '';
+        if (name.isNotEmpty && id.isNotEmpty && !temp.any((e) => e['name'] == name)) {
+          temp.add({'id': id, 'name': name});
+        }
+      }
+    } catch (e) {
+      debugPrint('SQLite error loading faculty: $e');
+    }
+
+    // 2. Try Firestore query
+    try {
+      final querySnapshot = await FirebaseFirestore.instance
+          .collection('users')
+          .where('faculty', isEqualTo: college)
+          .get()
+          .timeout(const Duration(seconds: 4));
+      
+      for (final doc in querySnapshot.docs) {
+        final data = doc.data();
+        final name = data['name']?.toString() ?? '';
+        final id = doc.id;
+        if (name.isNotEmpty && !temp.any((e) => e['name'] == name)) {
+          temp.add({'id': id, 'name': name});
+        }
+      }
+    } catch (e) {
+      debugPrint('Firestore error loading faculty: $e');
+    }
+
+    if (mounted) {
+      setState(() {
+        _facultyMembers = temp;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -79,6 +141,7 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
   void _addAttendeeField() {
     setState(() {
       _attendeeControllers.add(TextEditingController());
+      _selectedAttendeeIds.add(null);
     });
   }
 
@@ -87,6 +150,7 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
       setState(() {
         _attendeeControllers[index].dispose();
         _attendeeControllers.removeAt(index);
+        _selectedAttendeeIds.removeAt(index);
       });
     }
   }
@@ -118,6 +182,26 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
       return;
     }
 
+    // Collect attendee IDs for notifications
+    final attendeeIds = <String>[];
+    for (int i = 0; i < _attendeeControllers.length; i++) {
+      final name = _attendeeControllers[i].text.trim();
+      if (name.isNotEmpty) {
+        final id = _selectedAttendeeIds[i];
+        if (id != null) {
+          attendeeIds.add(id);
+        } else {
+          final match = _facultyMembers.firstWhere(
+            (m) => m['name'].toString().trim().toLowerCase() == name.toLowerCase(),
+            orElse: () => <String, dynamic>{},
+          );
+          if (match.isNotEmpty && match['id'] != null) {
+            attendeeIds.add(match['id'].toString());
+          }
+        }
+      }
+    }
+
     final meetingsViewModel = Provider.of<MeetingsViewModel>(context, listen: false);
     final success = await meetingsViewModel.scheduleMeeting(
       title: _titleController.text.trim(),
@@ -125,6 +209,7 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
       time: _timeController.text.trim(),
       agenda: agenda,
       attendees: attendees,
+      attendeeIds: attendeeIds,
     );
 
     if (success && mounted) {
@@ -300,15 +385,20 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                         child: Row(
                           children: [
                             Expanded(
-                              child: TextFormField(
-                                controller: _attendeeControllers[idx],
-                                validator: (v) => idx == 0 && v!.isEmpty ? 'يجب إدخال عضو واحد على الأقل' : null,
-                                decoration: InputDecoration(
-                                  hintText: 'اسم العضو ${idx + 1}',
-                                  hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                                ),
+                              child: SearchableUserDropdown(
+                                value: _selectedAttendeeIds[idx],
+                                hint: 'اختر اسم العضو ${idx + 1}',
+                                items: _facultyMembers,
+                                onChanged: (val) {
+                                  setState(() {
+                                    _selectedAttendeeIds[idx] = val;
+                                    final match = _facultyMembers.firstWhere(
+                                      (m) => m['id'] == val,
+                                      orElse: () => <String, dynamic>{'name': ''},
+                                    );
+                                    _attendeeControllers[idx].text = match['name'] ?? '';
+                                  });
+                                },
                               ),
                             ),
                             if (_attendeeControllers.length > 1)

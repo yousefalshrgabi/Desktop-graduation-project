@@ -97,6 +97,7 @@ class MeetingsViewModel extends ChangeNotifier {
     required String time,
     required List<String> agenda,
     required List<String> attendees,
+    List<String>? attendeeIds,
   }) async {
     _isSaving = true;
     _errorMessage = null;
@@ -122,6 +123,26 @@ class MeetingsViewModel extends ChangeNotifier {
           .collection('meetings')
           .doc(id)
           .set(newMeeting.toMap());
+
+      // Write notifications for each attendee in Firestore
+      if (attendeeIds != null) {
+        for (final attendeeId in attendeeIds) {
+          if (attendeeId.isNotEmpty) {
+            final notificationId = const Uuid().v4();
+            await _firestore.collection('notifications').doc(notificationId).set({
+              'id': notificationId,
+              'userId': attendeeId,
+              'title': 'اجتماع مجلس قسم جديد',
+              'body': 'تمت جدولة اجتماع جديد بعنوان: "$title" بتاريخ $date الساعة $time.',
+              'createdAt': FieldValue.serverTimestamp(),
+              'isRead': false,
+              'type': 'meeting',
+              'meetingId': id,
+            });
+            debugPrint('[NOTIFICATIONS] Sent meeting notification to user: $attendeeId');
+          }
+        }
+      }
 
       await loadMeetings(); // Refresh list
       return true;

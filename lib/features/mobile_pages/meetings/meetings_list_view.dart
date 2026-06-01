@@ -63,48 +63,44 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
 
   void _onMeetingTapped(MeetingModel meeting) {
     final meetingsViewModel = Provider.of<MeetingsViewModel>(context, listen: false);
-    if (_isHOD) {
-      if (meeting.status == MeetingStatus.scheduled ||
-          meeting.status == MeetingStatus.draft ||
-          meeting.status == MeetingStatus.rejected) {
-        // Navigate to write/edit minutes
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => ChangeNotifierProvider.value(
-              value: meetingsViewModel,
-              child: WriteMinutesView(meeting: meeting),
-            ),
-          ),
-        ).then((_) {
-          if (mounted) {
-            meetingsViewModel.loadMeetings();
-          }
-        });
-      } else {
-        // Show status dialog for already submitted
-        _showMeetingDetailDialog(meeting);
-      }
-    } else if (_isViceDean || _isDean) {
-      // Check if status is pending their review
-      final canReview = (_isViceDean && meeting.status == MeetingStatus.pendingViceDean) ||
-                        (_isDean && meeting.status == MeetingStatus.pendingDean);
+    
+    // Check if the current user (could be HOD who is also Vice Dean/Dean) can review this meeting
+    final canReview = (_isViceDean && meeting.status == MeetingStatus.pendingViceDean) ||
+                      (_isDean && meeting.status == MeetingStatus.pendingDean);
 
-      if (canReview) {
-        showDialog(
-          context: context,
+    if (canReview) {
+      showDialog(
+        context: context,
+        builder: (context) => ChangeNotifierProvider.value(
+          value: meetingsViewModel,
+          child: ReviewMeetingDialog(meeting: meeting),
+        ),
+      ).then((success) {
+        if (success == true && mounted) {
+          meetingsViewModel.loadMeetings();
+        }
+      });
+    } else if (_isHOD &&
+        (meeting.status == MeetingStatus.scheduled ||
+         meeting.status == MeetingStatus.draft ||
+         meeting.status == MeetingStatus.rejected)) {
+      // Navigate to write/edit minutes
+      Navigator.push(
+        context,
+        MaterialPageRoute(
           builder: (context) => ChangeNotifierProvider.value(
             value: meetingsViewModel,
-            child: ReviewMeetingDialog(meeting: meeting),
+            child: WriteMinutesView(meeting: meeting),
           ),
-        ).then((success) {
-          if (success == true && mounted) {
-            meetingsViewModel.loadMeetings();
-          }
-        });
-      } else {
-        _showMeetingDetailDialog(meeting);
-      }
+        ),
+      ).then((_) {
+        if (mounted) {
+          meetingsViewModel.loadMeetings();
+        }
+      });
+    } else {
+      // Show status dialog for already submitted or approved
+      _showMeetingDetailDialog(meeting);
     }
   }
 

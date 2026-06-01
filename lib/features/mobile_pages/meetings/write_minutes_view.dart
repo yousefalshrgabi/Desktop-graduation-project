@@ -296,7 +296,10 @@ class _WriteMinutesViewState extends State<WriteMinutesView> {
                               const SizedBox(height: 12),
 
                               // تصدير ورفع
-                              Row(
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                crossAxisAlignment: WrapCrossAlignment.center,
                                 children: [
                                   ElevatedButton.icon(
                                     onPressed: _localSaving ? null : _exportDocx,
@@ -307,13 +310,11 @@ class _WriteMinutesViewState extends State<WriteMinutesView> {
                                       foregroundColor: Colors.white,
                                     ),
                                   ),
-                                  const SizedBox(width: 8),
                                   TextButton.icon(
                                     onPressed: _localSaving ? null : _saveDraft,
                                     icon: const Icon(Icons.save),
                                     label: const Text('حفظ كمسودة', style: TextStyle(fontFamily: 'Cairo')),
                                   ),
-                                  const Spacer(),
                                   // زر اختيار الملف ورفعه
                                   ElevatedButton.icon(
                                     onPressed: _pickFile,
