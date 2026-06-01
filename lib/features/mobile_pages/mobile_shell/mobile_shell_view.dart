@@ -1,5 +1,7 @@
 import 'package:academic_affairs_management/main.dart';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'mobile_shell_view_model.dart';
 import '../mobile_profile/mobile_profile_view.dart';
@@ -203,12 +205,44 @@ class _MobileShellState extends State<MobileShell> {
         ],
       ),
       actions: [
-        IconButton(
-          icon: const Icon(Icons.notifications_outlined),
-          tooltip: 'الإشعارات',
-          onPressed: () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('لا توجد إشعارات جديدة')),
+        // قائمة الإشعارات المتصلة بـ Firestore مع شارة العدد غير المقروء (مفرزة محلياً لتجنب الحاجة لفهرس سحابي)
+        StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection('notifications')
+              .where('userId', isEqualTo: AppSession().userId)
+              .snapshots(),
+          builder: (context, snapshot) {
+            int unreadCount = 0;
+            List<QueryDocumentSnapshot> sortedDocs = [];
+            
+            if (snapshot.hasData) {
+              unreadCount = snapshot.data!.docs
+                  .where((doc) => (doc.data() as Map<String, dynamic>)['isRead'] == false)
+                  .length;
+                  
+              // ترتيب الإشعارات محلياً من الأحدث إلى الأقدم
+              sortedDocs = List.from(snapshot.data!.docs);
+              sortedDocs.sort((a, b) {
+                final aData = a.data() as Map<String, dynamic>;
+                final bData = b.data() as Map<String, dynamic>;
+                final aTime = aData['createdAt'] as Timestamp?;
+                final bTime = bData['createdAt'] as Timestamp?;
+                if (aTime == null && bTime == null) return 0;
+                if (aTime == null) return 1;
+                if (bTime == null) return -1;
+                return bTime.compareTo(aTime); // ترتيب تنازلي (الأحدث أولاً)
+              });
+            }
+
+            return Badge(
+              label: Text(unreadCount.toString(), style: const TextStyle(color: Colors.white, fontSize: 10)),
+              isLabelVisible: unreadCount > 0,
+              backgroundColor: Colors.red,
+              child: IconButton(
+                icon: const Icon(Icons.notifications_outlined),
+                tooltip: 'الإشعارات',
+                onPressed: () => _showNotificationsBottomSheet(context, sortedDocs),
+              ),
             );
           },
         ),
@@ -218,6 +252,106 @@ class _MobileShellState extends State<MobileShell> {
           onPressed: _handleLogout,
         ),
       ],
+    );
+  }
+
+  // عرض قائمة الإشعارات في لوحة سفلية منبثقة
+  void _showNotificationsBottomSheet(BuildContext context, List<QueryDocumentSnapshot> docs) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      ),
+      builder: (context) {
+        return Directionality(
+          textDirection: TextDirection.rtl,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            height: MediaQuery.of(context).size.height * 0.5,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'الإشعارات',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        fontFamily: 'Cairo',
+                      ),
+                    ),
+                    if (docs.any((d) => (d.data() as Map<String, dynamic>)['isRead'] == false))
+                      TextButton(
+                        onPressed: () async {
+                          // تحديد كل الإشعارات كمقروءة دفعة واحدة
+                          final batch = FirebaseFirestore.instance.batch();
+                          for (var doc in docs) {
+                            batch.update(doc.reference, {'isRead': true});
+                          }
+                          await batch.commit();
+                          if (context.mounted) Navigator.pop(context);
+                        },
+                        child: const Text(
+                          'تحديد الكل كمقروء',
+                          style: TextStyle(fontFamily: 'Cairo', fontSize: 12),
+                        ),
+                      ),
+                  ],
+                ),
+                const Divider(),
+                Expanded(
+                  child: docs.isEmpty
+                      ? const Center(
+                          child: Text(
+                            'لا توجد إشعارات حالياً',
+                            style: TextStyle(fontFamily: 'Cairo', color: Colors.grey),
+                          ),
+                        )
+                      : ListView.builder(
+                          itemCount: docs.length,
+                          itemBuilder: (context, index) {
+                            final data = docs[index].data() as Map<String, dynamic>;
+                            final isRead = data['isRead'] ?? false;
+                            return Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              decoration: BoxDecoration(
+                                color: isRead ? Colors.transparent : Colors.blue.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: ListTile(
+                                leading: Icon(
+                                  Icons.notifications_active_outlined,
+                                  color: isRead ? Colors.grey : Colors.blue,
+                                ),
+                                title: Text(
+                                  data['title'] ?? 'إشعار جديد',
+                                  style: TextStyle(
+                                    fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                                    fontSize: 14,
+                                    fontFamily: 'Cairo',
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  data['body'] ?? '',
+                                  style: const TextStyle(fontSize: 12, fontFamily: 'Cairo'),
+                                ),
+                                onTap: () async {
+                                  // تحديد الإشعار كمقروء عند النقر عليه
+                                  await docs[index].reference.update({'isRead': true});
+                                  if (context.mounted) Navigator.pop(context);
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 

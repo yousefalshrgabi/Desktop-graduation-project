@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:archive/archive.dart';
 
 class DocxExportService {
-  /// Generates the raw bytes of a valid Microsoft Word .docx file containing the meeting minutes.
+  /// توليد البايتات الخام لملف مايكروسوفت وورد .docx صالح يحتوي على محضر الاجتماع.
   static List<int> createDocx({
     required String title,
     required String date,
@@ -13,7 +13,7 @@ class DocxExportService {
   }) {
     final archive = Archive();
 
-    // 1. [Content_Types].xml
+    // 1. ملف [Content_Types].xml
     const contentTypesXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/markup-compatibility/2006">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -21,14 +21,14 @@ class DocxExportService {
   <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 </Types>''';
 
-    // 2. _rels/.rels
+    // 2. ملف _rels/.rels
     const relsXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
   <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
 </Relationships>''';
 
-    // 3. word/document.xml
-    // Helper to sanitize XML strings
+    // 3. ملف word/document.xml
+    // دالة مساعدة لتعقيم نصوص XML لتفادي مشاكل الرموز الخاصة
     String sanitize(String input) {
       return input
           .replaceAll('&', '&amp;')
@@ -40,7 +40,7 @@ class DocxExportService {
 
     final StringBuffer bodyContent = StringBuffer();
 
-    // Title paragraph (bold and large)
+    // فقرة العنوان (عريض وبحجم خط كبير)
     bodyContent.write('''
     <w:p>
       <w:pPr>
@@ -57,7 +57,7 @@ class DocxExportService {
     </w:p>
     ''');
 
-    // Date & Time details
+    // تفاصيل التاريخ والوقت
     bodyContent.write('''
     <w:p>
       <w:r>
@@ -80,7 +80,7 @@ class DocxExportService {
     </w:p>
     ''');
 
-    // Section separator line
+    // خط فاصل بين الأقسام
     bodyContent.write('''
     <w:p>
       <w:r>
@@ -89,7 +89,7 @@ class DocxExportService {
     </w:p>
     ''');
 
-    // Attendees Section
+    // قسم الحاضرين
     bodyContent.write('''
     <w:p>
       <w:r>
@@ -112,9 +112,9 @@ class DocxExportService {
       ''');
     }
 
-    bodyContent.write('<w:p><w:r><w:t></w:t></w:r></w:p>'); // Spacing
+    bodyContent.write('<w:p><w:r><w:t></w:t></w:r></w:p>'); // مسافة فارغة
 
-    // Agenda Section
+    // قسم جدول الأعمال
     bodyContent.write('''
     <w:p>
       <w:r>
@@ -137,9 +137,9 @@ class DocxExportService {
       ''');
     }
 
-    bodyContent.write('<w:p><w:r><w:t></w:t></w:r></w:p>'); // Spacing
+    bodyContent.write('<w:p><w:r><w:t></w:t></w:r></w:p>'); // مسافة فارغة
 
-    // Minutes text
+    // نص تفاصيل المحضر والمناقشات
     bodyContent.write('''
     <w:p>
       <w:r>
@@ -175,7 +175,7 @@ class DocxExportService {
   </w:body>
 </w:document>''';
 
-    // Add files to ZIP archive
+    // إضافة الملفات إلى ملف ZIP المضغوط للوورد
     archive.addFile(ArchiveFile('[Content_Types].xml', contentTypesXml.length, utf8.encode(contentTypesXml)));
     archive.addFile(ArchiveFile('_rels/.rels', relsXml.length, utf8.encode(relsXml)));
     archive.addFile(ArchiveFile('word/document.xml', documentXml.length, utf8.encode(documentXml)));

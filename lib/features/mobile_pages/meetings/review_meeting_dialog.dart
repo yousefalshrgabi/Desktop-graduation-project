@@ -188,52 +188,59 @@ class _ReviewMeetingDialogState extends State<ReviewMeetingDialog> {
                       return const Center(child: CircularProgressIndicator());
                     }
 
-                    return Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      alignment: WrapAlignment.end,
+                    return Row(
                       children: [
                         if (!_showRejectInput) ...[
-                          OutlinedButton.icon(
-                            onPressed: () {
-                              setState(() {
-                                _showRejectInput = true;
-                              });
-                            },
-                            icon: const Icon(Icons.cancel, color: Colors.red, size: 16),
-                            label: const Text('طلب تعديل / رفض', style: TextStyle(color: Colors.red, fontFamily: 'Cairo', fontSize: 12)),
-                            style: OutlinedButton.styleFrom(
-                              side: const BorderSide(color: Colors.red),
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () {
+                                setState(() {
+                                  _showRejectInput = true;
+                                });
+                              },
+                              icon: const Icon(Icons.cancel, color: Colors.red, size: 16),
+                              label: const Text('طلب تعديل / رفض', style: TextStyle(color: Colors.red, fontFamily: 'Cairo', fontSize: 12)),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: Colors.red),
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                              ),
                             ),
                           ),
-                          ElevatedButton.icon(
-                            onPressed: _approve,
-                            icon: const Icon(Icons.check_circle, size: 16),
-                            label: const Text('اعتماد وموافقة', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.green,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: _approve,
+                              icon: const Icon(Icons.check_circle, size: 16),
+                              label: const Text('اعتماد وموافقة', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.green,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                              ),
                             ),
                           ),
                         ] else ...[
-                          TextButton(
-                            onPressed: () {
-                              setState(() {
-                                _showRejectInput = false;
-                              });
-                            },
-                            child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
-                          ),
-                          ElevatedButton(
-                            onPressed: _reject,
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.red,
-                              foregroundColor: Colors.white,
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          Expanded(
+                            child: TextButton(
+                              onPressed: () {
+                                setState(() {
+                                  _showRejectInput = false;
+                                });
+                              },
+                              child: const Text('إلغاء', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
                             ),
-                            child: const Text('تأكيد الرفض والإرجاع', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: _reject,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 10),
+                              ),
+                              child: const Text('تأكيد الرفض والإرجاع', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                            ),
                           ),
                         ],
                       ],

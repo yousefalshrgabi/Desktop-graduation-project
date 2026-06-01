@@ -24,7 +24,7 @@ class MeetingsViewModel extends ChangeNotifier {
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
 
-  // Filter meetings based on role and department
+  // تصفية الاجتماعات بناءً على الدور والقسم
   List<MeetingModel> get filteredMeetings {
     final deptId = _session.userDepartment;
     final college = _session.userCollege;
@@ -32,13 +32,13 @@ class MeetingsViewModel extends ChangeNotifier {
     if (_session.isDeptHead) {
       return _meetings.where((m) => m.departmentId == deptId).toList();
     } else if (_session.isViceDean) {
-      // Vice Dean sees meetings waiting for their approval, and those already approved/forwarded
+      // نائب العميد يرى الاجتماعات التي تنتظر موافقته، وتلك المعتمدة/المحالة مسبقاً
       return _meetings.where((m) =>
           m.college == college &&
           m.status != MeetingStatus.scheduled &&
           m.status != MeetingStatus.draft).toList();
     } else if (_session.isDean) {
-      // Dean sees meetings approved by Vice Dean, or fully approved, or rejected
+      // العميد يرى الاجتماعات المعتمدة من نائب العميد، أو المعتمدة نهائياً، أو المرفوضة
       return _meetings.where((m) =>
           m.college == college &&
           (m.status == MeetingStatus.pendingDean ||
@@ -57,7 +57,7 @@ class MeetingsViewModel extends ChangeNotifier {
     }
   }
 
-  // Load all meetings from Firestore
+  // تحميل كافة الاجتماعات من Firestore
   Future<void> loadMeetings() async {
     _isLoading = true;
     _errorMessage = null;
@@ -90,7 +90,7 @@ class MeetingsViewModel extends ChangeNotifier {
     }
   }
 
-  // Schedule a new meeting
+  // جدولة اجتماع جديد
   Future<bool> scheduleMeeting({
     required String title,
     required String date,
@@ -124,7 +124,7 @@ class MeetingsViewModel extends ChangeNotifier {
           .doc(id)
           .set(newMeeting.toMap());
 
-      // Write notifications for each attendee in Firestore
+      // كتابة مستندات إشعار لكل حاضر في Firestore
       if (attendeeIds != null) {
         for (final attendeeId in attendeeIds) {
           if (attendeeId.isNotEmpty) {
@@ -144,7 +144,7 @@ class MeetingsViewModel extends ChangeNotifier {
         }
       }
 
-      await loadMeetings(); // Refresh list
+      await loadMeetings(); // تحديث القائمة
       return true;
     } catch (e) {
       _errorMessage = 'حدث خطأ أثناء جدولة الاجتماع: $e';
@@ -155,7 +155,7 @@ class MeetingsViewModel extends ChangeNotifier {
     }
   }
 
-  // Save drafts locally to Firestore
+  // حفظ مسودة المحضر في Firestore
   Future<bool> saveMinutesDraft(String meetingId, String minutesText) async {
     _isSaving = true;
     _errorMessage = null;
@@ -178,7 +178,7 @@ class MeetingsViewModel extends ChangeNotifier {
     }
   }
 
-  // Generate & Export minutes as .docx file locally using FileSaver
+  // توليد وتصدير المحضر كملف .docx محلياً باستخدام FileSaver
   Future<bool> exportMinutesToDocx(MeetingModel meeting, String minutesText) async {
     try {
       final docxBytes = DocxExportService.createDocx(
@@ -197,7 +197,7 @@ class MeetingsViewModel extends ChangeNotifier {
         name: fileName,
         bytes: Uint8List.fromList(docxBytes),
         fileExtension: 'docx',
-        mimeType: MimeType.other, // Word files or other
+        mimeType: MimeType.other, // ملفات Word أو غيرها
       );
 
       return true;
@@ -208,7 +208,7 @@ class MeetingsViewModel extends ChangeNotifier {
     }
   }
 
-  // Upload minutes docx & Submit for Vice Dean approval
+  // رفع ملف المحضر وتمريره لاعتماد نائب العميد
   Future<bool> uploadAndSubmitMinutes({
     required MeetingModel meeting,
     required PlatformFile file,
@@ -227,7 +227,7 @@ class MeetingsViewModel extends ChangeNotifier {
       final storagePath = 'meetings/${meeting.departmentId}/${meeting.id}_$cleanName';
       final storageRef = _storage.ref().child(storagePath);
 
-      // Read file bytes safely (avoids Windows paths issues with Arabic characters)
+      // قراءة بايتات الملف بأمان (تجنباً لمشاكل مسارات ويندوز مع الحروف العربية)
       Uint8List bytes;
       if (file.bytes != null) {
         bytes = file.bytes!;
@@ -237,12 +237,12 @@ class MeetingsViewModel extends ChangeNotifier {
         throw Exception('ملف فارغ أو غير متاح.');
       }
 
-      // Upload to Cloud Storage
+      // الرفع إلى التخزين السحابي Cloud Storage
       final uploadTask = storageRef.putData(bytes);
       final snapshot = await uploadTask;
       final documentUrl = await snapshot.ref.getDownloadURL();
 
-      // Update in Firestore: set status to pendingViceDean
+      // التحديث في Firestore: تعيين الحالة إلى في انتظار نائب العميد
       await _firestore.collection('meetings').doc(meeting.id).update({
         'minutes': minutesText,
         'documentUrl': documentUrl,
@@ -261,7 +261,7 @@ class MeetingsViewModel extends ChangeNotifier {
     }
   }
 
-  // Approve Meeting Minutes (Vice Dean -> Dean, Dean -> Forwarded to Presidency)
+  // اعتماد محضر الاجتماع (نائب العميد -> العميد، والعميد -> محال إلى رئاسة الجامعة)
   Future<bool> approveMeeting(MeetingModel meeting) async {
     _isSaving = true;
     _errorMessage = null;
@@ -294,7 +294,7 @@ class MeetingsViewModel extends ChangeNotifier {
     }
   }
 
-  // Reject Meeting Minutes with reason
+  // رفض محضر الاجتماع مع ذكر السبب
   Future<bool> rejectMeeting(MeetingModel meeting, String reason) async {
     if (reason.trim().isEmpty) {
       _errorMessage = 'يرجى كتابة سبب الرفض/طلب التعديل.';

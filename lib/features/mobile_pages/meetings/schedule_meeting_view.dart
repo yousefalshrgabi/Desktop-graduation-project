@@ -35,7 +35,7 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
     final List<Map<String, dynamic>> temp = [];
     final college = AppSession().userCollege;
     
-    // 1. Try local SQLite query
+    // 1. محاولة جلب الأعضاء من قاعدة البيانات المحلية SQLite
     try {
       final db = await DatabaseHelper.instance.database;
       final List<Map<String, dynamic>> localUsers = await db.query(
@@ -54,7 +54,7 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
       debugPrint('SQLite error loading faculty: $e');
     }
 
-    // 2. Try Firestore query
+    // 2. محاولة جلب الأعضاء من قاعدة بيانات Firestore السحابية
     try {
       final querySnapshot = await FirebaseFirestore.instance
           .collection('users')
