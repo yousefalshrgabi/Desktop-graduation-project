@@ -26,7 +26,6 @@ class SemesterOption {
 const List<SemesterOption> kSemesters = [
   SemesterOption('الفصل الأول', 'First Semester'),
   SemesterOption('الفصل الثاني', 'Second Semester'),
-  SemesterOption('الفصل الصيفي', 'Summer Semester'),
 ];
 
 // ─── موديل بسيط للمادة الدراسية ────────────────────────────────────────────
