@@ -86,8 +86,9 @@ class AppSession {
   }
 
   bool _hasAnyRole(List<String> rolesToCheck) {
-    final myRoles = _parsedRoles;
-    return myRoles.any((r) => rolesToCheck.contains(r));
+    final myRoles = _parsedRoles.map((r) => r.trim().toLowerCase()).toList();
+    final checkList = rolesToCheck.map((r) => r.trim().toLowerCase()).toList();
+    return myRoles.any((r) => checkList.contains(r));
   }
 
   /// مدير النظام أو النيابة العامة (يصل للواجهة الكاملة)
@@ -136,9 +137,9 @@ class AppSession {
   /// قائمة **جميع** الأدوار الإضافية التي يملكها المستخدم
   /// (مفاتيح موحّدة: 'dean' | 'vice_dean' | 'dept_head')
   List<String> get extraRoleKeys {
-    final roles = _parsedRoles;
+    final roles = _parsedRoles.map((r) => r.trim().toLowerCase()).toList();
     final result = <String>[];
-    if (roles.any((r) => ['dean', 'عميد', 'Dean'].contains(r))) {
+    if (roles.any((r) => ['dean', 'عميد', 'Dean'].map((e) => e.toLowerCase()).contains(r))) {
       result.add('dean');
     }
     if (roles.any((r) => [
@@ -146,11 +147,17 @@ class AppSession {
           'نائب العميد',
           'Vice Dean for Academic Affairs',
           'Vice Dean for Student Affairs',
-        ].contains(r))) {
+          'vice dean for academic affairs',
+          'vice dean for student affairs',
+        ].map((e) => e.toLowerCase()).contains(r))) {
       result.add('vice_dean');
     }
-    if (roles.any(
-        (r) => ['dept_head', 'رئيس قسم', 'Head of department'].contains(r))) {
+    if (roles.any((r) => [
+          'dept_head',
+          'رئيس قسم',
+          'Head of department',
+          'head of department',
+        ].map((e) => e.toLowerCase()).contains(r))) {
       result.add('dept_head');
     }
     return result;

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'package:academic_affairs_management/core/widgets/searchable_user_dropdown.dart';
 import 'package:file_picker/file_picker.dart';
 import 'study_plans_viewmodel.dart';
 
@@ -59,8 +60,9 @@ class _InsertStudyPlanExcelDialogState
     });
 
     try {
-      await widget.viewModel.uploadStudyPlanExcel(_selectedDeptId!, _selectedFile!);
-      
+      await widget.viewModel
+          .uploadStudyPlanExcel(_selectedDeptId!, _selectedFile!);
+
       if (mounted) {
         Navigator.of(context).pop();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -72,6 +74,7 @@ class _InsertStudyPlanExcelDialogState
       }
     } catch (e) {
       if (mounted) {
+        print(e);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('حدث خطأ أثناء الرفع: $e'),
@@ -109,22 +112,10 @@ class _InsertStudyPlanExcelDialogState
               style: DesktopTextStyles.caption,
             ),
             const SizedBox(height: DesktopSpacing.xs),
-            DropdownButtonFormField<String>(
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.white,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
-                ),
-              ),
+            SearchableUserDropdown(
               value: _selectedDeptId,
-              hint: const Text('اختر القسم'),
-              items: widget.viewModel.departments.map((dept) {
-                return DropdownMenuItem<String>(
-                  value: dept['id'].toString(),
-                  child: Text(dept['name'].toString()),
-                );
-              }).toList(),
+              hint: 'اختر القسم',
+              items: widget.viewModel.departments,
               onChanged: (val) {
                 setState(() {
                   _selectedDeptId = val;

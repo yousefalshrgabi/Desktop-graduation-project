@@ -8,7 +8,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'package:academic_affairs_management/features/authentiction/login_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/main_shell.dart';
-import 'package:academic_affairs_management/features/mobile_pages/mobile_shell.dart';
+import 'package:academic_affairs_management/features/mobile_pages/mobile_shell/mobile_shell_view.dart';
+import 'package:academic_affairs_management/features/splash/splash_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,7 @@ class MyApp extends StatefulWidget {
 class _MyAppState extends State<MyApp> {
   Key _key = UniqueKey();
   late bool _isLoggedIn;
+  bool _showSplash = true;
 
   @override
   void initState() {
@@ -73,6 +75,7 @@ class _MyAppState extends State<MyApp> {
   void restart(bool? loggedIn) {
     setState(() {
       if (loggedIn != null) _isLoggedIn = loggedIn;
+      _showSplash = false;
       _key =
           UniqueKey(); // تغيير المفتاح يجبر Flutter على إعادة بناء التطبيق بالكامل
     });
@@ -104,7 +107,7 @@ class _MyAppState extends State<MyApp> {
           primarySwatch: Colors.blue,
           fontFamily: 'Cairo',
         ),
-        home: initialScreen,
+        home: _showSplash ? const SplashView() : initialScreen,
         builder: (context, child) {
           if (child == null) return const SizedBox.shrink();
           return Directionality(

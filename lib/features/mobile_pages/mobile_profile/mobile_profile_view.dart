@@ -5,13 +5,10 @@ import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:academic_affairs_management/core/services/app_session.dart';
-import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
-import 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_member_model.dart';
-import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
-import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_view_model.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'mobile_profile_view_model.dart';
+import 'package:academic_affairs_management/core/widgets/change_password_dialog.dart';
 
 /// صفحة الملف الشخصي للعضو - تعرض معلوماته مع إمكانية طلب تعديلها
 class MobileProfilePage extends StatefulWidget {
@@ -24,18 +21,13 @@ class MobileProfilePage extends StatefulWidget {
 class _MobileProfilePageState extends State<MobileProfilePage>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  FacultyMemberModel? _member;
-  bool _isLoading = true;
-  String? _error;
-
-  final _session = AppSession();
-  final _firestore = FirebaseFirestore.instance;
+  final MobileProfileViewModel _viewModel = MobileProfileViewModel();
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
-    _loadMemberData();
+    _viewModel.loadMemberData();
   }
 
   @override
@@ -44,228 +36,8 @@ class _MobileProfilePageState extends State<MobileProfilePage>
     super.dispose();
   }
 
-  Future<void> _loadMemberData() async {
-    try {
-      setState(() {
-        _isLoading = true;
-        _error = null;
-      });
-
-      // البحث عن بيانات العضو محلياً باستخدام SQLite لضمان تكامل الأوفلاين
-      final db = await DatabaseHelper.instance.database;
-      final result = await db.query(
-        'faculty_members',
-        where: 'user_id = ?',
-        whereArgs: [_session.userId],
-        limit: 1,
-      );
-
-      if (result.isNotEmpty) {
-        setState(() {
-          _member = FacultyMemberModel.fromMap(result.first);
-          _isLoading = false;
-        });
-      } else {
-        setState(() {
-          _error = 'لم يتم العثور على بياناتك. تواصل مع النيابة الأكاديمية.';
-          _isLoading = false;
-        });
-      }
-    } catch (e) {
-      setState(() {
-        _error = 'خطأ في تحميل البيانات: $e';
-        _isLoading = false;
-      });
-    }
-  }
-
-  Future<void> _openLocalFile(BuildContext context, String path, String url, String memberName) async {
-    String actualPath = path;
-
-    if (actualPath.isEmpty && url.isNotEmpty) {
-      String cleanName = memberName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
-      Directory appDocDir = await getApplicationDocumentsDirectory();
-      
-      Uri parsedUrl = Uri.parse(url);
-      String ext = '.pdf';
-      if (parsedUrl.path.contains('.')) {
-        String possibleExt = parsedUrl.path.split('.').last;
-        if (possibleExt.length <= 4) ext = '.$possibleExt';
-      }
-      String fileName = 'document_${DateTime.now().millisecondsSinceEpoch}$ext';
-      
-      actualPath = p.join(appDocDir.path, 'AcademicAffairs', 'FacultyFiles', cleanName, fileName);
-    }
-
-    if (actualPath.isEmpty) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('لا يمكن فتح الملف، المسار غير متوفر')),
-        );
-      }
-      return;
-    }
-
-    final File file = File(actualPath);
-    if (await file.exists()) {
-      final Uri uri = Uri.file(actualPath);
-      if (!await launchUrl(uri)) {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('تعذر فتح الملف في المسار: $actualPath')),
-          );
-        }
-      }
-    } else {
-      if (url.isNotEmpty) {
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (ctx) => const AlertDialog(
-            content: Row(
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(width: 16),
-                Text('جاري تحميل الملف من السحابة...'),
-              ],
-            ),
-          ),
-        );
-
-        try {
-          final dir = file.parent;
-          if (!await dir.exists()) {
-            await dir.create(recursive: true);
-          }
-          
-          final request = await HttpClient().getUrl(Uri.parse(url));
-          final response = await request.close();
-          
-          if (response.statusCode == 200) {
-            await response.pipe(file.openWrite());
-          } else {
-            throw Exception('فشل التحميل، كود الخطأ: ${response.statusCode}');
-          }
-
-          if (context.mounted) {
-            Navigator.pop(context);
-          }
-
-          final Uri uri = Uri.file(actualPath);
-          if (!await launchUrl(uri)) {
-            if (context.mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('تعذر فتح الملف بعد التحميل: $actualPath')),
-              );
-            }
-          }
-        } catch (e) {
-          if (context.mounted) {
-            Navigator.pop(context);
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('فشل تحميل الملف: $e')),
-            );
-          }
-        }
-      } else {
-        if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('الملف غير موجود محلياً ولا يوجد رابط سحابي له.')),
-          );
-        }
-      }
-    }
-  }
-
-  void _viewFiles() async {
-    final member = _member;
-    if (member == null) return;
-    
-    if (member.localFilePath.isNotEmpty || member.fileUrl.isNotEmpty) {
-      List<String> paths = [];
-      if (member.localFilePath.isNotEmpty) {
-        if (member.localFilePath.startsWith('[')) {
-          try {
-            paths = List<String>.from(jsonDecode(member.localFilePath));
-          } catch (e) {
-            paths = [member.localFilePath];
-          }
-        } else {
-          paths = [member.localFilePath];
-        }
-      }
-
-      List<String> urls = [];
-      if (member.fileUrl.isNotEmpty) {
-        if (member.fileUrl.startsWith('[')) {
-          try {
-            urls = List<String>.from(jsonDecode(member.fileUrl));
-          } catch (e) {
-            urls = [member.fileUrl];
-          }
-        } else {
-          urls = [member.fileUrl];
-        }
-      }
-
-      int count = paths.length > urls.length ? paths.length : urls.length;
-
-      if (count == 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('لا يوجد ملف مرفق لهذا العضو')),
-        );
-      } else if (count == 1) {
-        String p = paths.isNotEmpty ? paths[0] : '';
-        String u = urls.isNotEmpty ? urls[0] : '';
-        await _openLocalFile(context, p, u, member.name);
-      } else {
-        showDialog(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('اختيار الملف المرفق'),
-            content: SizedBox(
-              width: 400,
-              child: ListView.builder(
-                shrinkWrap: true,
-                itemCount: count,
-                itemBuilder: (c, i) {
-                  String p = i < paths.length ? paths[i] : '';
-                  String u = i < urls.length ? urls[i] : '';
-                  String fileName = p.isNotEmpty 
-                      ? p.split(RegExp(r'[\\/]')).last 
-                      : 'ملف ${i + 1} من السحابة';
-                      
-                  return ListTile(
-                    leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
-                    title: Text(fileName),
-                    onTap: () {
-                      Navigator.pop(ctx);
-                      _openLocalFile(context, p, u, member.name);
-                    },
-                  );
-                },
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: const Text('إغلاق'),
-              )
-            ],
-          ),
-        );
-      }
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-            content:
-                Text('لا يوجد ملف مرفق لهذا العضو')),
-      );
-    }
-  }
-
   void _showBulkEditDialog() {
-    final m = _member!;
+    final m = _viewModel.member!;
 
     // Map of labels to old values and their controllers
     final Map<String, Map<String, dynamic>> fields = {
@@ -348,8 +120,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                   children: [
                     const Text(
                       'طلب تعديل البيانات',
-                      style:
-                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -377,15 +148,13 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                         }).toList()
                           ..add(
                             Padding(
-                              padding:
-                                  const EdgeInsets.only(top: 8, bottom: 20),
+                              padding: const EdgeInsets.only(top: 8, bottom: 20),
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: Colors.blue.shade50,
                                   borderRadius: BorderRadius.circular(10),
-                                  border:
-                                      Border.all(color: Colors.blue.shade200),
+                                  border: Border.all(color: Colors.blue.shade200),
                                 ),
                                 child: Column(
                                   children: [
@@ -446,10 +215,8 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                                       const SizedBox(width: 4),
                                                       Expanded(
                                                           child: Text(f.name,
-                                                              style:
-                                                                  const TextStyle(
-                                                                      fontSize:
-                                                                          11))),
+                                                              style: const TextStyle(
+                                                                  fontSize: 11))),
                                                       IconButton(
                                                         icon: const Icon(
                                                             Icons.close,
@@ -481,7 +248,6 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                               height: 50,
                               child: ElevatedButton(
                                 onPressed: () async {
-                                  // 1. تجهيز البيانات المنظمة للتحديث الآلي
                                   Map<String, String> fieldMapping = {
                                     'الاسم الكامل': 'name',
                                     'رقم الملف': 'fileNumber',
@@ -490,8 +256,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                     'محل الميلاد': 'birthPlace',
                                     'تاريخ الميلاد': 'birthDate',
                                     'القسم': 'department',
-                                    'تاريخ التعيين':
-                                        'universityAppointmentDate',
+                                    'تاريخ التعيين': 'universityAppointmentDate',
                                     'البكالوريوس': 'bscDegree',
                                     'الماجستير': 'mscDegree',
                                     'الدرجة الحالية': 'currentDegree',
@@ -503,18 +268,15 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                   Map<String, dynamic> extraData = {};
 
                                   for (var entry in fields.entries) {
-                                    String oldVal =
-                                        entry.value['old'] ?? 'غير محدد';
-                                    String newVal =
-                                        entry.value['ctrl'].text.trim();
+                                    String oldVal = entry.value['old'] ?? 'غير محدد';
+                                    String newVal = entry.value['ctrl'].text.trim();
                                     if (oldVal == '') oldVal = 'غير محدد';
                                     if (newVal == '') newVal = 'غير محدد';
 
                                     if (oldVal != newVal) {
                                       changes.add(
                                           '- ${entry.key}: من [$oldVal] إلى [$newVal]');
-                                      String? technicalKey =
-                                          fieldMapping[entry.key];
+                                      String? technicalKey = fieldMapping[entry.key];
                                       if (technicalKey != null) {
                                         extraData[technicalKey] = newVal;
                                       }
@@ -524,35 +286,17 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                   if (changes.isEmpty && selectedFiles.isEmpty) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                          content: Text(
-                                              'لم تقم بإجراء أي تعديلات.')),
+                                          content: Text('لم تقم بإجراء أي تعديلات.')),
                                     );
                                     return;
                                   }
 
-                                  String description = changes.isEmpty
-                                      ? 'تم إرفاق ملفات جديدة للحفظ ضمن ملفات العضو.'
-                                      : 'التعديلات المطلوبة:\n${changes.join('\n')}';
-
                                   setSheetState(() => isSubmitting = true);
 
-                                  final requestVM = RequestViewModel();
-                                  requestVM.setUserData(
-                                    name: _session.userName,
-                                    college: _session.userCollege,
-                                    role: _session.userRole,
-                                    userId: _session.userId,
-                                  );
-
-                                  bool success = await requestVM.sendRequest(
-                                    title: 'طلب تعديل بيانات الملف الشخصي',
-                                    destinationCollege:
-                                        'نيابة الشؤون الأكاديمية',
-                                    type: 'تعديل معلومات',
-                                    description: description,
-                                    attachedFiles: selectedFiles,
-                                    extraData:
-                                        extraData.isNotEmpty ? extraData : null,
+                                  bool success = await _viewModel.sendEditRequest(
+                                    extraData: extraData,
+                                    changes: changes,
+                                    selectedFiles: selectedFiles,
                                   );
 
                                   setSheetState(() => isSubmitting = false);
@@ -607,16 +351,28 @@ class _MobileProfilePageState extends State<MobileProfilePage>
         foregroundColor: Colors.white,
         elevation: 0,
         actions: [
-          if (_member != null)
-            IconButton(
-              icon: const Icon(Icons.description_outlined),
-              tooltip: 'استعراض ملفاتي',
-              onPressed: _viewFiles,
-            ),
+          IconButton(
+            icon: const Icon(Icons.vpn_key),
+            tooltip: 'تغيير كلمة المرور',
+            onPressed: () async {
+              final success = await showDialog<bool>(
+                context: context,
+                builder: (context) => const ChangePasswordDialog(),
+              );
+              if (success == true && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('تم تغيير كلمة المرور بنجاح.'),
+                    backgroundColor: Colors.green,
+                  ),
+                );
+              }
+            },
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'تحديث',
-            onPressed: _loadMemberData,
+            onPressed: _viewModel.loadMemberData,
           ),
         ],
         bottom: TabBar(
@@ -631,27 +387,41 @@ class _MobileProfilePageState extends State<MobileProfilePage>
           ],
         ),
       ),
-      floatingActionButton: _member != null
-          ? FloatingActionButton.extended(
-              onPressed: _showBulkEditDialog,
-              icon: const Icon(Icons.edit_note),
-              label: const Text('تعديل البيانات'),
-              backgroundColor: DesktopColors.primary,
-              foregroundColor: Colors.white,
-            )
-          : null,
-      body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : _error != null
-              ? _buildErrorState()
-              : TabBarView(
-                  controller: _tabController,
-                  children: [
-                    _buildPersonalInfoTab(),
-                    _buildEducationTab(),
-                    _buildCareerTab(),
-                  ],
-                ),
+      floatingActionButton: AnimatedBuilder(
+        animation: _viewModel,
+        builder: (context, child) {
+          return _viewModel.member != null
+              ? FloatingActionButton.extended(
+                  onPressed: _showBulkEditDialog,
+                  icon: const Icon(Icons.edit_note),
+                  label: const Text('تعديل البيانات'),
+                  backgroundColor: DesktopColors.primary,
+                  foregroundColor: Colors.white,
+                )
+              : const SizedBox.shrink();
+        },
+      ),
+      body: AnimatedBuilder(
+        animation: _viewModel,
+        builder: (context, child) {
+          if (_viewModel.isLoading) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (_viewModel.error != null) {
+            return _buildErrorState();
+          }
+
+          return TabBarView(
+            controller: _tabController,
+            children: [
+              _buildPersonalInfoTab(),
+              _buildEducationTab(),
+              _buildCareerTab(),
+            ],
+          );
+        },
+      ),
     );
   }
 
@@ -665,13 +435,13 @@ class _MobileProfilePageState extends State<MobileProfilePage>
             Icon(Icons.error_outline, size: 80, color: Colors.red.shade300),
             const SizedBox(height: 16),
             Text(
-              _error!,
+              _viewModel.error!,
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 16, color: Colors.red),
             ),
             const SizedBox(height: 24),
             ElevatedButton.icon(
-              onPressed: _loadMemberData,
+              onPressed: _viewModel.loadMemberData,
               icon: const Icon(Icons.refresh),
               label: const Text('إعادة المحاولة'),
               style: ElevatedButton.styleFrom(
@@ -687,7 +457,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
 
   // =================== التبويب 1: البيانات الشخصية ===================
   Widget _buildPersonalInfoTab() {
-    final m = _member!;
+    final m = _viewModel.member!;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -706,7 +476,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
             'university_appointment_date', m.universityAppointmentDate),
         const SizedBox(height: 8),
         _buildSectionHeader('معلومات الكلية والقسم', Icons.business_outlined),
-        _buildEditableInfoCard('الكلية', 'department', _session.userCollege,
+        _buildEditableInfoCard('الكلية', 'department', _viewModel.session.userCollege,
             editable: false),
         _buildEditableInfoCard('القسم', 'department', m.department),
       ],
@@ -715,7 +485,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
 
   // =================== التبويب 2: المؤهلات العلمية ===================
   Widget _buildEducationTab() {
-    final m = _member!;
+    final m = _viewModel.member!;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -754,7 +524,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
 
   // =================== التبويب 3: المسار الوظيفي ===================
   Widget _buildCareerTab() {
-    final m = _member!;
+    final m = _viewModel.member!;
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [

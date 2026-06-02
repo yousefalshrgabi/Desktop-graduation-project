@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'departments_view_model.dart';
+import 'package:academic_affairs_management/core/widgets/searchable_user_dropdown.dart';
 
 class AddDepartmentDialog extends StatefulWidget {
   final DepartmentsViewModel viewModel;
@@ -128,13 +129,11 @@ class _AddDepartmentDialogState extends State<AddDepartmentDialog> {
 
                 // ── رئيس القسم ───────────────────────────────────────────────
                 _buildLabel('رئيس القسم (اختياري)'),
-                _buildDropdown(
+                SearchableUserDropdown(
                   value: _selectedHodId,
                   items: widget.viewModel.availableUsers,
                   hint: 'اختر رئيس القسم',
-                  icon: Icons.person_outline,
                   onChanged: (v) => setState(() => _selectedHodId = v),
-                  nullable: true,
                 ),
                 const SizedBox(height: DesktopSpacing.lg),
 

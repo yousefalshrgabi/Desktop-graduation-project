@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
-import '../schedule_screen/screens/department_schedule_screen.dart';
-import '../schedule_screen/screens/teachers_schedule_screen.dart';
-import '../schedule_screen/screens/rooms_schedule_screen.dart';
-import '../schedule_screen/screens/upload_schedule_screen.dart';
+import 'package:academic_affairs_management/features/schedule_screen/screens/department_schedule_screen.dart';
+import 'package:academic_affairs_management/features/schedule_screen/screens/teachers_schedule_screen.dart';
+import 'package:academic_affairs_management/features/schedule_screen/screens/rooms_schedule_screen.dart';
+import 'package:academic_affairs_management/features/schedule_screen/screens/upload_schedule_screen.dart';
 
 class MobileScheduleView extends StatelessWidget {
   final int initialIndex;

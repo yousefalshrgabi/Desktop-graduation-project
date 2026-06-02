@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_model.dart';
@@ -46,7 +47,30 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
       return;
     }
 
-    final Uri uri = Uri.parse(url);
+    String cleanUrl = url.trim();
+    if (cleanUrl.startsWith('[') && cleanUrl.endsWith(']')) {
+      try {
+        final List<dynamic> decoded = jsonDecode(cleanUrl);
+        if (decoded.isNotEmpty) {
+          cleanUrl = decoded.first.toString();
+        }
+      } catch (e) {
+        cleanUrl = cleanUrl
+            .substring(1, cleanUrl.length - 1)
+            .replaceAll('"', '')
+            .replaceAll("'", "")
+            .trim();
+      }
+    }
+
+    if (cleanUrl.startsWith('"') && cleanUrl.endsWith('"')) {
+      cleanUrl = cleanUrl.substring(1, cleanUrl.length - 1);
+    }
+    if (cleanUrl.startsWith("'") && cleanUrl.endsWith("'")) {
+      cleanUrl = cleanUrl.substring(1, cleanUrl.length - 1);
+    }
+
+    final Uri uri = Uri.parse(cleanUrl);
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     } else {
@@ -123,8 +147,9 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                         .map((e) => DropdownMenuItem(value: e, child: Text(e)))
                         .toList(),
                     onChanged: (v) {
-                      if (v != null)
+                      if (v != null) {
                         setSheetState(() => selectedDestination = v);
+                      }
                     },
                   ),
                   const SizedBox(height: 12),
@@ -540,7 +565,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     'مقدم الطلب:',
                     req.applicantName.isNotEmpty
                         ? req.applicantName
-                        : 'غير محدد'),
+                        : 'غير حدد'),
                 const SizedBox(height: 4),
                 _buildInfoRow('النوع:', req.type),
                 if (req.description.isNotEmpty) ...[

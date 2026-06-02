@@ -12,6 +12,8 @@ import 'package:academic_affairs_management/features/desktop_pages/requests_scre
 import 'package:academic_affairs_management/features/desktop_pages/programs_screen/programs_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/subjects_screen/subjects_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/study_plans_view.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
+import 'package:academic_affairs_management/core/widgets/change_password_dialog.dart';
 
 class MainShell extends StatefulWidget {
   const MainShell({super.key});
@@ -266,6 +268,11 @@ class _MainShellState extends State<MainShell>
   }
 
   Widget _buildSidebarFooter() {
+    final session = AppSession();
+    final String initial = session.userName.isNotEmpty ? session.userName.trim().substring(0, 1) : 'أ';
+    final String displayName = session.userName.isNotEmpty ? session.userName : 'المدير العام';
+    final String displayEmail = session.userEmail.isNotEmpty ? session.userEmail : 'admin@univ.edu';
+
     return Padding(
       padding: const EdgeInsets.all(DesktopSpacing.md),
       child: Container(
@@ -276,30 +283,48 @@ class _MainShellState extends State<MainShell>
         ),
         child: Row(
           children: [
-            const CircleAvatar(
+            CircleAvatar(
               backgroundColor: DesktopColors.primary,
-              child: Text('أ', style: TextStyle(color: Colors.white)),
+              child: Text(initial, style: const TextStyle(color: Colors.white)),
             ),
             const SizedBox(width: DesktopSpacing.sm),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisSize: MainAxisSize.min,
-                children: const [
+                children: [
                   Text(
-                    'المدير العام',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    displayName,
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                   Text(
-                    'admin@univ.edu',
-                    style: TextStyle(color: Colors.grey, fontSize: 11),
+                    displayEmail,
+                    style: const TextStyle(color: Colors.grey, fontSize: 11),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
               ),
+            ),
+            IconButton(
+              icon: const Icon(Icons.vpn_key_outlined, color: DesktopColors.primary, size: 20),
+              tooltip: 'تغيير كلمة المرور',
+              onPressed: () async {
+                final success = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => const ChangePasswordDialog(),
+                );
+                if (success == true && context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('تم تغيير كلمة المرور بنجاح.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                }
+              },
             ),
             IconButton(
               icon: const Icon(Icons.logout, color: Colors.red),

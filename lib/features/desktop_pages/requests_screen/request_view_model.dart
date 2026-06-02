@@ -273,7 +273,9 @@ class RequestViewModel extends ChangeNotifier {
       if (kIsWeb) {
         uploadTask = ref.putData(file.bytes!);
       } else {
-        uploadTask = ref.putFile(File(file.path!));
+        // قراءة الملف كـ Bytes للرفع الآمن لتفادي مشاكل الحروف العربية بمسار الملف في نظام Windows
+        final bytes = await File(file.path!).readAsBytes();
+        uploadTask = ref.putData(bytes);
       }
 
       TaskSnapshot snapshot = await uploadTask;

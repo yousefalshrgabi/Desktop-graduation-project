@@ -120,7 +120,9 @@ class FacultyMembersViewModel extends ChangeNotifier {
             .ref()
             .child('faculty_files/$cleanName/$fileName');
 
-        UploadTask uploadTask = ref.putFile(File(newLocalPath));
+        // قراءة الملف كـ Bytes للرفع الآمن لتفادي مشاكل الحروف العربية بمسار الملف في نظام Windows
+        final bytes = await File(newLocalPath).readAsBytes();
+        UploadTask uploadTask = ref.putData(bytes);
         TaskSnapshot snapshot = await uploadTask;
         downloadUrl = await snapshot.ref.getDownloadURL();
         debugPrint('✅ تم الرفع للسحابة بنجاح: $downloadUrl');
