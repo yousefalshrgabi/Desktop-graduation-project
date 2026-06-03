@@ -4,6 +4,7 @@ import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_member_model.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_view_model.dart';
+import 'package:academic_affairs_management/core/services/sync_service.dart';
 
 class MobileProfileViewModel extends ChangeNotifier {
   final AppSession _session = AppSession();
@@ -45,19 +46,51 @@ class MobileProfileViewModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// مزامنة البيانات من السحابة وجلب الأحدث
+  Future<void> refreshData() async {
+    try {
+      _isLoading = true;
+      notifyListeners();
+      await SyncService().pullFromFirebase();
+      await loadMemberData();
+    } catch (e) {
+      _error = 'خطأ في مزامنة البيانات: $e';
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   /// إرسال طلب التعديل المنظم
   Future<bool> sendEditRequest({
     required Map<String, dynamic> extraData,
     required List<String> changes,
-    required List<PlatformFile> selectedFiles,
+    required Map<String, List<PlatformFile>> categorizedFiles,
   }) async {
-    if (changes.isEmpty && selectedFiles.isEmpty) {
+    if (changes.isEmpty && categorizedFiles.isEmpty) {
       return false;
     }
 
     String description = changes.isEmpty
         ? 'تم إرفاق ملفات جديدة للحفظ ضمن ملفات العضو.'
         : 'التعديلات المطلوبة:\n${changes.join('\n')}';
+
+    List<PlatformFile> flatFiles = [];
+    Map<String, List<int>> filesMapping = {};
+
+    categorizedFiles.forEach((category, files) {
+      List<int> indices = [];
+      for (var f in files) {
+        indices.add(flatFiles.length);
+        flatFiles.add(f);
+      }
+      if (indices.isNotEmpty) {
+        filesMapping[category] = indices;
+      }
+    });
+
+    if (filesMapping.isNotEmpty) {
+      extraData['new_files_mapping'] = filesMapping;
+    }
 
     final requestVM = RequestViewModel();
     requestVM.setUserData(
@@ -72,10 +105,46 @@ class MobileProfileViewModel extends ChangeNotifier {
       destinationCollege: 'نيابة الشؤون الأكاديمية',
       type: 'تعديل معلومات',
       description: description,
-      attachedFiles: selectedFiles,
+      attachedFiles: flatFiles,
       extraData: extraData.isNotEmpty ? extraData : null,
     );
 
+    _isLoading = false;
+    notifyListeners();
+    return success;
+  }
+
+  /// إرسال طلب حذف ملف معين
+  Future<bool> sendDeleteFileRequest({
+    required String category,
+    required String fileUrl,
+    required String fileName,
+  }) async {
+    _isLoading = true;
+    notifyListeners();
+
+    final requestVM = RequestViewModel();
+    requestVM.setUserData(
+      name: _session.userName,
+      college: _session.userCollege,
+      role: _session.userRole,
+      userId: _session.userId,
+    );
+
+    bool success = await requestVM.sendRequest(
+      title: 'طلب حذف ملف مرفق',
+      destinationCollege: 'نيابة الشؤون الأكاديمية',
+      type: 'حذف ملف',
+      description: 'تم طلب حذف الملف المرفق التالي: $fileName',
+      attachedFiles: [],
+      extraData: {
+        'delete_file_category': category,
+        'delete_file_url': fileUrl,
+      },
+    );
+
+    _isLoading = false;
+    notifyListeners();
     return success;
   }
 }

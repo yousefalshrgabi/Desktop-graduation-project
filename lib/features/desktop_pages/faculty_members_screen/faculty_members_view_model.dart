@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:spreadsheet_decoder/spreadsheet_decoder.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:path/path.dart' as p;
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'faculty_member_model.dart';
@@ -41,34 +42,39 @@ class FacultyMembersViewModel extends ChangeNotifier {
   // ==================== معالجة ورفع الملفات بتنظيم المجلدات (إسم العضو) ====================
   Future<FacultyMemberModel> _processAndUploadFile(
       FacultyMemberModel member) async {
-    if (member.localFilePath.isEmpty) return member;
+    if (member.localFilePath.isEmpty && member.fileUrl.isEmpty) return member;
 
-    List<String> paths = [];
-    if (member.localFilePath.startsWith('[')) {
+    Map<String, List<String>> localPathsMap = {};
+    if (member.localFilePath.startsWith('{')) {
       try {
-        paths = List<String>.from(jsonDecode(member.localFilePath));
-      } catch (e) {
-        paths = [member.localFilePath];
-      }
-    } else {
-      paths = [member.localFilePath];
+        Map<String, dynamic> decoded = jsonDecode(member.localFilePath);
+        decoded.forEach((key, value) {
+          localPathsMap[key] = List<String>.from(value);
+        });
+      } catch (e) {}
+    } else if (member.localFilePath.startsWith('[')) {
+      try {
+        localPathsMap['others'] = List<String>.from(jsonDecode(member.localFilePath));
+      } catch (e) {}
+    } else if (member.localFilePath.isNotEmpty) {
+      localPathsMap['others'] = [member.localFilePath];
     }
 
-    List<String> currentUrls = [];
-    if (member.fileUrl.isNotEmpty) {
-      if (member.fileUrl.startsWith('[')) {
-        try {
-          currentUrls = List<String>.from(jsonDecode(member.fileUrl));
-        } catch (e) {
-          currentUrls = [member.fileUrl];
-        }
-      } else {
-        currentUrls = [member.fileUrl];
-      }
+    Map<String, List<String>> urlsMap = {};
+    if (member.fileUrl.startsWith('{')) {
+      try {
+        Map<String, dynamic> decoded = jsonDecode(member.fileUrl);
+        decoded.forEach((key, value) {
+          urlsMap[key] = List<String>.from(value);
+        });
+      } catch (e) {}
+    } else if (member.fileUrl.startsWith('[')) {
+      try {
+        urlsMap['others'] = List<String>.from(jsonDecode(member.fileUrl));
+      } catch (e) {}
+    } else if (member.fileUrl.isNotEmpty) {
+      urlsMap['others'] = [member.fileUrl];
     }
-
-    List<String> finalLocalPaths = [];
-    List<String> finalUrls = [];
 
     String cleanName = member.name.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
     Directory appDocDir = await getApplicationDocumentsDirectory();
@@ -79,64 +85,78 @@ class FacultyMembersViewModel extends ChangeNotifier {
       await memberDir.create(recursive: true);
     }
 
-    int maxCount = paths.length > currentUrls.length ? paths.length : currentUrls.length;
-    
-    for (int i = 0; i < maxCount; i++) {
-      String path = i < paths.length ? paths[i] : '';
-      String url = i < currentUrls.length ? currentUrls[i] : '';
-      
-      if (path.isEmpty || path.startsWith('CLOUD_FILE:')) {
-        finalLocalPaths.add('');
-        finalUrls.add(url);
-        continue;
+    Map<String, List<String>> finalLocalPathsMap = {};
+    Map<String, List<String>> finalUrlsMap = {};
+
+    Set<String> allKeys = {...localPathsMap.keys, ...urlsMap.keys};
+
+    for (String key in allKeys) {
+      List<String> paths = localPathsMap[key] ?? [];
+      List<String> currentUrls = urlsMap[key] ?? [];
+
+      List<String> catFinalLocalPaths = [];
+      List<String> catFinalUrls = [];
+
+      int maxCount = paths.length > currentUrls.length ? paths.length : currentUrls.length;
+
+      for (int i = 0; i < maxCount; i++) {
+        String path = i < paths.length ? paths[i] : '';
+        String url = i < currentUrls.length ? currentUrls[i] : '';
+
+        if (path.isEmpty || path.startsWith('CLOUD_FILE:')) {
+          catFinalLocalPaths.add('');
+          catFinalUrls.add(url);
+          continue;
+        }
+
+        if (!File(path).existsSync()) {
+          catFinalLocalPaths.add(path);
+          catFinalUrls.add(url);
+          continue;
+        }
+
+        if (p.isWithin(memberDirPath, path)) {
+          catFinalLocalPaths.add(path);
+          catFinalUrls.add(url);
+          continue;
+        }
+
+        File sourceFile = File(path);
+        String extension = p.extension(sourceFile.path);
+        String fileName = 'document_${key}_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
+
+        String newLocalPath = p.join(memberDir.path, fileName);
+        await sourceFile.copy(newLocalPath);
+        debugPrint('✅ تم حفظ الملف محلياً في مجلد العضو: $newLocalPath');
+
+        String downloadUrl = url;
+
+        try {
+          debugPrint('☁️ جاري رفع الملف إلى Firebase Storage بتنظيم المجلدات...');
+          Reference ref = FirebaseStorage.instance
+              .ref()
+              .child('faculty_files/$cleanName/$fileName');
+
+          final bytes = await File(newLocalPath).readAsBytes();
+          UploadTask uploadTask = ref.putData(bytes);
+          TaskSnapshot snapshot = await uploadTask;
+          downloadUrl = await snapshot.ref.getDownloadURL();
+          debugPrint('✅ تم الرفع للسحابة بنجاح: $downloadUrl');
+        } catch (firebaseError) {
+          debugPrint('⚠️ فشل الرفع السحابي: $firebaseError');
+        }
+
+        catFinalLocalPaths.add(newLocalPath);
+        catFinalUrls.add(downloadUrl);
       }
 
-      if (!File(path).existsSync()) {
-        finalLocalPaths.add(path);
-        finalUrls.add(url);
-        continue;
-      }
-
-      // إذا كان الملف داخل مجلد العضو بالفعل، لا ننسخه مرة أخرى
-      if (p.isWithin(memberDirPath, path)) {
-        finalLocalPaths.add(path);
-        finalUrls.add(url);
-        continue;
-      }
-
-      File sourceFile = File(path);
-      String extension = p.extension(sourceFile.path);
-      String fileName = 'document_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
-
-      String newLocalPath = p.join(memberDir.path, fileName);
-      await sourceFile.copy(newLocalPath);
-      debugPrint('✅ تم حفظ الملف محلياً في مجلد العضو: $newLocalPath');
-
-      String downloadUrl = url;
-
-      try {
-        debugPrint('☁️ جاري رفع الملف إلى Firebase Storage بتنظيم المجلدات...');
-        Reference ref = FirebaseStorage.instance
-            .ref()
-            .child('faculty_files/$cleanName/$fileName');
-
-        // قراءة الملف كـ Bytes للرفع الآمن لتفادي مشاكل الحروف العربية بمسار الملف في نظام Windows
-        final bytes = await File(newLocalPath).readAsBytes();
-        UploadTask uploadTask = ref.putData(bytes);
-        TaskSnapshot snapshot = await uploadTask;
-        downloadUrl = await snapshot.ref.getDownloadURL();
-        debugPrint('✅ تم الرفع للسحابة بنجاح: $downloadUrl');
-      } catch (firebaseError) {
-        debugPrint('⚠️ فشل الرفع السحابي: $firebaseError');
-      }
-
-      finalLocalPaths.add(newLocalPath);
-      finalUrls.add(downloadUrl);
+      finalLocalPathsMap[key] = catFinalLocalPaths;
+      finalUrlsMap[key] = catFinalUrls;
     }
 
     return member.copyWith(
-      localFilePath: jsonEncode(finalLocalPaths),
-      fileUrl: jsonEncode(finalUrls),
+      localFilePath: jsonEncode(finalLocalPathsMap),
+      fileUrl: jsonEncode(finalUrlsMap),
     );
   }
 
@@ -150,6 +170,17 @@ class FacultyMembersViewModel extends ChangeNotifier {
 
       final db = await DatabaseHelper.instance.database;
       await db.insert('faculty_members', finalMember.toMap());
+
+      // الرفع المباشر للسحابة
+      try {
+        await FirebaseFirestore.instance
+            .collection('faculty_members')
+            .doc(finalMember.id)
+            .set(finalMember.toMap());
+      } catch (e) {
+        debugPrint('Error adding to firestore: $e');
+      }
+
       await fetchFacultyMembers();
     } catch (e) {
       debugPrint('Error adding member: $e');
@@ -165,12 +196,74 @@ class FacultyMembersViewModel extends ChangeNotifier {
     isLoading = true;
     notifyListeners();
     try {
-      // 👈 نعالج الملف (حفظ محلي + رفع سحابي) قبل التحديث
+      final db = await DatabaseHelper.instance.database;
+      
+      // 1. جلب العضو القديم للمقارنة لاستخراج الملفات المحذوفة
+      final oldRecord = await db.query('faculty_members', where: 'id = ?', whereArgs: [id]);
+      FacultyMemberModel? oldMember;
+      if (oldRecord.isNotEmpty) {
+        oldMember = FacultyMemberModel.fromMap(oldRecord.first);
+      }
+
+      // 2. نعالج الملف (حفظ محلي + رفع سحابي) قبل التحديث
       FacultyMemberModel finalMember = await _processAndUploadFile(member);
 
-      final db = await DatabaseHelper.instance.database;
-      await db.update('faculty_members', finalMember.toMap(),
-          where: 'id = ?', whereArgs: [id]);
+      // 3. مقارنة الملفات لحذف الملفات التي تمت إزالتها من السحابة
+      if (oldMember != null && oldMember.fileUrl.isNotEmpty) {
+        List<String> extractUrls(String jsonStr) {
+          List<String> urls = [];
+          if (jsonStr.isEmpty) return urls;
+          if (jsonStr.startsWith('{')) {
+            try {
+              Map<String, dynamic> decoded = jsonDecode(jsonStr);
+              decoded.forEach((key, val) {
+                urls.addAll(List<String>.from(val));
+              });
+            } catch (_) {}
+          } else if (jsonStr.startsWith('[')) {
+            try {
+              urls = List<String>.from(jsonDecode(jsonStr));
+            } catch (_) {}
+          } else {
+            urls.add(jsonStr);
+          }
+          return urls;
+        }
+
+        List<String> oldUrls = extractUrls(oldMember.fileUrl);
+        List<String> newUrls = extractUrls(finalMember.fileUrl);
+
+        for (String oldUrl in oldUrls) {
+          if (oldUrl.isNotEmpty && !newUrls.contains(oldUrl)) {
+            try {
+              await FirebaseStorage.instance.refFromURL(oldUrl).delete();
+              debugPrint('تم حذف الملف السحابي المرتبط المحذوف: $oldUrl');
+            } catch (e) {
+              debugPrint('لم يتم العثور على الملف لحذفه في السحابة: $e');
+            }
+          }
+        }
+      }
+
+      // 4. تحديث القاعدة المحلية 
+      await DatabaseHelper.instance.updateRecordLocal(
+        'faculty_members', finalMember.userId, finalMember.toMap(),
+        whereColumn: 'user_id',
+      );
+
+      // 5. التحديث المباشر للسحابة
+      try {
+        await FirebaseFirestore.instance
+            .collection('faculty_members')
+            .doc(finalMember.id)
+            .update(finalMember.toMap());
+      } catch (e) {
+        debugPrint('قد يكون المستند غير موجود في السحابة، محاولة إنشائه... $e');
+        await FirebaseFirestore.instance
+            .collection('faculty_members')
+            .doc(finalMember.id)
+            .set(finalMember.toMap());
+      }
 
       // تحديث اسم المستخدم المرتبط إذا تم تغييره من هنا
       if (finalMember.userId.isNotEmpty) {
@@ -451,4 +544,88 @@ class FacultyMembersViewModel extends ChangeNotifier {
       notifyListeners();
     }
   }
+
+  /// حذف ملف مرفق محدد من عضو تدريس بشكل مباشر (للصلاحيات العليا)
+  Future<bool> deleteMemberFile({
+    required FacultyMemberModel member,
+    required String category,
+    required int fileIndex,
+    required String fileUrl,
+  }) async {
+    try {
+      isLoading = true;
+      notifyListeners();
+
+      // مساعدة لتحويل JSON Map
+      Map<String, List<String>> parseMap(String str) {
+        if (str.isEmpty) return {};
+        try {
+          if (str.startsWith('{')) {
+            final decoded = jsonDecode(str) as Map<String, dynamic>;
+            Map<String, List<String>> result = {};
+            decoded.forEach((key, val) {
+              result[key] = List<String>.from(val);
+            });
+            return result;
+          }
+        } catch (_) {}
+        // توافق رجعي (Flat list to 'others')
+        try {
+          return {'others': List<String>.from(jsonDecode(str))};
+        } catch (_) {}
+        return {'others': [str]};
+      }
+
+      Map<String, List<String>> currentUrlsMap = parseMap(member.fileUrl);
+      Map<String, List<String>> currentLocalPathsMap = parseMap(member.localFilePath);
+
+      // التأكد من وجود الفئة ورقم الفهرس
+      if (currentUrlsMap.containsKey(category) && currentUrlsMap[category]!.length > fileIndex) {
+        currentUrlsMap[category]!.removeAt(fileIndex);
+
+        if (currentLocalPathsMap.containsKey(category) && currentLocalPathsMap[category]!.length > fileIndex) {
+          currentLocalPathsMap[category]!.removeAt(fileIndex);
+        }
+
+        // حفظ البيانات المعدلة
+        Map<String, dynamic> updateData = {
+          'file_url': jsonEncode(currentUrlsMap),
+          'local_file_path': jsonEncode(currentLocalPathsMap),
+        };
+
+        // تحديث قاعدة البيانات
+        await DatabaseHelper.instance.updateRecordLocal(
+          'faculty_members', member.userId, updateData,
+          whereColumn: 'user_id',
+        );
+
+        await FirebaseFirestore.instance
+            .collection('faculty_members')
+            .doc(member.id)
+            .update(updateData);
+
+        // محاولة حذف الملف من السحابة
+        try {
+          await FirebaseStorage.instance.refFromURL(fileUrl).delete();
+          debugPrint('تم الحذف من التخزين السحابي بنجاح.');
+        } catch (e) {
+          debugPrint('خطأ في حذف الملف من السحابة (ربما لا يوجد): $e');
+        }
+
+        isLoading = false;
+        notifyListeners();
+        return true;
+      }
+      
+      isLoading = false;
+      notifyListeners();
+      return false;
+    } catch (e) {
+      debugPrint('فشل في حذف الملف: $e');
+      isLoading = false;
+      notifyListeners();
+      return false;
+    }
+  }
 }
+

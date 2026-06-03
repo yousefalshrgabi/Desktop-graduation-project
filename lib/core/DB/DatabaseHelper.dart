@@ -32,7 +32,7 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
     return await openDatabase(
       path,
-      version: 12,
+      version: 13,
       // 👈 تفعيل القيود المرجعية (Foreign Keys) لضمان صحة الربط بين الجداول
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -154,6 +154,25 @@ class DatabaseHelper {
         debugPrint('Column phone already exists');
       }
       debugPrint('[SQLITE DEBUG] ✅ تم إضافة أعمدة جديدة لجدول users');
+    }
+
+    if (oldVersion < 13) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS course_assignments (
+          id TEXT PRIMARY KEY,
+          plan_id TEXT NOT NULL,
+          course_id TEXT NOT NULL,
+          course_name_ar TEXT NOT NULL,
+          course_name_en TEXT NOT NULL,
+          faculty_member_id TEXT NOT NULL,
+          faculty_member_name TEXT NOT NULL,
+          theoretical_groups INTEGER NOT NULL DEFAULT 1,
+          practical_groups INTEGER NOT NULL DEFAULT 0,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول course_assignments (v13) خلال الترقية');
     }
   }
 
@@ -362,6 +381,24 @@ class DatabaseHelper {
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول study_plans_storage');
 
+      // 10. جدول ربط المقررات (الأنصبة)
+      await db.execute('''
+        CREATE TABLE course_assignments (
+          id TEXT PRIMARY KEY,
+          plan_id TEXT NOT NULL,
+          course_id TEXT NOT NULL,
+          course_name_ar TEXT NOT NULL,
+          course_name_en TEXT NOT NULL,
+          faculty_member_id TEXT NOT NULL,
+          faculty_member_name TEXT NOT NULL,
+          theoretical_groups INTEGER NOT NULL DEFAULT 1,
+          practical_groups INTEGER NOT NULL DEFAULT 0,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول course_assignments');
+
       debugPrint('[SQLITE DEBUG] 🎉 اكتمل بناء قاعدة البيانات المحلية بنجاح!');
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ خطأ فادح أثناء إنشاء الجداول: $e');
@@ -415,6 +452,7 @@ class DatabaseHelper {
       await db.delete('requests');
       await db.delete('programs');
       await db.delete('studyPlans');
+      await db.delete('course_assignments');
       debugPrint('[SQLITE DEBUG] ✅ تم تنظيف قاعدة البيانات بنجاح.');
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ فشل عملية التنظيف: $e');

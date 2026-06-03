@@ -31,8 +31,30 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
   String? _selectedDegree;
   String? _selectedStatus = 'نشط';
   bool _isLoading = false;
-  List<String> _selectedLocalFilePaths = [];
-  List<String> _selectedFileUrls = [];
+
+  Map<String, List<String>> _categorizedLocalPaths = {
+    'idCard': [],
+    'contract': [],
+    'personalPhoto': [],
+    'certificates': [],
+    'others': []
+  };
+
+  Map<String, List<String>> _categorizedUrls = {
+    'idCard': [],
+    'contract': [],
+    'personalPhoto': [],
+    'certificates': [],
+    'others': []
+  };
+
+  final Map<String, String> _categoryTitles = {
+    'idCard': 'بطاقة شخصية / جواز السفر (صور فقط)',
+    'contract': 'العقد',
+    'personalPhoto': 'صورة شخصية (صور فقط)',
+    'certificates': 'الشهادات',
+    'others': 'ملفات أخرى'
+  };
 
   // قائمة ديناميكية تُجلب من قاعدة البيانات
   List<String> _departments = [];
@@ -97,20 +119,25 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
     }
   }
 
-  // 🌟 دالة اختيار ملفات الدكتور (PDF أو صور)
-  Future<void> _pickFile() async {
+  // 🌟 دالة اختيار ملفات الدكتور مصنفة (PDF أو صور)
+  Future<void> _pickFile(String category) async {
+    bool isImageOnly = category == 'idCard' || category == 'personalPhoto';
+    
     FilePickerResult? result = await FilePicker.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png'],
-      allowMultiple: true, // 👈 تفعيل اختيار أكثر من ملف
+      type: isImageOnly ? FileType.image : FileType.custom,
+      allowedExtensions: isImageOnly ? null : ['pdf', 'doc', 'docx', 'jpg', 'png', 'jpeg'],
+      allowMultiple: true,
     );
 
     if (result != null && result.paths.isNotEmpty) {
       setState(() {
         for (var path in result.paths) {
-          if (path != null && !_selectedLocalFilePaths.contains(path)) {
-            _selectedLocalFilePaths.add(path);
-            _selectedFileUrls.add(''); // إضافة رابط فارغ للملف الجديد
+          if (path != null && !(_categorizedLocalPaths[category] ?? []).contains(path)) {
+            _categorizedLocalPaths[category] ??= [];
+            _categorizedUrls[category] ??= [];
+            
+            _categorizedLocalPaths[category]!.add(path);
+            _categorizedUrls[category]!.add(''); // إضافة رابط فارغ للملف الجديد
           }
         }
       });
@@ -222,31 +249,45 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
               decoded.map((e) => Map<String, String>.from(e)).toList();
         }
         
-        // تحميل الملفات المرفقة السابقة (المحلية والسحابية)
-        List<String> paths = [];
+        // تحميل الملفات المرفقة السابقة (المحلية والسحابية) مع التوافقية للملفات العشوائية القديمة
         if (m.localFilePath.isNotEmpty) {
-          if (m.localFilePath.startsWith('[')) {
-            try { paths = List<String>.from(jsonDecode(m.localFilePath)); } catch(e) { paths = [m.localFilePath]; }
-          } else { paths = [m.localFilePath]; }
+          if (m.localFilePath.startsWith('{')) {
+            try { 
+              Map<String, dynamic> decoded = jsonDecode(m.localFilePath);
+              decoded.forEach((key, value) {
+                if (_categorizedLocalPaths.containsKey(key)) {
+                  _categorizedLocalPaths[key] = List<String>.from(value);
+                }
+              });
+            } catch(e) {}
+          } else if (m.localFilePath.startsWith('[')) {
+             try { 
+               _categorizedLocalPaths['others'] = List<String>.from(jsonDecode(m.localFilePath)); 
+             } catch(e) {}
+          } else {
+             _categorizedLocalPaths['others'] = [m.localFilePath]; 
+          }
         }
-        
-        List<String> urls = [];
+
         if (m.fileUrl.isNotEmpty) {
-          if (m.fileUrl.startsWith('[')) {
-            try { urls = List<String>.from(jsonDecode(m.fileUrl)); } catch(e) { urls = [m.fileUrl]; }
-          } else { urls = [m.fileUrl]; }
+          if (m.fileUrl.startsWith('{')) {
+            try { 
+              Map<String, dynamic> decoded = jsonDecode(m.fileUrl);
+              decoded.forEach((key, value) {
+                if (_categorizedUrls.containsKey(key)) {
+                  _categorizedUrls[key] = List<String>.from(value);
+                }
+              });
+            } catch(e) {}
+          } else if (m.fileUrl.startsWith('[')) {
+             try { 
+               _categorizedUrls['others'] = List<String>.from(jsonDecode(m.fileUrl)); 
+             } catch(e) {}
+          } else {
+             _categorizedUrls['others'] = [m.fileUrl]; 
+          }
         }
-        
-        int count = paths.length > urls.length ? paths.length : urls.length;
-        for (int i = 0; i < count; i++) {
-           String p = i < paths.length ? paths[i] : '';
-           String u = i < urls.length ? urls[i] : '';
-           
-           if (p.isNotEmpty || u.isNotEmpty) {
-             _selectedLocalFilePaths.add(p);
-             _selectedFileUrls.add(u);
-           }
-        }
+
       } catch (e) {
         debugPrint('Error parsing leaves JSON: $e');
       }
@@ -321,8 +362,8 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
         currentAcademicTitle: _selectedDegree ?? 'غير محدد',
 
         // 👈 تمرير مسارات الملف (سيتم معالجتها في الـ ViewModel للرفع المحلي والسحابي)
-        localFilePath: jsonEncode(_selectedLocalFilePaths),
-        fileUrl: jsonEncode(_selectedFileUrls),
+        localFilePath: jsonEncode(_categorizedLocalPaths),
+        fileUrl: jsonEncode(_categorizedUrls),
 
         fileNumber: _controllers['fileNumber']!.text.trim(),
         idCardNumber: _controllers['idCardNumber']!.text.trim(),
@@ -439,84 +480,93 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
                         _buildInput('رقم الملف', 'fileNumber', false),
                       ]),
 
-                      // 🌟 تم التصحيح هنا: حذف الـ Expanded اليدوي لأن _buildRowFields يوفره تلقائياً
-                      _buildRowFields([
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            _buildLabel('الوثائق والمرفقات (PDF/صور)'),
-                            Container(
-                              padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(
-                                color: Colors.grey[100],
-                                border: Border.all(color: Colors.grey[300]!),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.stretch,
-                                children: [
-                                  Wrap(
-                                    spacing: 8.0,
-                                    runSpacing: 8.0,
-                                    children: List.generate(_selectedLocalFilePaths.length, (index) {
-                                      String path = _selectedLocalFilePaths[index];
-                                      String url = _selectedFileUrls.length > index ? _selectedFileUrls[index] : '';
-                                      
-                                      String fileName;
-                                      if (path.isEmpty && url.isNotEmpty) {
-                                        Uri parsedUrl = Uri.parse(url);
-                                        fileName = 'ملف سحابي: ${parsedUrl.pathSegments.last.split('%2F').last.split('?').first}';
-                                      } else {
-                                        fileName = path.split(RegExp(r'[\\/]')).last;
-                                      }
-                                      return Chip(
-                                        label: Text(
-                                          fileName,
-                                          style: const TextStyle(fontSize: 12),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        onDeleted: () {
-                                          setState(() {
-                                            _selectedLocalFilePaths.removeAt(index);
-                                            if (index < _selectedFileUrls.length) {
-                                              _selectedFileUrls.removeAt(index);
-                                            }
-                                          });
-                                        },
-                                        deleteIcon: const Icon(Icons.close, size: 16),
-                                        backgroundColor: Colors.white,
-                                        shape: RoundedRectangleBorder(
-                                          borderRadius: BorderRadius.circular(4),
-                                          side: BorderSide(color: Colors.grey.shade300),
-                                        ),
-                                      );
-                                    }),
-                                  ),
-                                  if (_selectedLocalFilePaths.isNotEmpty)
-                                    const SizedBox(height: 12),
-                                  Align(
-                                    alignment: Alignment.centerRight,
-                                    child: ElevatedButton.icon(
-                                      onPressed: _pickFile,
-                                      icon: const Icon(Icons.attach_file),
-                                      label: const Text('إضافة ملفات أخرى'),
+                      // عرض تصنيفات الملفات
+                      _buildSectionTitle('الوثائق والمرفقات (PDF/صور)'),
+                      ..._categoryTitles.entries.map((entry) {
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 16.0),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              _buildLabel(entry.value),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[100],
+                                  border: Border.all(color: Colors.grey[300]!),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                                  children: [
+                                    Wrap(
+                                      spacing: 8.0,
+                                      runSpacing: 8.0,
+                                      children: List.generate(
+                                          (_categorizedLocalPaths[entry.key] ?? []).length, (index) {
+                                        String path = _categorizedLocalPaths[entry.key]![index];
+                                        String url = (_categorizedUrls[entry.key]?.length ?? 0) > index
+                                            ? _categorizedUrls[entry.key]![index]
+                                            : '';
+
+                                        String fileName;
+                                        if (path.isEmpty && url.isNotEmpty) {
+                                          Uri parsedUrl = Uri.parse(url);
+                                          fileName = 'ملف سحابي: ${parsedUrl.pathSegments.last.split('%2F').last.split('?').first}';
+                                        } else {
+                                          fileName = path.split(RegExp(r'[\\/]')).last;
+                                        }
+                                        return Chip(
+                                          label: Text(
+                                            fileName,
+                                            style: const TextStyle(fontSize: 12),
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                          onDeleted: () {
+                                            setState(() {
+                                              _categorizedLocalPaths[entry.key]!.removeAt(index);
+                                              if (index < (_categorizedUrls[entry.key]?.length ?? 0)) {
+                                                _categorizedUrls[entry.key]!.removeAt(index);
+                                              }
+                                            });
+                                          },
+                                          deleteIcon: const Icon(Icons.close, size: 16),
+                                          backgroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius: BorderRadius.circular(4),
+                                            side: BorderSide(color: Colors.grey.shade300),
+                                          ),
+                                        );
+                                      }),
                                     ),
-                                  ),
-                                  if (_selectedLocalFilePaths.isEmpty)
-                                    const Padding(
-                                      padding: EdgeInsets.only(top: 8.0),
-                                      child: Text(
-                                        'لم يتم إرفاق أي ملفات',
-                                        style: TextStyle(color: Colors.grey, fontSize: 13),
+                                    if ((_categorizedLocalPaths[entry.key] ?? []).isNotEmpty)
+                                      const SizedBox(height: 12),
+                                    Align(
+                                      alignment: Alignment.centerRight,
+                                      child: ElevatedButton.icon(
+                                        onPressed: () => _pickFile(entry.key),
+                                        icon: const Icon(Icons.attach_file),
+                                        label: const Text('إضافة مرفقات'),
                                       ),
                                     ),
-                                ],
+                                    if ((_categorizedLocalPaths[entry.key] ?? []).isEmpty)
+                                      const Padding(
+                                        padding: EdgeInsets.only(top: 8.0),
+                                        child: Text(
+                                          'لم يتم إرفاق أي ملفات في هذا القسم',
+                                          style: TextStyle(color: Colors.grey, fontSize: 13),
+                                        ),
+                                      ),
+                                  ],
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                      ]),
+                            ],
+                          ),
+                        );
+                      }).toList(),
+
 
                       _buildRowFields([
                         _buildInput(

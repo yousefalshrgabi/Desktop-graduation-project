@@ -2,7 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
-import 'package:url_launcher/url_launcher.dart';
+import 'package:open_filex/open_filex.dart';
 
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -26,7 +26,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _viewModel.loadMemberData();
   }
 
@@ -36,66 +36,484 @@ class _MobileProfilePageState extends State<MobileProfilePage>
     super.dispose();
   }
 
+  Future<String> _getLocalTargetPath(
+      String path, String url, String memberName) async {
+    if (path.isNotEmpty) {
+      try {
+        if (await File(path).exists()) return path;
+      } catch (_) {}
+    }
+
+    String cleanName = memberName.replaceAll(RegExp(r'[\\/:*?"<>|]'), '_');
+    Directory appDocDir = await getApplicationDocumentsDirectory();
+
+    String fileName = 'document';
+    if (path.isNotEmpty) {
+      fileName = path.split(RegExp(r'[\\/]')).last;
+    } else if (url.isNotEmpty) {
+      Uri parsedUrl = Uri.parse(url);
+      String ext = '.pdf';
+      if (parsedUrl.path.contains('.')) {
+        String possibleExt = parsedUrl.path.split('.').last;
+        if (possibleExt.length <= 4) ext = '.$possibleExt';
+      }
+      fileName = 'document_${url.hashCode}$ext';
+    }
+
+    return p.join(
+        appDocDir.path, 'AcademicAffairs', 'Downloads', cleanName, fileName);
+  }
+
+  Future<bool> _checkIfFileExists(
+      String path, String url, String memberName) async {
+    String targetPath = await _getLocalTargetPath(path, url, memberName);
+    try {
+      return await File(targetPath).exists();
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _openLocalFile(
+      BuildContext context, String path, String url, String memberName) async {
+    String targetPath = await _getLocalTargetPath(path, url, memberName);
+
+    bool fileExistsLocally = false;
+    try {
+      fileExistsLocally = await File(targetPath).exists();
+    } catch (_) {}
+
+    if (targetPath.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('لا يمكن فتح الملف، المسار غير متوفر')),
+        );
+      }
+      return;
+    }
+
+    final File file = File(targetPath);
+
+    if (fileExistsLocally) {
+      final result = await OpenFilex.open(targetPath);
+      if (result.type != ResultType.done) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('تعذر فتح الملف: ${result.message}')),
+          );
+        }
+      }
+    } else {
+      if (url.isNotEmpty) {
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => const AlertDialog(
+            content: Row(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 16),
+                Text('جاري تحميل الملف من السحابة...'),
+              ],
+            ),
+          ),
+        );
+
+        try {
+          final dir = file.parent;
+          if (!await dir.exists()) {
+            await dir.create(recursive: true);
+          }
+
+          final request = await HttpClient().getUrl(Uri.parse(url));
+          final response = await request.close();
+
+          if (response.statusCode == 200) {
+            await response.pipe(file.openWrite());
+          } else {
+            throw Exception('فشل التحميل، كود الخطأ: ${response.statusCode}');
+          }
+
+          if (context.mounted) {
+            Navigator.pop(context);
+          }
+
+          // Trigger UI rebuild so the icon changes from download to open
+          if (mounted) setState(() {});
+
+          final result = await OpenFilex.open(targetPath);
+          if (result.type != ResultType.done) {
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                    content:
+                        Text('تعذر فتح الملف بعد التحميل: ${result.message}')),
+              );
+            }
+          }
+        } catch (e) {
+          if (context.mounted) {
+            Navigator.pop(context);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('فشل تحميل الملف: $e')),
+            );
+          }
+        }
+      } else {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+                content:
+                    Text('الملف غير موجود محلياً ولا يوجد رابط سحابي له.')),
+          );
+        }
+      }
+    }
+  }
+
+  List<Widget> _buildFileCards() {
+    List<Widget> widgets = [];
+    final member = _viewModel.member;
+    if (member == null) return widgets;
+
+    debugPrint(
+        '[MOBILE_PROFILE] member.localFilePath: ${member.localFilePath}');
+    debugPrint('[MOBILE_PROFILE] member.fileUrl: ${member.fileUrl}');
+
+    if (member.localFilePath.isEmpty && member.fileUrl.isEmpty) {
+      return [
+        Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.orange.shade200),
+          ),
+          color: Colors.orange.shade50,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                SizedBox(width: 8),
+                Text('لا توجد ملفات مرفقة',
+                    style: TextStyle(
+                        color: Colors.orange, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        )
+      ];
+    }
+
+    Map<String, List<String>> localPathsMap = {};
+    if (member.localFilePath.startsWith('{')) {
+      try {
+        Map<String, dynamic> decoded = jsonDecode(member.localFilePath);
+        debugPrint('[MOBILE_PROFILE] localFilePath decoded: $decoded');
+        decoded.forEach((key, value) {
+          localPathsMap[key] = List<String>.from(value);
+        });
+      } catch (e) {
+        debugPrint('[MOBILE_PROFILE] localFilePath jsonDecode error: $e');
+      }
+    } else if (member.localFilePath.startsWith('[')) {
+      try {
+        localPathsMap['others'] =
+            List<String>.from(jsonDecode(member.localFilePath));
+      } catch (e) {}
+    } else if (member.localFilePath.isNotEmpty) {
+      localPathsMap['others'] = [member.localFilePath];
+    }
+
+    Map<String, List<String>> urlsMap = {};
+    if (member.fileUrl.startsWith('{')) {
+      try {
+        Map<String, dynamic> decoded = jsonDecode(member.fileUrl);
+        debugPrint('[MOBILE_PROFILE] fileUrl decoded: $decoded');
+        decoded.forEach((key, value) {
+          urlsMap[key] = List<String>.from(value);
+        });
+      } catch (e) {
+        debugPrint('[MOBILE_PROFILE] fileUrl jsonDecode error: $e');
+      }
+    } else if (member.fileUrl.startsWith('[')) {
+      try {
+        urlsMap['others'] = List<String>.from(jsonDecode(member.fileUrl));
+      } catch (e) {}
+    } else if (member.fileUrl.isNotEmpty) {
+      urlsMap['others'] = [member.fileUrl];
+    }
+
+    final Map<String, String> categoryTitles = {
+      'idCard': 'بطاقة شخصية / جواز السفر',
+      'contract': 'العقد',
+      'personalPhoto': 'صورة شخصية',
+      'certificates': 'الشهادات',
+      'others': 'ملفات أخرى'
+    };
+
+    categoryTitles.forEach((key, title) {
+      widgets.add(Padding(
+        padding: const EdgeInsets.only(top: 16.0, bottom: 8.0, right: 4),
+        child: Text(title,
+            style: const TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                color: DesktopColors.primary)),
+      ));
+
+      List<String> paths = localPathsMap[key] ?? [];
+      List<String> urls = urlsMap[key] ?? [];
+      int count = paths.length > urls.length ? paths.length : urls.length;
+
+      if (count == 0) {
+        widgets.add(Card(
+          margin: const EdgeInsets.only(bottom: 10),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+            side: BorderSide(color: Colors.grey.shade300),
+          ),
+          color: Colors.grey.shade50,
+          child: const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                Icon(Icons.info_outline, color: Colors.grey, size: 20),
+                SizedBox(width: 8),
+                Text('لم يتم إرفاق ملفات في هذا القسم',
+                    style: TextStyle(
+                        color: Colors.grey, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ));
+      } else {
+        for (int i = 0; i < count; i++) {
+          String p = i < paths.length ? paths[i] : '';
+          String u = i < urls.length ? urls[i] : '';
+
+          if (p.isEmpty && u.isEmpty) continue;
+
+          String fileName = p.isNotEmpty
+              ? p.split(RegExp(r'[\\/]')).last
+              : 'ملف ${i + 1} من السحابة';
+
+          widgets.add(Card(
+            margin: const EdgeInsets.only(bottom: 10),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12),
+              side: const BorderSide(color: Color(0xFFE5E7EB)),
+            ),
+            color: Colors.white,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => _openLocalFile(context, p, u, member.name),
+              child: Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Row(
+                  children: [
+                    Icon(
+                        (key == 'idCard' || key == 'personalPhoto')
+                            ? Icons.image
+                            : Icons.picture_as_pdf,
+                        color: Colors.redAccent,
+                        size: 28),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: FutureBuilder<bool>(
+                        future: _checkIfFileExists(p, u, member.name),
+                        builder: (context, snapshot) {
+                          bool exists = snapshot.data ?? false;
+                          return Row(
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      fileName,
+                                      style: const TextStyle(
+                                        fontSize: 15,
+                                        color: Color(0xFF1A1A1A),
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      exists
+                                          ? 'متاح محلياً - انقر للفتح'
+                                          : 'انقر لتحميل الملف',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: exists
+                                            ? Colors.green.shade700
+                                            : DesktopColors.primary
+                                                .withOpacity(0.8),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Icon(
+                                exists
+                                    ? Icons.file_open
+                                    : Icons.download_rounded,
+                                color: exists
+                                    ? Colors.green.shade700
+                                    : Colors.grey,
+                                size: 22,
+                              ),
+                              const SizedBox(width: 8),
+                              IconButton(
+                                icon: const Icon(Icons.delete_outline,
+                                    color: Colors.redAccent),
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(),
+                                onPressed: () {
+                                  _showDeleteFileConfirmDialog(
+                                      key, u, fileName);
+                                },
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ));
+        }
+      }
+    });
+
+    return widgets;
+  }
+
+  void _showDeleteFileConfirmDialog(
+      String category, String fileUrl, String fileName) {
+    if (fileUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا يمكن حذف ملف غير محفوظ سحابياً')),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('تأكيد حذف الملف'),
+        content: Text(
+            'هل أنت متأكد من رغبتك في إرسال طلب لحذف الملف المرفق "$fileName"؟\n\nبمجرد موافقة النيابة سيتم حذف الملف نهائياً ولن يمكن استعادته.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              bool success = await _viewModel.sendDeleteFileRequest(
+                category: category,
+                fileUrl: fileUrl,
+                fileName: fileName,
+              );
+              if (mounted) {
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                        content: Text('تم إرسال طلب حذف الملف للنيابة بنجاح')),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content:
+                            Text(_viewModel.error ?? 'فشل في إرسال طلب الحذف')),
+                  );
+                }
+              }
+            },
+            child: const Text('إرسال طلب الحذف',
+                style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showBulkEditDialog() {
     final m = _viewModel.member!;
 
     // Map of labels to old values and their controllers
     final Map<String, Map<String, dynamic>> fields = {
-      'الاسم الكامل': {
-        'old': m.name,
-        'ctrl': TextEditingController(text: m.name)
-      },
-      'رقم الملف': {
-        'old': m.fileNumber,
-        'ctrl': TextEditingController(text: m.fileNumber)
-      },
-      'رقم الهوية': {
-        'old': m.idCardNumber,
-        'ctrl': TextEditingController(text: m.idCardNumber)
-      },
-      'الرقم الوظيفي': {
-        'old': m.jobNumber,
-        'ctrl': TextEditingController(text: m.jobNumber)
-      },
-      'محل الميلاد': {
-        'old': m.birthPlace,
-        'ctrl': TextEditingController(text: m.birthPlace)
-      },
-      'تاريخ الميلاد': {
-        'old': m.birthDate,
-        'ctrl': TextEditingController(text: m.birthDate)
-      },
-      'القسم': {
-        'old': m.department,
-        'ctrl': TextEditingController(text: m.department)
-      },
-      'تاريخ التعيين': {
-        'old': m.universityAppointmentDate,
-        'ctrl': TextEditingController(text: m.universityAppointmentDate)
-      },
-      'البكالوريوس': {
-        'old': m.bscDegree,
-        'ctrl': TextEditingController(text: m.bscDegree)
-      },
-      'الماجستير': {
-        'old': m.mscDegree,
-        'ctrl': TextEditingController(text: m.mscDegree)
-      },
-      'الدرجة الحالية': {
-        'old': m.currentDegree,
-        'ctrl': TextEditingController(text: m.currentDegree)
-      },
-      'التخصص الدقيق': {
-        'old': m.exactSpecialization,
-        'ctrl': TextEditingController(text: m.exactSpecialization)
-      },
-      'اللقب الأكاديمي': {
-        'old': m.currentAcademicTitle,
-        'ctrl': TextEditingController(text: m.currentAcademicTitle)
-      },
+      'الاسم الكامل': {'old': m.name, 'ctrl': TextEditingController(text: m.name)},
+      'رقم الملف': {'old': m.fileNumber, 'ctrl': TextEditingController(text: m.fileNumber)},
+      'رقم الهوية': {'old': m.idCardNumber, 'ctrl': TextEditingController(text: m.idCardNumber)},
+      'الرقم الوظيفي': {'old': m.jobNumber, 'ctrl': TextEditingController(text: m.jobNumber)},
+      'محل الميلاد': {'old': m.birthPlace, 'ctrl': TextEditingController(text: m.birthPlace)},
+      'تاريخ الميلاد': {'old': m.birthDate, 'ctrl': TextEditingController(text: m.birthDate)},
+      'القسم': {'old': m.department, 'ctrl': TextEditingController(text: m.department)},
+      
+      'تاريخ أول تعيين': {'old': m.firstAppointmentDate, 'ctrl': TextEditingController(text: m.firstAppointmentDate)},
+      'تاريخ التعيين بالجامعة': {'old': m.universityAppointmentDate, 'ctrl': TextEditingController(text: m.universityAppointmentDate)},
+      
+      'شهادة البكالوريوس': {'old': m.bscDegree, 'ctrl': TextEditingController(text: m.bscDegree)},
+      'تاريخ البكالوريوس': {'old': m.bscDate, 'ctrl': TextEditingController(text: m.bscDate)},
+      'جامعة البكالوريوس': {'old': m.bscUniversity, 'ctrl': TextEditingController(text: m.bscUniversity)},
+      'بلد البكالوريوس': {'old': m.bscCountry, 'ctrl': TextEditingController(text: m.bscCountry)},
+      'اللقب الأكاديمي (بكالوريوس)': {'old': m.bscAcademicTitle, 'ctrl': TextEditingController(text: m.bscAcademicTitle)},
+      'تاريخ نقل اللقب (بكالوريوس)': {'old': m.bscTitleTransferDate, 'ctrl': TextEditingController(text: m.bscTitleTransferDate)},
+      'تخصص البكالوريوس': {'old': m.bscSpecialization, 'ctrl': TextEditingController(text: m.bscSpecialization)},
+
+      'شهادة الماجستير': {'old': m.mscDegree, 'ctrl': TextEditingController(text: m.mscDegree)},
+      'تاريخ الماجستير': {'old': m.mscDate, 'ctrl': TextEditingController(text: m.mscDate)},
+      'جامعة الماجستير': {'old': m.mscUniversity, 'ctrl': TextEditingController(text: m.mscUniversity)},
+      'بلد الماجستير': {'old': m.mscCountry, 'ctrl': TextEditingController(text: m.mscCountry)},
+      'اللقب الأكاديمي (ماجستير)': {'old': m.mscAcademicTitle, 'ctrl': TextEditingController(text: m.mscAcademicTitle)},
+      'تاريخ نقل اللقب (ماجستير)': {'old': m.mscTitleTransferDate, 'ctrl': TextEditingController(text: m.mscTitleTransferDate)},
+      'رقم قرار الماجستير': {'old': m.mscDecisionNumber, 'ctrl': TextEditingController(text: m.mscDecisionNumber)},
+      'التخصص الدقيق (ماجستير)': {'old': m.mscExactSpecialization, 'ctrl': TextEditingController(text: m.mscExactSpecialization)},
+
+      'الدرجة الحالية': {'old': m.currentDegree, 'ctrl': TextEditingController(text: m.currentDegree)},
+      'تاريخ الدرجة الحالية': {'old': m.currentDegreeDate, 'ctrl': TextEditingController(text: m.currentDegreeDate)},
+      'الجامعة الحالية': {'old': m.currentUniversity, 'ctrl': TextEditingController(text: m.currentUniversity)},
+      'البلد الحالي': {'old': m.currentCountry, 'ctrl': TextEditingController(text: m.currentCountry)},
+
+      'تاريخ أستاذ مساعد': {'old': m.assistantProfDate, 'ctrl': TextEditingController(text: m.assistantProfDate)},
+      'قرار أستاذ مساعد': {'old': m.assistantProfDecision, 'ctrl': TextEditingController(text: m.assistantProfDecision)},
+      'تاريخ أستاذ مشارك': {'old': m.assocProfDate, 'ctrl': TextEditingController(text: m.assocProfDate)},
+      'قرار أستاذ مشارك': {'old': m.assocProfDecision, 'ctrl': TextEditingController(text: m.assocProfDecision)},
+
+      'اللقب الأكاديمي الحالي': {'old': m.currentAcademicTitle, 'ctrl': TextEditingController(text: m.currentAcademicTitle)},
+      'تاريخ نقل اللقب الحالي': {'old': m.titleTransferDate, 'ctrl': TextEditingController(text: m.titleTransferDate)},
+      'التخصص العام': {'old': m.generalSpecialization, 'ctrl': TextEditingController(text: m.generalSpecialization)},
+      'التخصص الدقيق': {'old': m.exactSpecialization, 'ctrl': TextEditingController(text: m.exactSpecialization)},
     };
 
-    List<PlatformFile> selectedFiles = [];
+    Map<String, List<PlatformFile>> categorizedFiles = {
+      'idCard': [],
+      'contract': [],
+      'personalPhoto': [],
+      'certificates': [],
+      'others': [],
+    };
+    String selectedCategory = 'others';
+    final Map<String, String> categoryTitles = {
+      'idCard': 'بطاقة شخصية / جواز السفر',
+      'contract': 'العقد',
+      'personalPhoto': 'صورة شخصية',
+      'certificates': 'الشهادات',
+      'others': 'ملفات أخرى'
+    };
+
     bool isSubmitting = false;
 
     showModalBottomSheet(
@@ -120,7 +538,8 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                   children: [
                     const Text(
                       'طلب تعديل البيانات',
-                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -148,30 +567,56 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                         }).toList()
                           ..add(
                             Padding(
-                              padding: const EdgeInsets.only(top: 8, bottom: 20),
+                              padding:
+                                  const EdgeInsets.only(top: 8, bottom: 20),
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
                                   color: Colors.blue.shade50,
                                   borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: Colors.blue.shade200),
+                                  border:
+                                      Border.all(color: Colors.blue.shade200),
                                 ),
                                 child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Text('إرفاق ملفات داعمة للموافقة',
+                                        style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: Colors.blue.shade900)),
+                                    const SizedBox(height: 8),
                                     Row(
                                       children: [
                                         Expanded(
-                                          child: Text(
-                                            selectedFiles.isNotEmpty
-                                                ? 'تم إرفاق (${selectedFiles.length}) ملفات'
-                                                : 'يمكنك إرفاق ملفات لدعم طلب التعديل',
-                                            style: TextStyle(
-                                                fontSize: 13,
-                                                color: selectedFiles.isNotEmpty
-                                                    ? Colors.blue.shade900
-                                                    : Colors.black87),
+                                          child:
+                                              DropdownButtonFormField<String>(
+                                            value: selectedCategory,
+                                            decoration: InputDecoration(
+                                              contentPadding:
+                                                  const EdgeInsets.symmetric(
+                                                      horizontal: 12,
+                                                      vertical: 8),
+                                              border: OutlineInputBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8)),
+                                              filled: true,
+                                              fillColor: Colors.white,
+                                            ),
+                                            items: categoryTitles.entries
+                                                .map((e) => DropdownMenuItem(
+                                                    value: e.key,
+                                                    child: Text(e.value,
+                                                        style: const TextStyle(
+                                                            fontSize: 13))))
+                                                .toList(),
+                                            onChanged: (val) {
+                                              if (val != null)
+                                                setSheetState(() =>
+                                                    selectedCategory = val);
+                                            },
                                           ),
                                         ),
+                                        const SizedBox(width: 8),
                                         ElevatedButton.icon(
                                           onPressed: () async {
                                             FilePickerResult? result =
@@ -187,8 +632,11 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                               allowMultiple: true,
                                             );
                                             if (result != null) {
-                                              setSheetState(() =>
-                                                  selectedFiles = result.files);
+                                              setSheetState(() {
+                                                categorizedFiles[
+                                                        selectedCategory]!
+                                                    .addAll(result.files);
+                                              });
                                             }
                                           },
                                           icon: const Icon(Icons.attach_file,
@@ -197,41 +645,70 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                           style: ElevatedButton.styleFrom(
                                               backgroundColor: Colors.white,
                                               foregroundColor:
-                                                  Colors.blue.shade700),
+                                                  Colors.blue.shade700,
+                                              shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                          8))),
                                         ),
                                       ],
                                     ),
-                                    if (selectedFiles.isNotEmpty)
-                                      Padding(
-                                        padding: const EdgeInsets.only(top: 8),
+                                    const SizedBox(height: 12),
+                                    ...categoryTitles.keys.map((catKey) {
+                                      final files = categorizedFiles[catKey]!;
+                                      if (files.isEmpty)
+                                        return const SizedBox.shrink();
+                                      return Padding(
+                                        padding:
+                                            const EdgeInsets.only(bottom: 8.0),
                                         child: Column(
-                                          children: selectedFiles
-                                              .map((f) => Row(
-                                                    children: [
-                                                      const Icon(
-                                                          Icons.description,
-                                                          size: 14,
-                                                          color: Colors.blue),
-                                                      const SizedBox(width: 4),
-                                                      Expanded(
-                                                          child: Text(f.name,
-                                                              style: const TextStyle(
-                                                                  fontSize: 11))),
-                                                      IconButton(
-                                                        icon: const Icon(
-                                                            Icons.close,
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(categoryTitles[catKey]!,
+                                                style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color:
+                                                        Colors.blue.shade800)),
+                                            ...files
+                                                .map((f) => Row(
+                                                      children: [
+                                                        const Icon(
+                                                            Icons.description,
                                                             size: 14,
-                                                            color: Colors.red),
-                                                        onPressed: () =>
-                                                            setSheetState(() =>
-                                                                selectedFiles
-                                                                    .remove(f)),
-                                                      )
-                                                    ],
-                                                  ))
-                                              .toList(),
+                                                            color: Colors.blue),
+                                                        const SizedBox(
+                                                            width: 4),
+                                                        Expanded(
+                                                            child: Text(f.name,
+                                                                style: const TextStyle(
+                                                                    fontSize:
+                                                                        11))),
+                                                        IconButton(
+                                                          icon: const Icon(
+                                                              Icons.close,
+                                                              size: 14,
+                                                              color:
+                                                                  Colors.red),
+                                                          onPressed: () =>
+                                                              setSheetState(() =>
+                                                                  categorizedFiles[
+                                                                          catKey]!
+                                                                      .remove(
+                                                                          f)),
+                                                          padding:
+                                                              EdgeInsets.zero,
+                                                          constraints:
+                                                              const BoxConstraints(),
+                                                        )
+                                                      ],
+                                                    ))
+                                                .toList(),
+                                          ],
                                         ),
-                                      )
+                                      );
+                                    }).toList(),
                                   ],
                                 ),
                               ),
@@ -256,47 +733,90 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                     'محل الميلاد': 'birthPlace',
                                     'تاريخ الميلاد': 'birthDate',
                                     'القسم': 'department',
-                                    'تاريخ التعيين': 'universityAppointmentDate',
-                                    'البكالوريوس': 'bscDegree',
-                                    'الماجستير': 'mscDegree',
+                                    
+                                    'تاريخ أول تعيين': 'firstAppointmentDate',
+                                    'تاريخ التعيين بالجامعة': 'universityAppointmentDate',
+                                    
+                                    'شهادة البكالوريوس': 'bscDegree',
+                                    'تاريخ البكالوريوس': 'bscDate',
+                                    'جامعة البكالوريوس': 'bscUniversity',
+                                    'بلد البكالوريوس': 'bscCountry',
+                                    'اللقب الأكاديمي (بكالوريوس)': 'bscAcademicTitle',
+                                    'تاريخ نقل اللقب (بكالوريوس)': 'bscTitleTransferDate',
+                                    'تخصص البكالوريوس': 'bscSpecialization',
+
+                                    'شهادة الماجستير': 'mscDegree',
+                                    'تاريخ الماجستير': 'mscDate',
+                                    'جامعة الماجستير': 'mscUniversity',
+                                    'بلد الماجستير': 'mscCountry',
+                                    'اللقب الأكاديمي (ماجستير)': 'mscAcademicTitle',
+                                    'تاريخ نقل اللقب (ماجستير)': 'mscTitleTransferDate',
+                                    'رقم قرار الماجستير': 'mscDecisionNumber',
+                                    'التخصص الدقيق (ماجستير)': 'mscExactSpecialization',
+
                                     'الدرجة الحالية': 'currentDegree',
+                                    'تاريخ الدرجة الحالية': 'currentDegreeDate',
+                                    'الجامعة الحالية': 'currentUniversity',
+                                    'البلد الحالي': 'currentCountry',
+
+                                    'تاريخ أستاذ مساعد': 'assistantProfDate',
+                                    'قرار أستاذ مساعد': 'assistantProfDecision',
+                                    'تاريخ أستاذ مشارك': 'assocProfDate',
+                                    'قرار أستاذ مشارك': 'assocProfDecision',
+
+                                    'اللقب الأكاديمي الحالي': 'currentAcademicTitle',
+                                    'تاريخ نقل اللقب الحالي': 'titleTransferDate',
+                                    'التخصص العام': 'generalSpecialization',
                                     'التخصص الدقيق': 'exactSpecialization',
-                                    'اللقب الأكاديمي': 'currentAcademicTitle',
                                   };
 
                                   List<String> changes = [];
                                   Map<String, dynamic> extraData = {};
 
                                   for (var entry in fields.entries) {
-                                    String oldVal = entry.value['old'] ?? 'غير محدد';
-                                    String newVal = entry.value['ctrl'].text.trim();
+                                    String oldVal =
+                                        entry.value['old'] ?? 'غير محدد';
+                                    String newVal =
+                                        entry.value['ctrl'].text.trim();
                                     if (oldVal == '') oldVal = 'غير محدد';
                                     if (newVal == '') newVal = 'غير محدد';
 
                                     if (oldVal != newVal) {
                                       changes.add(
                                           '- ${entry.key}: من [$oldVal] إلى [$newVal]');
-                                      String? technicalKey = fieldMapping[entry.key];
+                                      String? technicalKey =
+                                          fieldMapping[entry.key];
                                       if (technicalKey != null) {
                                         extraData[technicalKey] = newVal;
                                       }
                                     }
                                   }
 
-                                  if (changes.isEmpty && selectedFiles.isEmpty) {
+                                  bool hasFiles = categorizedFiles.values
+                                      .any((list) => list.isNotEmpty);
+
+                                  if (changes.isEmpty && !hasFiles) {
                                     ScaffoldMessenger.of(context).showSnackBar(
                                       const SnackBar(
-                                          content: Text('لم تقم بإجراء أي تعديلات.')),
+                                          content: Text(
+                                              'لم تقم بإجراء أي تعديلات.')),
                                     );
                                     return;
                                   }
 
                                   setSheetState(() => isSubmitting = true);
 
-                                  bool success = await _viewModel.sendEditRequest(
+                                  Map<String, List<PlatformFile>> finalFiles =
+                                      {};
+                                  categorizedFiles.forEach((k, v) {
+                                    if (v.isNotEmpty) finalFiles[k] = v;
+                                  });
+
+                                  bool success =
+                                      await _viewModel.sendEditRequest(
                                     extraData: extraData,
                                     changes: changes,
-                                    selectedFiles: selectedFiles,
+                                    categorizedFiles: finalFiles,
                                   );
 
                                   setSheetState(() => isSubmitting = false);
@@ -372,7 +892,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'تحديث',
-            onPressed: _viewModel.loadMemberData,
+            onPressed: _viewModel.refreshData,
           ),
         ],
         bottom: TabBar(
@@ -384,6 +904,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
             Tab(icon: Icon(Icons.person), text: 'البيانات الشخصية'),
             Tab(icon: Icon(Icons.school), text: 'المؤهلات العلمية'),
             Tab(icon: Icon(Icons.work), text: 'المسار الوظيفي'),
+            Tab(icon: Icon(Icons.folder_special), text: 'الملفات المرفقة'),
           ],
         ),
       ),
@@ -412,13 +933,17 @@ class _MobileProfilePageState extends State<MobileProfilePage>
             return _buildErrorState();
           }
 
-          return TabBarView(
-            controller: _tabController,
-            children: [
-              _buildPersonalInfoTab(),
-              _buildEducationTab(),
-              _buildCareerTab(),
-            ],
+          return RefreshIndicator(
+            onRefresh: _viewModel.refreshData,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildPersonalInfoTab(),
+                _buildEducationTab(),
+                _buildCareerTab(),
+                _buildFilesTab(),
+              ],
+            ),
           );
         },
       ),
@@ -476,9 +1001,21 @@ class _MobileProfilePageState extends State<MobileProfilePage>
             'university_appointment_date', m.universityAppointmentDate),
         const SizedBox(height: 8),
         _buildSectionHeader('معلومات الكلية والقسم', Icons.business_outlined),
-        _buildEditableInfoCard('الكلية', 'department', _viewModel.session.userCollege,
+        _buildEditableInfoCard(
+            'الكلية', 'department', _viewModel.session.userCollege,
             editable: false),
         _buildEditableInfoCard('القسم', 'department', m.department),
+      ],
+    );
+  }
+
+  // =================== التبويب الجديد: الملفات المرفقة ===================
+  Widget _buildFilesTab() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        _buildSectionHeader('الملفات والمستندات', Icons.folder_open_outlined),
+        ..._buildFileCards(),
       ],
     );
   }

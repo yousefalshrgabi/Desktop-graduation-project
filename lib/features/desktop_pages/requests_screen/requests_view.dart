@@ -41,19 +41,31 @@ class _RequestsViewState extends State<RequestsView>
     List<String> paths = [];
 
     if (request.fileUrl != null) {
-      if (request.fileUrl!.startsWith('[')) {
-        urls = List<String>.from(jsonDecode(request.fileUrl!));
-      } else {
-        urls = [request.fileUrl!];
-      }
+      try {
+        final str = request.fileUrl!.trim();
+        if (str.startsWith('{')) {
+          final decoded = jsonDecode(str) as Map<String, dynamic>;
+          decoded.values.forEach((v) => urls.addAll(List<String>.from(v)));
+        } else if (str.startsWith('[')) {
+          urls = List<String>.from(jsonDecode(str));
+        } else {
+          urls = [str];
+        }
+      } catch (_) {}
     }
 
     if (request.localFilePath != null) {
-      if (request.localFilePath!.startsWith('[')) {
-        paths = List<String>.from(jsonDecode(request.localFilePath!));
-      } else {
-        paths = [request.localFilePath!];
-      }
+      try {
+        final str = request.localFilePath!.trim();
+        if (str.startsWith('{')) {
+          final decoded = jsonDecode(str) as Map<String, dynamic>;
+          decoded.values.forEach((v) => paths.addAll(List<String>.from(v)));
+        } else if (str.startsWith('[')) {
+          paths = List<String>.from(jsonDecode(str));
+        } else {
+          paths = [str];
+        }
+      } catch (_) {}
     }
 
     if (index >= urls.length) return;
@@ -71,10 +83,9 @@ class _RequestsViewState extends State<RequestsView>
             content: Text(
                 'جاري تحميل الملف للمرة الأولى للوصول إليه مستقبلاً بدون إنترنت...')),
       );
-      String? downloadedPath = await _viewModel.downloadFile(request);
-      if (downloadedPath != null) {
-        // بعد التحميل، نعيد قراءة المسارات من الـ request المحدث أو نستخدم المسار الراجع
-        uri = Uri.file(downloadedPath);
+      List<String>? downloadedPaths = await _viewModel.downloadFile(request);
+      if (downloadedPaths != null && index < downloadedPaths.length) {
+        uri = Uri.file(downloadedPaths[index]);
       } else if (url.isNotEmpty) {
         uri = Uri.parse(url);
       } else {

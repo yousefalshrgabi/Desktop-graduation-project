@@ -12,6 +12,8 @@ import 'package:academic_affairs_management/features/desktop_pages/requests_scre
 import 'package:academic_affairs_management/features/desktop_pages/programs_screen/programs_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/subjects_screen/subjects_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/study_plans_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/course_assignment_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/workload_report_view.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/widgets/change_password_dialog.dart';
 
@@ -103,6 +105,8 @@ class _MainShellState extends State<MainShell>
                     SubjectsView(key: ValueKey('subjects_$_selectedIndex')),
                     StudyPlansView(key: ValueKey('study_plans_$_selectedIndex')),
                     RequestsView(key: ValueKey('requests_$_selectedIndex')),
+                    CourseAssignmentView(key: ValueKey('assign_$_selectedIndex')),
+                    WorkloadReportView(key: ValueKey('workload_$_selectedIndex')),
                   ],
                 ),
                 // Toggle button
@@ -171,6 +175,8 @@ class _MainShellState extends State<MainShell>
                 _buildSidebarItem(6, 'المقررات', Icons.menu_book_outlined),
                 _buildSidebarItem(7, 'الخطط الدراسية', Icons.schema_outlined),
                 _buildSidebarItem(8, 'الطلبات', Icons.request_page_outlined),
+                _buildSidebarItem(9, 'ربط المقررات', Icons.assignment_ind_outlined),
+                _buildSidebarItem(10, 'نصاب المدرسين', Icons.analytics_outlined),
               ],
             ),
           ),

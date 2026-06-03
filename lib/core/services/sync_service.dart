@@ -23,7 +23,7 @@ class SyncService {
       await _pushToFirebase();
 
       // 3. التنزيل (Pull) - نجلب البيانات الجديدة من السحابة لدمجها محلياً
-      await _pullFromFirebase();
+      await pullFromFirebase();
 
       debugPrint('✅ اكتملت المزامنة الذكية بنجاح!');
     } catch (e) {
@@ -155,7 +155,7 @@ class SyncService {
   // =======================================================================
   // 3. التنزيل الذكي من السحابة (Pull)
   // =======================================================================
-  Future<void> _pullFromFirebase() async {
+  Future<void> pullFromFirebase() async {
     final db = await DatabaseHelper.instance.database;
     Batch localBatch = db.batch();
 

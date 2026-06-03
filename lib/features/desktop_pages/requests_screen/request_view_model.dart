@@ -314,7 +314,7 @@ class RequestViewModel extends ChangeNotifier {
     }
   }
 
-  Future<String?> downloadFile(RequestModel request) async {
+  Future<List<String>?> downloadFile(RequestModel request) async {
     if (request.fileUrl == null || request.fileUrl!.isEmpty) return null;
 
     try {
@@ -327,19 +327,23 @@ class RequestViewModel extends ChangeNotifier {
         await archiveDir.create(recursive: true);
       }
 
+      Map<String, List<String>> urlsMap = _parseJsonMap(request.fileUrl);
       List<String> urls = [];
-      if (request.fileUrl!.startsWith('[')) {
-        urls = List<String>.from(jsonDecode(request.fileUrl!));
-      } else {
-        urls = [request.fileUrl!];
-      }
+      urlsMap.values.forEach((list) => urls.addAll(list));
 
       List<String> localPaths = [];
       for (int i = 0; i < urls.length; i++) {
         String url = urls[i];
-        String fileName =
-            'downloaded_${DateTime.now().millisecondsSinceEpoch}_${i}_' +
-                p.basename(Uri.parse(url).path);
+        if (url.isEmpty) continue;
+        
+        String ext = '.pdf';
+        try {
+          String rawPath = Uri.parse(url).path;
+          String possibleExt = rawPath.split('.').last.split('?').first.toLowerCase();
+          if (possibleExt.length <= 5) ext = '.$possibleExt';
+        } catch (_) {}
+        
+        String fileName = 'downloaded_${DateTime.now().millisecondsSinceEpoch}_$i$ext';
         final localPath = p.join(archiveDir.path, fileName);
         final File file = File(localPath);
 
@@ -353,8 +357,7 @@ class RequestViewModel extends ChangeNotifier {
 
       _isLoading = false;
       notifyListeners();
-      return localPaths
-          .first; // نرجع المسار الأول للتوافق مع دالة الفتح البسيطة
+      return localPaths.isNotEmpty ? localPaths : null;
     } catch (e) {
       debugPrint('خطأ أثناء تحميل الملف: $e');
       _isLoading = false;
@@ -473,15 +476,44 @@ class RequestViewModel extends ChangeNotifier {
             'jobNumber': 'job_number',
             'birthPlace': 'birth_place',
             'birthDate': 'birth_date',
+            'firstAppointmentDate': 'first_appointment_date',
             'universityAppointmentDate': 'university_appointment_date',
+            
             'bscDegree': 'bsc_degree',
+            'bscDate': 'bsc_date',
+            'bscUniversity': 'bsc_university',
+            'bscCountry': 'bsc_country',
+            'bscAcademicTitle': 'bsc_academic_title',
+            'bscTitleTransferDate': 'bsc_title_transfer_date',
+            'bscSpecialization': 'bsc_specialization',
+
             'mscDegree': 'msc_degree',
+            'mscDate': 'msc_date',
+            'mscUniversity': 'msc_university',
+            'mscCountry': 'msc_country',
+            'mscAcademicTitle': 'msc_academic_title',
+            'mscTitleTransferDate': 'msc_title_transfer_date',
+            'mscDecisionNumber': 'msc_decision_number',
+            'mscExactSpecialization': 'msc_exact_specialization',
+
             'currentDegree': 'current_degree',
-            'exactSpecialization': 'exact_specialization',
+            'currentDegreeDate': 'current_degree_date',
+            'currentUniversity': 'current_university',
+            'currentCountry': 'current_country',
+
+            'assistantProfDate': 'assistant_prof_date',
+            'assistantProfDecision': 'assistant_prof_decision',
+            'assocProfDate': 'assoc_prof_date',
+            'assocProfDecision': 'assoc_prof_decision',
+
             'currentAcademicTitle': 'current_academic_title',
+            'titleTransferDate': 'title_transfer_date',
+            'generalSpecialization': 'general_specialization',
+            'exactSpecialization': 'exact_specialization',
           };
 
           extraData?.forEach((key, value) {
+            if (key == 'new_files_mapping') return;
             if (key == 'name' || key == 'department' || key == 'idCardNumber') {
               userData[key] = value;
             }
@@ -521,11 +553,11 @@ class RequestViewModel extends ChangeNotifier {
             final String? reqFileUrl = requestData['fileUrl']?.toString();
 
             if (reqFileUrl != null && reqFileUrl.isNotEmpty) {
-              // القوائم الحالية للعضو
-              List<String> currentUrls =
-                  _parseJsonList(currentMember['file_url']);
-              List<String> currentLocalPaths =
-                  _parseJsonList(currentMember['local_file_path']);
+              // القوائم الحالية للعضو كخرائط
+              Map<String, List<String>> currentUrlsMap =
+                  _parseJsonMap(currentMember['file_url']);
+              Map<String, List<String>> currentLocalPathsMap =
+                  _parseJsonMap(currentMember['local_file_path']);
 
               // الروابط الجديدة من الطلب (مرفوعة مسبقاً إلى faculty_files/{name}/)
               List<String> newUrls = _parseJsonList(reqFileUrl);
@@ -537,12 +569,29 @@ class RequestViewModel extends ChangeNotifier {
               List<String> newLocalPaths =
                   reqLocalPath != null ? _parseJsonList(reqLocalPath) : [];
 
+              // قراءة التعيينات (Mapping) من extraData
+              Map<String, dynamic> filesMapping = {};
+              if (extraData != null && extraData['new_files_mapping'] != null) {
+                try {
+                  filesMapping = Map<String, dynamic>.from(extraData['new_files_mapping']);
+                } catch (_) {}
+              }
+
               // إضافة الملفات الجديدة للقوائم الحالية للعضو بدون إعادة رفع
               for (int i = 0; i < newUrls.length; i++) {
                 String url = newUrls[i];
                 if (url.isEmpty) continue;
-                String localPath =
-                    i < newLocalPaths.length ? newLocalPaths[i] : '';
+                String localPath = i < newLocalPaths.length ? newLocalPaths[i] : '';
+
+                // تحديد الفئة
+                String category = 'others';
+                try {
+                  filesMapping.forEach((k, v) {
+                    if (v is List && (v.contains(i) || v.contains(i.toString()))) {
+                      category = k;
+                    }
+                  });
+                } catch (_) {}
 
                 // إذا المسار المحلي غير موجود أو الملف محذوف، حمّله من Storage
                 if (localPath.isEmpty || !File(localPath).existsSync()) {
@@ -581,14 +630,15 @@ class RequestViewModel extends ChangeNotifier {
                   }
                 }
 
-                currentUrls.add(url);
-                currentLocalPaths.add(localPath);
+                currentUrlsMap.putIfAbsent(category, () => []).add(url);
+                currentLocalPathsMap
+                    .putIfAbsent(category, () => [])
+                    .add(localPath);
               }
 
-              facultyData['file_url'] = jsonEncode(currentUrls);
-              facultyData['local_file_path'] = jsonEncode(currentLocalPaths);
-              debugPrint(
-                  '[AUTO-UPDATE] 📁 إجمالي ملفات العضو: ${currentUrls.length}');
+              facultyData['file_url'] = jsonEncode(currentUrlsMap);
+              facultyData['local_file_path'] = jsonEncode(currentLocalPathsMap);
+              debugPrint('[AUTO-UPDATE] 📁 تمت إضافة الملفات المصنفة بنجاح.');
             }
 
             // تحديث SQLite وFirestore
@@ -619,6 +669,82 @@ class RequestViewModel extends ChangeNotifier {
           debugPrint('[AUTO-UPDATE] ✅ اكتملت عملية التحديث التلقائي.');
         } catch (e) {
           debugPrint('[AUTO-UPDATE] ❌ فشل التحديث التلقائي: $e');
+        }
+      } else if (status == 'مقبول' && type == 'حذف ملف' && senderId != null) {
+        debugPrint('[AUTO-UPDATE] 🚀 جاري حذف الملف المطلوب للعضو $senderId...');
+        try {
+          String? categoryToDelete = extraData?['delete_file_category'];
+          String? urlToDelete = extraData?['delete_file_url'];
+
+          if (categoryToDelete != null && urlToDelete != null) {
+            // جلب سجل العضو من Firestore (أحدث مصدر)
+            String? facultyDocId;
+            Map<String, dynamic> currentMember = {};
+
+            final fsQuery = await _firestore
+                .collection('faculty_members')
+                .where('user_id', isEqualTo: senderId)
+                .limit(1)
+                .get();
+
+            if (fsQuery.docs.isNotEmpty) {
+              facultyDocId = fsQuery.docs.first.id;
+              currentMember = Map<String, dynamic>.from(fsQuery.docs.first.data());
+            } else {
+              final db = await DatabaseHelper.instance.database;
+              final localRecord = await db.query('faculty_members',
+                  where: 'user_id = ?', whereArgs: [senderId], limit: 1);
+              if (localRecord.isNotEmpty) {
+                currentMember = Map<String, dynamic>.from(localRecord.first);
+                facultyDocId = currentMember['id']?.toString();
+              }
+            }
+
+            if (facultyDocId != null && currentMember.isNotEmpty) {
+              Map<String, List<String>> currentUrlsMap = _parseJsonMap(currentMember['file_url']);
+              Map<String, List<String>> currentLocalPathsMap = _parseJsonMap(currentMember['local_file_path']);
+
+              int indexToDelete = -1;
+              if (currentUrlsMap.containsKey(categoryToDelete)) {
+                indexToDelete = currentUrlsMap[categoryToDelete]!.indexOf(urlToDelete);
+                if (indexToDelete != -1) {
+                  currentUrlsMap[categoryToDelete]!.removeAt(indexToDelete);
+                  
+                  // حذف المسار المحلي المقابل إذا وجد
+                  if (currentLocalPathsMap.containsKey(categoryToDelete) && 
+                      currentLocalPathsMap[categoryToDelete]!.length > indexToDelete) {
+                    currentLocalPathsMap[categoryToDelete]!.removeAt(indexToDelete);
+                  }
+
+                  // حفظ التعديلات في البيانات
+                  Map<String, dynamic> facultyData = {
+                    'file_url': jsonEncode(currentUrlsMap),
+                    'local_file_path': jsonEncode(currentLocalPathsMap),
+                  };
+
+                  await DatabaseHelper.instance.updateRecordLocal(
+                      'faculty_members', senderId, facultyData,
+                      whereColumn: 'user_id');
+                  await _firestore
+                      .collection('faculty_members')
+                      .doc(facultyDocId)
+                      .set(facultyData, SetOptions(merge: true));
+
+                  // حذف الملف من السحابة
+                  try {
+                    await _storage.refFromURL(urlToDelete).delete();
+                    debugPrint('[AUTO-UPDATE] ✅ تم حذف الملف من السحابة: $urlToDelete');
+                  } catch (e) {
+                    debugPrint('[AUTO-UPDATE] ⚠️ فشل حذف الملف من السحابة (ربما غير موجود): $e');
+                  }
+                  
+                  debugPrint('[AUTO-UPDATE] ✅ تم تحديث بيانات العضو بعد حذف الملف.');
+                }
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('[AUTO-UPDATE] ❌ فشل حذف الملف التلقائي: $e');
         }
       } else if (status == 'مرفوض') {
         debugPrint(
@@ -706,5 +832,27 @@ class RequestViewModel extends ChangeNotifier {
       } catch (_) {}
     }
     return [str];
+  }
+
+  /// مساعد لتحليل قيمة JSON وإرجاع خريطة مصنفة للملفات
+  Map<String, List<String>> _parseJsonMap(dynamic value) {
+    if (value == null) return {};
+    final str = value.toString().trim();
+    if (str.isEmpty) return {};
+    try {
+      if (str.startsWith('{')) {
+        final decoded = jsonDecode(str) as Map<String, dynamic>;
+        Map<String, List<String>> result = {};
+        decoded.forEach((key, val) {
+          result[key] = List<String>.from(val);
+        });
+        return result;
+      } else if (str.startsWith('[')) {
+        return {'others': List<String>.from(jsonDecode(str))};
+      }
+    } catch (_) {}
+    return {
+      'others': [str]
+    };
   }
 }

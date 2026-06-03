@@ -578,62 +578,133 @@ class _FacultyMembersState extends State<FacultyMembers> {
                             );
                           } else if (value == 'view_file') {
                             if (member.localFilePath.isNotEmpty || member.fileUrl.isNotEmpty) {
-                              List<String> paths = [];
-                              if (member.localFilePath.isNotEmpty) {
-                                if (member.localFilePath.startsWith('[')) {
+                              List<Map<String, dynamic>> filesInfo = [];
+
+                              void parseFiles(String jsonString, bool isUrl) {
+                                if (jsonString.isEmpty) return;
+                                if (jsonString.startsWith('{')) {
                                   try {
-                                    paths = List<String>.from(jsonDecode(member.localFilePath));
-                                  } catch (e) {
-                                    paths = [member.localFilePath];
-                                  }
+                                    Map<String, dynamic> decoded = jsonDecode(jsonString);
+                                    decoded.forEach((key, val) {
+                                      List<String> list = List<String>.from(val);
+                                      for (int i = 0; i < list.length; i++) {
+                                        String str = list[i];
+                                        if (str.isEmpty) continue;
+                                        var existing = filesInfo.where((f) => f['category'] == key && f['index'] == i).toList();
+                                        if (existing.isNotEmpty) {
+                                          if (isUrl) existing.first['url'] = str;
+                                          else existing.first['path'] = str;
+                                        } else {
+                                          filesInfo.add({
+                                            'category': key,
+                                            'index': i,
+                                            'url': isUrl ? str : '',
+                                            'path': isUrl ? '' : str,
+                                          });
+                                        }
+                                      }
+                                    });
+                                  } catch (e) {}
                                 } else {
-                                  paths = [member.localFilePath];
+                                  try {
+                                    List<String> list = jsonString.startsWith('[') ? List<String>.from(jsonDecode(jsonString)) : [jsonString];
+                                    for (int i = 0; i < list.length; i++) {
+                                        String str = list[i];
+                                        if (str.isEmpty) continue;
+                                        var existing = filesInfo.where((f) => f['category'] == 'others' && f['index'] == i).toList();
+                                        if (existing.isNotEmpty) {
+                                          if (isUrl) existing.first['url'] = str;
+                                          else existing.first['path'] = str;
+                                        } else {
+                                          filesInfo.add({
+                                            'category': 'others',
+                                            'index': i,
+                                            'url': isUrl ? str : '',
+                                            'path': isUrl ? '' : str,
+                                          });
+                                        }
+                                    }
+                                  } catch (e) {}
                                 }
                               }
 
-                              List<String> urls = [];
-                              if (member.fileUrl.isNotEmpty) {
-                                if (member.fileUrl.startsWith('[')) {
-                                  try {
-                                    urls = List<String>.from(jsonDecode(member.fileUrl));
-                                  } catch (e) {
-                                    urls = [member.fileUrl];
-                                  }
-                                } else {
-                                  urls = [member.fileUrl];
-                                }
-                              }
+                              parseFiles(member.localFilePath, false);
+                              parseFiles(member.fileUrl, true);
 
-                              int count = paths.length > urls.length ? paths.length : urls.length;
-
-                              if (count == 0) {
+                              if (filesInfo.isEmpty) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('لا يوجد ملف مرفق لهذا العضو')),
+                                  const SnackBar(content: Text('لا توجد ملفات مرفقة صالحة لهذا العضو')),
                                 );
-                              } else if (count == 1) {
-                                String p = paths.isNotEmpty ? paths[0] : '';
-                                String u = urls.isNotEmpty ? urls[0] : '';
-                                await _openLocalFile(context, p, u, member.name);
                               } else {
                                 showDialog(
                                   context: context,
                                   builder: (ctx) => AlertDialog(
-                                    title: const Text('اختيار الملف المرفق'),
+                                    title: const Text('ملفات العضو المرفقة'),
                                     content: SizedBox(
-                                      width: 400,
+                                      width: 450,
                                       child: ListView.builder(
                                         shrinkWrap: true,
-                                        itemCount: count,
+                                        itemCount: filesInfo.length,
                                         itemBuilder: (c, i) {
-                                          String p = i < paths.length ? paths[i] : '';
-                                          String u = i < urls.length ? urls[i] : '';
+                                          final file = filesInfo[i];
+                                          String p = file['path'] ?? '';
+                                          String u = file['url'] ?? '';
+                                          String category = file['category'];
+                                          int fileIndex = file['index'];
+                                          
                                           String fileName = p.isNotEmpty 
                                               ? p.split(RegExp(r'[\\/]')).last 
-                                              : 'ملف ${i + 1} من السحابة';
+                                              : 'ملف $category - ${fileIndex + 1}';
                                               
                                           return ListTile(
                                             leading: const Icon(Icons.insert_drive_file, color: Colors.blue),
                                             title: Text(fileName),
+                                            trailing: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                IconButton(
+                                                  icon: const Icon(Icons.delete, color: Colors.red),
+                                                  tooltip: 'حذف الملف',
+                                                  onPressed: () async {
+                                                    bool confirm = await showDialog(
+                                                      context: ctx,
+                                                      builder: (c) => AlertDialog(
+                                                        title: const Text('تأكيد الحذف'),
+                                                        content: const Text('هل أنت متأكد من رغبتك بحذف هذا الملف نهائياً؟'),
+                                                        actions: [
+                                                          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('إلغاء')),
+                                                          ElevatedButton(
+                                                            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+                                                            onPressed: () => Navigator.pop(c, true), 
+                                                            child: const Text('حذف', style: TextStyle(color: Colors.white))
+                                                          ),
+                                                        ]
+                                                      )
+                                                    ) ?? false;
+                                                    
+                                                    if (confirm) {
+                                                      Navigator.pop(ctx);
+                                                      bool res = await _viewModel.deleteMemberFile(
+                                                        member: member, category: category, fileIndex: fileIndex, fileUrl: u
+                                                      );
+                                                      if (context.mounted) {
+                                                        ScaffoldMessenger.of(context).showSnackBar(
+                                                          SnackBar(content: Text(res ? 'تم حذف الملف بنجاح' : 'فشل حذف الملف'))
+                                                        );
+                                                      }
+                                                    }
+                                                  },
+                                                ),
+                                                IconButton(
+                                                  icon: const Icon(Icons.open_in_new, color: Colors.green),
+                                                  tooltip: 'فتح الملف',
+                                                  onPressed: () {
+                                                    Navigator.pop(ctx);
+                                                    _openLocalFile(context, p, u, member.name);
+                                                  },
+                                                ),
+                                              ],
+                                            ),
                                             onTap: () {
                                               Navigator.pop(ctx);
                                               _openLocalFile(context, p, u, member.name);
