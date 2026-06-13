@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/features/mobile_pages/meetings/meetings_list_view.dart';
+import 'package:academic_affairs_management/features/college_management/screens/departments_management_screen.dart';
+import 'package:academic_affairs_management/features/college_management/screens/college_faculty_screen.dart';
 
 class TaskItem {
   final String title;
@@ -126,6 +128,20 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           icon: Icons.balance_outlined,
           color: const Color(0xFFE03131),
         ),
+        TaskItem(
+          title: 'إدارة الأقسام العلمية',
+          subtitle: 'عرض وإدارة أقسام الكلية وتعيين رؤسائها',
+          icon: Icons.account_tree_outlined,
+          color: const Color(0xFF099268),
+          onTap: () => onNavigate?.call(const DepartmentsManagementScreen()),
+        ),
+        TaskItem(
+          title: 'أعضاء هيئة التدريس بالكلية',
+          subtitle: 'استعراض بيانات الأعضاء وطلب تحديثها',
+          icon: Icons.people_alt_outlined,
+          color: const Color(0xFFE03131),
+          onTap: () => onNavigate?.call(const CollegeFacultyScreen()),
+        ),
       ];
     } else if (isDeptHead) {
       return [
@@ -140,6 +156,7 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'تنظيم ومتابعة الجداول الدراسية للقسم',
           icon: Icons.table_chart_outlined,
           color: const Color(0xFF0CA678),
+          onTap: () => onTabChange?.call(3),
         ),
         TaskItem(
           title: 'اجتماعات القسم',

@@ -4,7 +4,7 @@ import '../models/timetable_entry.dart';
 import '../utils/timetable_schedule_grid.dart';
 
 /// Timetable-style grid: rows = days, columns = hour slots.
-class TimetableDataTable extends StatelessWidget {
+class TimetableDataTable extends StatefulWidget {
   const TimetableDataTable({
     super.key,
     required this.entries,
@@ -19,8 +19,21 @@ class TimetableDataTable extends StatelessWidget {
   final bool showRoom;
 
   @override
+  State<TimetableDataTable> createState() => _TimetableDataTableState();
+}
+
+class _TimetableDataTableState extends State<TimetableDataTable> {
+  final ScrollController _horizontalController = ScrollController();
+
+  @override
+  void dispose() {
+    _horizontalController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (entries.isEmpty) {
+    if (widget.entries.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -33,8 +46,8 @@ class TimetableDataTable extends StatelessWidget {
       );
     }
 
-    final days = TimetableScheduleGrid.sortedDays(entries.map((e) => e.day));
-    final hours = TimetableScheduleGrid.sortedHours(entries.map((e) => e.hour));
+    final days = TimetableScheduleGrid.sortedDays(widget.entries.map((e) => e.day));
+    final hours = TimetableScheduleGrid.sortedHours(widget.entries.map((e) => e.hour));
 
     final theme = Theme.of(context);
     final headerStyle = theme.textTheme.titleSmall?.copyWith(
@@ -44,7 +57,9 @@ class TimetableDataTable extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         return Scrollbar(
+          controller: _horizontalController,
           child: SingleChildScrollView(
+            controller: _horizontalController,
             scrollDirection: Axis.horizontal,
             child: ConstrainedBox(
               constraints: BoxConstraints(minWidth: constraints.maxWidth),
@@ -80,15 +95,15 @@ class TimetableDataTable extends StatelessWidget {
                           ),
                         ),
                         ...hours.map((hour) {
-                          final cell = entries
+                          final cell = widget.entries
                               .where((e) => e.day == day && e.hour == hour)
                               .toList();
                           return DataCell(
                             _CellBody(
                               cell,
-                              showTeachers: showTeachers,
-                              showStudentSets: showStudentSets,
-                              showRoom: showRoom,
+                              showTeachers: widget.showTeachers,
+                              showStudentSets: widget.showStudentSets,
+                              showRoom: widget.showRoom,
                             ),
                           );
                         }),

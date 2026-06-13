@@ -1,6 +1,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 import '../models/timetable_entry.dart';
+import 'firestore_cache_service.dart';
 
 /// Uploads and replaces the whole timetable collection in Firestore.
 class TimetableFirestoreService {
@@ -15,11 +16,20 @@ class TimetableFirestoreService {
   CollectionReference<Map<String, dynamic>> get _col =>
       _db.collection(collectionName);
 
-  /// Replaces/deletes only what's necessary to avoid massive writes.
-  Future<void> replaceAll(List<TimetableEntry> entries) async {
-    final currentSnap = await _col
-        .limit(2000)
-        .get(const GetOptions(source: Source.serverAndCache));
+  /// Checks differences using [limit] to avoid massive reads. Replaces/deletes only what's necessary.
+  Future<void> replaceAll(
+    List<TimetableEntry> entries, {
+    String? collegeName,
+  }) async {
+    final college = collegeName?.trim() ?? '';
+    final currentSnap = college.isEmpty
+        ? await _col
+            .limit(2000)
+            .get(const GetOptions(source: Source.serverAndCache))
+        : await _col
+            .where('collegeName', isEqualTo: college)
+            .limit(2000)
+            .get(const GetOptions(source: Source.serverAndCache));
     final existingDocs = currentSnap.docs;
 
     WriteBatch batch = _db.batch();
@@ -36,8 +46,9 @@ class TimetableFirestoreService {
     final newDocs = <String, Map<String, dynamic>>{};
     for (var i = 0; i < entries.length; i++) {
       final e = entries[i];
+      final entry = college.isEmpty ? e : e.copyWith(collegeName: college);
       final docId = _docIdFor(e, i);
-      newDocs[docId] = e.toFirestoreMap();
+      newDocs[docId] = entry.toFirestoreMap();
     }
 
     // 1. Delete removed, Update changed
@@ -79,24 +90,27 @@ class TimetableFirestoreService {
     return '${base}_$index';
   }
 
-  Future<List<TimetableEntry>> getAllCachedFirst() async {
-    try {
-      final snap =
-          await _col.limit(2000).get(const GetOptions(source: Source.cache));
-      if (snap.docs.isNotEmpty) {
-        return snap.docs
-            .map((d) => TimetableEntry.fromFirestoreMap(
-                  d.data(),
-                ))
-            .toList();
-      }
-    } catch (_) {
-      // Ignore cache failure, fallback to server
-    }
+  Future<List<TimetableEntry>> getAllCachedFirst(
+      {bool forceRefresh = false}) async {
+    final snap = await FirestoreCacheService.queryCachedFirst(
+      _col.limit(2000),
+      forceRefresh: forceRefresh,
+    );
+    return snap.docs
+        .map((d) => TimetableEntry.fromFirestoreMap(d.data()))
+        .toList();
+  }
 
-    final snap = await _col
-        .limit(2000)
-        .get(const GetOptions(source: Source.serverAndCache));
+  Future<List<TimetableEntry>> getByCollegeCachedFirst(
+    String collegeName, {
+    bool forceRefresh = false,
+  }) async {
+    final college = collegeName.trim();
+    if (college.isEmpty) return getAllCachedFirst(forceRefresh: forceRefresh);
+    final snap = await FirestoreCacheService.queryCachedFirst(
+      _col.where('collegeName', isEqualTo: college).limit(2000),
+      forceRefresh: forceRefresh,
+    );
     return snap.docs
         .map((d) => TimetableEntry.fromFirestoreMap(d.data()))
         .toList();

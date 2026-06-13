@@ -32,7 +32,7 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
     return await openDatabase(
       path,
-      version: 13,
+      version: 14,
       // 👈 تفعيل القيود المرجعية (Foreign Keys) لضمان صحة الربط بين الجداول
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -173,6 +173,23 @@ class DatabaseHelper {
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول course_assignments (v13) خلال الترقية');
+    }
+
+    if (oldVersion < 14) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS timetables (
+          id TEXT PRIMARY KEY,
+          day TEXT NOT NULL,
+          hour TEXT NOT NULL,
+          subject TEXT NOT NULL,
+          teachers TEXT NOT NULL,
+          studentSets TEXT NOT NULL,
+          room TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول timetables (v14) خلال الترقية');
     }
   }
 
@@ -398,6 +415,22 @@ class DatabaseHelper {
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول course_assignments');
+
+      // 11. جدول الجداول الدراسية (Timetables)
+      await db.execute('''
+        CREATE TABLE timetables (
+          id TEXT PRIMARY KEY,
+          day TEXT NOT NULL,
+          hour TEXT NOT NULL,
+          subject TEXT NOT NULL,
+          teachers TEXT NOT NULL,
+          studentSets TEXT NOT NULL,
+          room TEXT NOT NULL,
+          is_synced INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول timetables');
 
       debugPrint('[SQLITE DEBUG] 🎉 اكتمل بناء قاعدة البيانات المحلية بنجاح!');
     } catch (e) {

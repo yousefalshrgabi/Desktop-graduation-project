@@ -12,114 +12,98 @@ import '../utils/fet_day_mapping.dart';
 /// - student sets / students / studentSets (cell split on '+')
 /// - room
 class TimetableCsvParser {
-  const TimetableCsvParser();
-
-  /// Parses full file contents (UTF-8 string) without external csv dependency.
-  List<List<String>> _parseCsv(String text) {
-    final rows = <List<String>>[];
-    for (final line in text.split('\n')) {
-      final trimmed = line.trimRight();
-      if (trimmed.isEmpty) continue;
-      rows.add(_parseCsvLine(trimmed));
-    }
-    return rows;
-  }
-
-  /// Handles quoted fields with commas inside them.
-  List<String> _parseCsvLine(String line) {
-    final fields = <String>[];
-    final buffer = StringBuffer();
-    bool inQuotes = false;
-    for (int i = 0; i < line.length; i++) {
-      final ch = line[i];
-      if (ch == '"') {
-        if (inQuotes && i + 1 < line.length && line[i + 1] == '"') {
-          buffer.write('"');
-          i++;
-        } else {
-          inQuotes = !inQuotes;
-        }
-      } else if (ch == ',' && !inQuotes) {
-        fields.add(buffer.toString().trim());
-        buffer.clear();
-      } else {
-        buffer.write(ch);
-      }
-    }
-    fields.add(buffer.toString().trim());
-    return fields;
-  }
-
   /// Parses full file contents (UTF-8 string).
   List<TimetableEntry> parse(String csvText) {
     var text = csvText.trimLeft();
     if (text.isNotEmpty && text.codeUnitAt(0) == 0xFEFF) {
       text = text.substring(1);
     }
-    text = _normalizeNewlines(text);
+    
     final rows = _parseCsv(text);
     if (rows.isEmpty) return [];
 
-    final headerRow = rows.first.map((e) => e.toString()).toList();
+    final headerRow = rows.first;
     final indices = _HeaderIndices.fromHeaders(headerRow);
 
     final out = <TimetableEntry>[];
     for (var i = 1; i < rows.length; i++) {
-      final row = rows[i].map((e) => e.toString()).toList();
-      final entry = _rowToEntry(indices, row, i);
-      if (entry != null) out.add(entry);
+      final row = rows[i];
+      if (row.length <= indices.maxIndex) continue;
+
+      final id = row[indices.id].trim();
+      if (id.isEmpty) continue;
+
+      out.add(TimetableEntry(
+        id: id,
+        day: mapFetDayToArabic(row[indices.day].trim()),
+        hour: row[indices.hour].trim(),
+        subject: row[indices.subject].trim(),
+        teachers: _splitCell(row[indices.teachers]),
+        studentSets: _splitCell(row[indices.studentSets], separator: '+'),
+        room: row[indices.room].trim(),
+        collegeName: '',
+      ));
     }
     return out;
   }
 
-  TimetableEntry? _rowToEntry(_HeaderIndices idx, List<String> row, int rowIndex) {
-    String cell(int? i) {
-      if (i == null || i < 0 || i >= row.length) return '';
-      return row[i].trim();
+  List<List<String>> _parseCsv(String text) {
+    final rows = <List<String>>[];
+    var currentRow = <String>[];
+    var currentCell = StringBuffer();
+    bool inQuotes = false;
+    
+    for (int i = 0; i < text.length; i++) {
+      final c = text[i];
+      
+      if (c == '"') {
+        if (inQuotes && i + 1 < text.length && text[i + 1] == '"') {
+          // Escaped quote
+          currentCell.write('"');
+          i++; // Skip the second quote
+        } else {
+          // Toggle quote state
+          inQuotes = !inQuotes;
+        }
+      } else if (c == ',' && !inQuotes) {
+        currentRow.add(currentCell.toString());
+        currentCell.clear();
+      } else if ((c == '\n' || c == '\r') && !inQuotes) {
+        if (c == '\r' && i + 1 < text.length && text[i + 1] == '\n') {
+          i++; // Skip \n of \r\n
+        }
+        currentRow.add(currentCell.toString());
+        currentCell.clear();
+        if (currentRow.isNotEmpty || i < text.length - 1) {
+          rows.add(currentRow);
+          currentRow = <String>[];
+        }
+      } else {
+        currentCell.write(c);
+      }
     }
-
-    final idRaw = cell(idx.id);
-    final dayRaw = cell(idx.day);
-    final hourRaw = cell(idx.hour);
-    final subjectRaw = cell(idx.subject);
-    final teachersRaw = cell(idx.teachers);
-    final studentSetsRaw = cell(idx.studentSets);
-    final roomRaw = cell(idx.room);
-
-    if (dayRaw.isEmpty && hourRaw.isEmpty && subjectRaw.isEmpty) {
-      return null;
+    
+    if (currentCell.isNotEmpty || currentRow.isNotEmpty) {
+      currentRow.add(currentCell.toString());
+      rows.add(currentRow);
     }
-
-    final id = idRaw.isNotEmpty ? idRaw : 'row_$rowIndex';
-
-    return TimetableEntry(
-      id: id,
-      day: mapFetDayToArabic(dayRaw),
-      hour: hourRaw,
-      subject: subjectRaw,
-      teachers: _splitTeachers(teachersRaw),
-      studentSets: _splitStudentSets(studentSetsRaw),
-      room: roomRaw,
-    );
+    
+    return rows;
   }
 
-  static List<String> _splitStudentSets(String raw) {
-    if (raw.trim().isEmpty) return [];
-    return raw
-        .split('+')
-        .map((s) => s.trim())
-        .where((s) => s.isNotEmpty)
+  List<String> _splitCell(String cell, {String separator = ','}) {
+    return cell
+        .split(separator)
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
         .toList();
-  }
-
-  static List<String> _splitTeachers(String raw) {
-    if (raw.trim().isEmpty) return [];
-    final parts = raw.split(RegExp(r'[,،;؛]'));
-    return parts.map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
   }
 }
 
 class _HeaderIndices {
+  final int id, day, hour, subject, teachers, studentSets, room;
+  final int maxIndex;
+
   _HeaderIndices({
     required this.id,
     required this.day,
@@ -128,49 +112,23 @@ class _HeaderIndices {
     required this.teachers,
     required this.studentSets,
     required this.room,
-  });
-
-  final int? id;
-  final int? day;
-  final int? hour;
-  final int? subject;
-  final int? teachers;
-  final int? studentSets;
-  final int? room;
+  }) : maxIndex = [id, day, hour, subject, teachers, studentSets, room].reduce((a, b) => a > b ? a : b);
 
   factory _HeaderIndices.fromHeaders(List<String> headers) {
-    final norm = headers.map(_normalizeHeader).toList();
-
-    int? findFirst(Set<String> aliases) {
-      for (var i = 0; i < norm.length; i++) {
-        if (aliases.contains(norm[i])) return i;
-      }
-      return null;
+    int hId = 0, hDay = 1, hHour = 2, hSubj = 3, hTeach = 4, hStud = 5, hRoom = 6;
+    for (int i = 0; i < headers.length; i++) {
+      final h = headers[i].trim().toLowerCase();
+      if (h == 'id' || h == 'activity id' || h == '#') hId = i;
+      else if (h == 'day' || h == 'اليوم') hDay = i;
+      else if (h == 'hour' || h == 'الساعة') hHour = i;
+      else if (h == 'subject' || h == 'المادة') hSubj = i;
+      else if (h == 'teachers' || h == 'teacher' || h == 'المعلمين') hTeach = i;
+      else if (h == 'student sets' || h == 'students' || h == 'studentsets' || h == 'الطلاب') hStud = i;
+      else if (h == 'room' || h == 'القاعة') hRoom = i;
     }
-
     return _HeaderIndices(
-      id: findFirst({'id', 'activityid', 'activity id', 'activity_id', 'activity', '#', 'no'}),
-      day: findFirst({'day', 'days'}),
-      hour: findFirst({'hour', 'slot', 'time', 'period'}),
-      subject: findFirst({'subject', 'subjects'}),
-      teachers: findFirst({'teachers', 'teacher', 'teacher(s)'}),
-      studentSets: findFirst({
-        'studentsets', 'students', 'students sets',
-        'studentssets', 'student sets', 'groups', 'sets',
-      }),
-      room: findFirst({'room', 'rooms', 'place', 'venue'}),
+      id: hId, day: hDay, hour: hHour, subject: hSubj,
+      teachers: hTeach, studentSets: hStud, room: hRoom,
     );
   }
-}
-
-String _normalizeHeader(String h) {
-  return h
-      .trim()
-      .toLowerCase()
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .replaceAll('_', ' ');
-}
-
-String _normalizeNewlines(String text) {
-  return text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
 }

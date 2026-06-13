@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
+
 import '../models/timetable_entry.dart';
 import '../services/timetable_firestore_service.dart';
 import '../services/excel_export_service.dart';
 import '../utils/timetable_schedule_grid.dart';
 import '../widgets/timetable_data_table.dart';
 
-class TeachersScheduleScreen extends StatefulWidget {
-  const TeachersScheduleScreen({super.key, this.collegeName});
+class StudentsScheduleScreen extends StatefulWidget {
+  const StudentsScheduleScreen({super.key, this.collegeName});
 
   final String? collegeName;
 
   @override
-  State<TeachersScheduleScreen> createState() => _TeachersScheduleScreenState();
+  State<StudentsScheduleScreen> createState() => _StudentsScheduleScreenState();
 }
 
-class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
+class _StudentsScheduleScreenState extends State<StudentsScheduleScreen> {
   final TimetableFirestoreService _firestore = TimetableFirestoreService();
   late final Future<List<TimetableEntry>> _dataFuture;
   String? _searchQuery;
@@ -28,11 +29,11 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
         : _firestore.getByCollegeCachedFirst(widget.collegeName!);
   }
 
-  List<String> _uniqueTeachers(List<TimetableEntry> all) {
+  List<String> _uniqueGroups(List<TimetableEntry> all) {
     final set = <String>{};
     for (final e in all) {
-      for (final t in e.teachers) {
-        if (t.trim().isNotEmpty) set.add(t.trim());
+      for (final s in e.studentSets) {
+        if (s.trim().isNotEmpty) set.add(s.trim());
       }
     }
     return set.toList()..sort((a, b) => a.compareTo(b));
@@ -42,14 +43,14 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
     if (query == null || query.isEmpty) return [];
     final q = query.trim().toLowerCase();
     return all.where((e) {
-      return e.teachers.any((t) => t.toLowerCase().contains(q));
+      return e.studentSets.any((s) => s.toLowerCase().contains(q));
     }).toList();
   }
 
   Future<void> _exportSchedule(List<TimetableEntry> all) async {
     if (_searchQuery == null || _searchQuery!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('الرجاء اختيار المعلم أولاً')));
+          const SnackBar(content: Text('الرجاء اختيار المجموعة أولاً')));
       return;
     }
 
@@ -59,7 +60,7 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
       final filtered = _filteredData(_searchQuery, all);
       if (filtered.isEmpty) {
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('لا توجد بيانات لهذا المعلم')));
+            const SnackBar(content: Text('لا توجد بيانات لهذه المجموعة')));
         return;
       }
 
@@ -79,8 +80,7 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
             row.add('');
           } else {
             final cellText = entries
-                .map((e) =>
-                    '${e.subject}\n${e.studentSets.join(", ")}\n${e.room}')
+                .map((e) => '${e.subject}\n${e.teachers.join(", ")}\n${e.room}')
                 .join('\n---\n');
             row.add(cellText);
           }
@@ -90,8 +90,8 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
 
       final service = ExcelExportService();
       await service.exportTable(
-        fileName: 'جدول_المعلم_$_searchQuery',
-        title: 'الكلية - جدول المعلم: $_searchQuery',
+        fileName: 'جدول_الطلاب_$_searchQuery',
+        title: 'الكلية - جدول الطلاب: $_searchQuery',
         headers: headers,
         dataRows: dataRows,
       );
@@ -114,7 +114,7 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('جدول المعلمين'),
+        title: const Text('جدول الطلاب'),
       ),
       body: FutureBuilder<List<TimetableEntry>>(
         future: _dataFuture,
@@ -136,7 +136,7 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
             );
           }
           final all = snapshot.data!;
-          final teachers = _uniqueTeachers(all);
+          final groups = _uniqueGroups(all);
 
           final filtered = _filteredData(_searchQuery, all);
 
@@ -153,22 +153,22 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const Text(
-                            'اختر المعلم',
+                            'اختر المجموعة / الدفعة',
                             style: TextStyle(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
                             value: _searchQuery != null &&
-                                    teachers.contains(_searchQuery)
+                                    groups.contains(_searchQuery)
                                 ? _searchQuery
                                 : null,
                             decoration: const InputDecoration(
-                              hintText: 'اختر معلماً من القائمة...',
+                              hintText: 'اختر مجموعة أو دفعة من القائمة...',
                               border: OutlineInputBorder(),
                               contentPadding: EdgeInsets.symmetric(
                                   horizontal: 16, vertical: 12),
                             ),
-                            items: teachers.map((t) {
+                            items: groups.map((t) {
                               return DropdownMenuItem(
                                 value: t,
                                 child: Text(t),
@@ -209,8 +209,8 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
                   padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
                   child: TimetableDataTable(
                     entries: filtered,
-                    showTeachers: false,
-                    showStudentSets: true,
+                    showTeachers: true,
+                    showStudentSets: false,
                     showRoom: true,
                   ),
                 ),

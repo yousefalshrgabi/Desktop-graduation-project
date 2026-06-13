@@ -113,6 +113,7 @@ class RequestViewModel extends ChangeNotifier {
       _receivedRequests = snapshot.docs
           .map((doc) =>
               RequestModel.fromMap(doc.data() as Map<String, dynamic>, doc.id))
+          .where((req) => req.senderId != _currentUserId)
           .toList();
 
       // 👈 ترتيب يدوي في الذاكرة لضمان ظهور الأحدث أولاً بدون الحاجة لـ Index
@@ -207,11 +208,11 @@ class RequestViewModel extends ChangeNotifier {
           college.contains('نيابة')) {
         _receivedRequests = allLocal
             .where((r) => ['نيابة الشؤون الأكاديمية', 'جميع الكليات']
-                .contains(r.destinationCollege))
+                .contains(r.destinationCollege) && r.senderId != _currentUserId)
             .toList();
       } else {
         _receivedRequests = allLocal
-            .where((r) => r.destinationCollege == _currentUserCollege)
+            .where((r) => r.destinationCollege == _currentUserCollege && r.senderId != _currentUserId)
             .toList();
       }
 
@@ -512,42 +513,58 @@ class RequestViewModel extends ChangeNotifier {
             'exactSpecialization': 'exact_specialization',
           };
 
+          String? facultyDocId = extraData?['faculty_doc_id']?.toString();
+          Map<String, dynamic> currentMember = {};
+          
+          String targetUserId = senderId ?? '';
+
+          if (facultyDocId != null && facultyDocId.isNotEmpty) {
+            final fsDoc = await _firestore.collection('faculty_members').doc(facultyDocId).get();
+            if (fsDoc.exists) {
+              currentMember = Map<String, dynamic>.from(fsDoc.data() as Map);
+              targetUserId = currentMember['user_id']?.toString() ?? senderId ?? '';
+            }
+          } else {
+            final fsQuery = await _firestore
+                .collection('faculty_members')
+                .where('user_id', isEqualTo: senderId)
+                .limit(1)
+                .get();
+
+            if (fsQuery.docs.isNotEmpty) {
+              facultyDocId = fsQuery.docs.first.id;
+              currentMember = Map<String, dynamic>.from(fsQuery.docs.first.data());
+              targetUserId = senderId ?? '';
+            }
+          }
+
+          if (currentMember.isEmpty) {
+            // fallback: ابحث في SQLite المحلي
+            final db = await DatabaseHelper.instance.database;
+            final localRec = await db.query('faculty_members',
+                where: 'id = ? OR user_id = ?', 
+                whereArgs: [facultyDocId ?? '', senderId ?? ''], 
+                limit: 1);
+            if (localRec.isNotEmpty) {
+              facultyDocId ??= localRec.first['id']?.toString();
+              currentMember = Map<String, dynamic>.from(localRec.first);
+              targetUserId = currentMember['user_id']?.toString() ?? senderId ?? '';
+            }
+          }
+
           extraData?.forEach((key, value) {
             if (key == 'new_files_mapping') return;
+            if (key == 'deleted_files') return;
+            if (key == 'faculty_doc_id') return;
             if (key == 'name' || key == 'department' || key == 'idCardNumber') {
               userData[key] = value;
             }
             facultyData[keyMap[key] ?? key] = value;
           });
 
-          // جلب سجل العضو من Firestore (أحدث مصدر)
-          String? facultyDocId;
-          Map<String, dynamic> currentMember = {};
-
-          final fsQuery = await _firestore
-              .collection('faculty_members')
-              .where('user_id', isEqualTo: senderId)
-              .limit(1)
-              .get();
-
-          if (fsQuery.docs.isNotEmpty) {
-            facultyDocId = fsQuery.docs.first.id;
-            currentMember =
-                Map<String, dynamic>.from(fsQuery.docs.first.data());
-          } else {
-            // fallback: ابحث في SQLite المحلي
-            final db = await DatabaseHelper.instance.database;
-            final localRecord = await db.query('faculty_members',
-                where: 'user_id = ?', whereArgs: [senderId], limit: 1);
-            if (localRecord.isNotEmpty) {
-              currentMember = Map<String, dynamic>.from(localRecord.first);
-              facultyDocId = currentMember['id']?.toString();
-            }
-          }
-
           if (facultyDocId == null || currentMember.isEmpty) {
             debugPrint(
-                '[AUTO-UPDATE] ⚠️ لم يتم العثور على سجل العضو: $senderId');
+                '[AUTO-UPDATE] ⚠️ لم يتم العثور على سجل العضو: $targetUserId');
           } else {
             // معالجة الملفات المرفقة في الطلب
             final String? reqFileUrl = requestData['fileUrl']?.toString();
@@ -638,13 +655,69 @@ class RequestViewModel extends ChangeNotifier {
 
               facultyData['file_url'] = jsonEncode(currentUrlsMap);
               facultyData['local_file_path'] = jsonEncode(currentLocalPathsMap);
-              debugPrint('[AUTO-UPDATE] 📁 تمت إضافة الملفات المصنفة بنجاح.');
             }
+
+            // معالجة الملفات المحذوفة
+            if (extraData != null && extraData['deleted_files'] != null) {
+              List<dynamic> deletedUrlsRaw = extraData['deleted_files'];
+              List<String> deletedUrls = deletedUrlsRaw.map((e) => e.toString()).toList();
+              
+              if (deletedUrls.isNotEmpty) {
+                // القوائم الحالية (سواء تم تحديثها بالملفات الجديدة أم لا)
+                Map<String, List<String>> currentUrlsMap =
+                    _parseJsonMap(facultyData['file_url']?.toString() ?? currentMember['file_url']?.toString() ?? '');
+                Map<String, List<String>> currentLocalPathsMap =
+                    _parseJsonMap(facultyData['local_file_path']?.toString() ?? currentMember['local_file_path']?.toString() ?? '');
+
+                for (String delUrl in deletedUrls) {
+                  if (delUrl.isEmpty) continue;
+                  
+                  // حذف من السحابة
+                  try {
+                    await _storage.refFromURL(delUrl).delete();
+                    debugPrint('[AUTO-UPDATE] 🗑️ تم حذف الملف من السحابة: $delUrl');
+                  } catch (e) {
+                    debugPrint('[AUTO-UPDATE] ⚠️ فشل حذف الملف من السحابة: $e');
+                  }
+
+                  // حذف من القوائم
+                  String foundCategory = '';
+                  int foundIndex = -1;
+                  
+                  currentUrlsMap.forEach((cat, urls) {
+                    int idx = urls.indexOf(delUrl);
+                    if (idx != -1) {
+                      foundCategory = cat;
+                      foundIndex = idx;
+                    }
+                  });
+
+                  if (foundCategory.isNotEmpty && foundIndex != -1) {
+                    currentUrlsMap[foundCategory]!.removeAt(foundIndex);
+                    
+                    if (currentLocalPathsMap[foundCategory] != null && currentLocalPathsMap[foundCategory]!.length > foundIndex) {
+                      String localPathToDelete = currentLocalPathsMap[foundCategory]![foundIndex];
+                      currentLocalPathsMap[foundCategory]!.removeAt(foundIndex);
+                      
+                      if (localPathToDelete.isNotEmpty && File(localPathToDelete).existsSync()) {
+                        try {
+                          File(localPathToDelete).deleteSync();
+                          debugPrint('[AUTO-UPDATE] 🗑️ تم حذف الملف محلياً: $localPathToDelete');
+                        } catch (_) {}
+                      }
+                    }
+                  }
+                }
+                facultyData['file_url'] = jsonEncode(currentUrlsMap);
+                facultyData['local_file_path'] = jsonEncode(currentLocalPathsMap);
+              }
+            }
+            debugPrint('[AUTO-UPDATE] 📁 تمت إضافة الملفات المصنفة بنجاح.');
 
             // تحديث SQLite وFirestore
             if (facultyData.isNotEmpty) {
               await DatabaseHelper.instance.updateRecordLocal(
-                  'faculty_members', senderId, facultyData,
+                  'faculty_members', targetUserId, facultyData,
                   whereColumn: 'user_id');
               await _firestore
                   .collection('faculty_members')
@@ -656,13 +729,13 @@ class RequestViewModel extends ChangeNotifier {
           }
 
           // تحديث جدول users إذا توجد تعديلات نصية
-          if (userData.isNotEmpty) {
+          if (userData.isNotEmpty && targetUserId.isNotEmpty) {
             await DatabaseHelper.instance.updateRecordLocal(
-                'users', senderId, userData,
+                'users', targetUserId, userData,
                 whereColumn: 'id');
             await _firestore
                 .collection('users')
-                .doc(senderId)
+                .doc(targetUserId)
                 .set(userData, SetOptions(merge: true));
           }
 

@@ -485,6 +485,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
           },
         ),
         floatingActionButton: FloatingActionButton.extended(
+          heroTag: null,
           onPressed: _showNewRequestBottomSheet,
           backgroundColor: Colors.blue[800],
           icon: const Icon(Icons.add, color: Colors.white),

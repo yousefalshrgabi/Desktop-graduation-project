@@ -322,13 +322,26 @@ class _AddFacultyMemberDialogState extends State<AddFacultyMemberDialog> {
       return existingUsers.first['id'].toString();
     } else {
       String newUserId = DateTime.now().millisecondsSinceEpoch.toString();
+      
+      String facultyName = '';
+      if (_selectedDepartment != null && _selectedDepartment!.isNotEmpty) {
+        final deptData = await db.query('departments', where: 'name = ?', whereArgs: [_selectedDepartment], limit: 1);
+        if (deptData.isNotEmpty) {
+          final collegeId = deptData.first['college_id'];
+          final collegeData = await db.query('colleges', where: 'id = ?', whereArgs: [collegeId], limit: 1);
+          if (collegeData.isNotEmpty) {
+            facultyName = collegeData.first['ar_name'].toString();
+          }
+        }
+      }
+
       await db.insert('users', {
         'id': newUserId,
         'name': name,
         'email': '', // لا يوجد إيميل إجباري
         'phone': '',
         'role': 'Faculty Member',
-        'faculty': '',
+        'faculty': facultyName,
         'department': _selectedDepartment ?? '',
         'status': 'نشط',
         'created_at': DateTime.now().toIso8601String(),

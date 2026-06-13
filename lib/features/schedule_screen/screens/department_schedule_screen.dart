@@ -7,10 +7,13 @@ import '../utils/timetable_schedule_grid.dart';
 import '../widgets/department_data_table.dart';
 
 class DepartmentScheduleScreen extends StatefulWidget {
-  const DepartmentScheduleScreen({super.key});
+  const DepartmentScheduleScreen({super.key, this.collegeName});
+
+  final String? collegeName;
 
   @override
-  State<DepartmentScheduleScreen> createState() => _DepartmentScheduleScreenState();
+  State<DepartmentScheduleScreen> createState() =>
+      _DepartmentScheduleScreenState();
 }
 
 class _DepartmentScheduleScreenState extends State<DepartmentScheduleScreen> {
@@ -22,7 +25,9 @@ class _DepartmentScheduleScreenState extends State<DepartmentScheduleScreen> {
   @override
   void initState() {
     super.initState();
-    _dataFuture = _firestore.getAllCachedFirst();
+    _dataFuture = widget.collegeName == null
+        ? _firestore.getAllCachedFirst()
+        : _firestore.getByCollegeCachedFirst(widget.collegeName!);
   }
 
   List<String> _extractSpecializations(List<TimetableEntry> all) {
@@ -47,7 +52,8 @@ class _DepartmentScheduleScreenState extends State<DepartmentScheduleScreen> {
     return 99;
   }
 
-  (List<TimetableEntry>, List<String>) _filteredData(String? specQuery, List<TimetableEntry> all) {
+  (List<TimetableEntry>, List<String>) _filteredData(
+      String? specQuery, List<TimetableEntry> all) {
     if (specQuery == null || specQuery.isEmpty) return ([], []);
 
     final matchedSets = <String>{};
@@ -69,30 +75,37 @@ class _DepartmentScheduleScreenState extends State<DepartmentScheduleScreen> {
       }
     }
 
-    final sortedMatchedSets = matchedSets.toList()..sort((a, b) {
-      final rankA = _levelRank(a);
-      final rankB = _levelRank(b);
-      if (rankA != rankB) return rankA.compareTo(rankB);
-      return a.compareTo(b);
-    });
+    final sortedMatchedSets = matchedSets.toList()
+      ..sort((a, b) {
+        final rankA = _levelRank(a);
+        final rankB = _levelRank(b);
+        if (rankA != rankB) return rankA.compareTo(rankB);
+        return a.compareTo(b);
+      });
     return (matchedEntries, sortedMatchedSets);
   }
 
   Future<void> _exportSchedule(List<TimetableEntry> all) async {
     if (_searchQuery == null || _searchQuery!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('الرجاء اختيار التخصص أولاً')));
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('الرجاء اختيار التخصص أولاً')));
       return;
     }
+
     setState(() => _isExporting = true);
+
     try {
       final (filtered, matchedSets) = _filteredData(_searchQuery, all);
       if (filtered.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('لا توجد بيانات لهذا التخصص')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('لا توجد بيانات لهذا التخصص')));
         return;
       }
 
       final days = TimetableScheduleGrid.sortedDays(filtered.map((e) => e.day));
-      final hours = TimetableScheduleGrid.sortedHours(filtered.map((e) => e.hour));
+      final hours =
+          TimetableScheduleGrid.sortedHours(filtered.map((e) => e.hour));
+
       final headers = ['اليوم', 'المستوى/القسم', ...hours];
       final dataRows = <List<String>>[];
 
@@ -100,25 +113,48 @@ class _DepartmentScheduleScreenState extends State<DepartmentScheduleScreen> {
         for (int gIdx = 0; gIdx < matchedSets.length; gIdx++) {
           final group = matchedSets[gIdx];
           final row = <String>[];
+
           row.add(gIdx == 0 ? day : '');
           row.add(group);
+
           for (final hour in hours) {
-            final cellEntries = filtered.where((e) => e.day == day && e.hour == hour && e.studentSets.contains(group)).toList();
-            row.add(cellEntries.isEmpty ? '' : cellEntries.map((e) => '${e.subject}\n${e.teachers.join(", ")}\n${e.room}').join('\n---\n'));
+            final cellEntries = filtered
+                .where((e) =>
+                    e.day == day &&
+                    e.hour == hour &&
+                    e.studentSets.contains(group))
+                .toList();
+            if (cellEntries.isEmpty) {
+              row.add('');
+            } else {
+              final cellText = cellEntries
+                  .map((e) =>
+                      '${e.subject}\n${e.teachers.join(", ")}\n${e.room}')
+                  .join('\n---\n');
+              row.add(cellText);
+            }
           }
           dataRows.add(row);
         }
       }
 
-      await ExcelExportService().exportTable(
+      final service = ExcelExportService();
+      await service.exportTable(
         fileName: 'جدول_تخصص_$_searchQuery',
-        title: 'جدول تخصص: $_searchQuery',
+        title: 'الكلية - جدول تخصص: $_searchQuery',
         headers: headers,
         dataRows: dataRows,
       );
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('تم تصدير الجدول بنجاح')));
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تم تصدير الجدول بنجاح')));
+      }
     } catch (e) {
-      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('حدث خطأ أثناء التصدير: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('حدث خطأ أثناء التصدير: $e')));
+      }
     } finally {
       if (mounted) setState(() => _isExporting = false);
     }
@@ -126,67 +162,113 @@ class _DepartmentScheduleScreenState extends State<DepartmentScheduleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<List<TimetableEntry>>(
-      future: _dataFuture,
-      builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (snapshot.hasError) {
-          return Center(child: Text('خطأ: ${snapshot.error}'));
-        }
-        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-          return const Center(child: Text('لا توجد بيانات. يرجى رفع ملف الجدول أولاً.'));
-        }
-        final all = snapshot.data!;
-        final specializations = _extractSpecializations(all);
-        final (filteredEntries, matchedSets) = _filteredData(_searchQuery, all);
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('جدول القسم / التخصص'),
+      ),
+      body: FutureBuilder<List<TimetableEntry>>(
+        future: _dataFuture,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text('خطأ: ${snapshot.error}'));
+          }
+          if (!snapshot.hasData || snapshot.data!.isEmpty) {
+            return Center(
+              child: Text(
+                widget.collegeName == null
+                    ? 'لا توجد بيانات للعرض'
+                    : 'عذراً، لم يتم رفع جداول ${widget.collegeName} من قبل النائب الأكاديمي بعد',
+                textAlign: TextAlign.center,
+              ),
+            );
+          }
+          final all = snapshot.data!;
+          final specializations = _extractSpecializations(all);
 
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: _searchQuery != null && specializations.contains(_searchQuery) ? _searchQuery : null,
-                      decoration: const InputDecoration(
-                        labelText: 'اختر القسم / التخصص',
-                        hintText: 'مثال: تقنية المعلومات',
-                        border: OutlineInputBorder(),
-                        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          final (filteredEntries, matchedSets) =
+              _filteredData(_searchQuery, all);
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const Text(
+                            'اختر القسم / التخصص',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            value: _searchQuery != null &&
+                                    specializations.contains(_searchQuery)
+                                ? _searchQuery
+                                : null,
+                            decoration: const InputDecoration(
+                              hintText:
+                                  'اختر قسم / تخصص (مثل: تقنية المعلومات)',
+                              border: OutlineInputBorder(),
+                              contentPadding: EdgeInsets.symmetric(
+                                  horizontal: 16, vertical: 12),
+                            ),
+                            items: specializations.map((spec) {
+                              return DropdownMenuItem(
+                                value: spec,
+                                child: Text(spec),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              setState(() {
+                                _searchQuery = val;
+                              });
+                            },
+                          ),
+                        ],
                       ),
-                      items: specializations.map((spec) => DropdownMenuItem(value: spec, child: Text(spec))).toList(),
-                      onChanged: (val) => setState(() => _searchQuery = val),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: IconButton.filled(
-                      onPressed: _isExporting || _searchQuery == null ? null : () => _exportSchedule(all),
-                      icon: _isExporting
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
-                          : const Icon(Icons.download),
-                      tooltip: 'تصدير كملف إكسل',
-                      padding: const EdgeInsets.all(12),
+                    const SizedBox(width: 12),
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: IconButton.filled(
+                        onPressed: _isExporting || _searchQuery == null
+                            ? null
+                            : () => _exportSchedule(all),
+                        icon: _isExporting
+                            ? const SizedBox(
+                                width: 20,
+                                height: 20,
+                                child: CircularProgressIndicator(
+                                    color: Colors.white, strokeWidth: 2))
+                            : const Icon(Icons.download),
+                        tooltip: 'تصدير كملف إكسل',
+                        padding: const EdgeInsets.all(12),
+                      ),
                     ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                  child: DepartmentDataTable(
+                    entries: filteredEntries,
+                    groups: matchedSets,
                   ),
-                ],
+                ),
               ),
-            ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                child: DepartmentDataTable(entries: filteredEntries, groups: matchedSets),
-              ),
-            ),
-          ],
-        );
-      },
+            ],
+          );
+        },
+      ),
     );
   }
 }

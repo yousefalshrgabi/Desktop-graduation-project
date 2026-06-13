@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:excel/excel.dart';
 import 'package:file_saver/file_saver.dart';
+import 'package:file_picker/file_picker.dart';
 
 class ExcelExportService {
   /// Exports a 2D array representing a table to an Excel file and triggers a save dialog.
@@ -35,12 +37,29 @@ class ExcelExportService {
       throw Exception('فشل في توليد ملف الإكسل (Bytes = null)');
     }
 
-    // Save File using file_saver
-    await FileSaver.instance.saveAs(
-      name: fileName,
-      bytes: Uint8List.fromList(bytes),
-      fileExtension: 'xlsx',
-      mimeType: MimeType.microsoftExcel,
-    );
+    // Save File
+    if (!kIsWeb && Platform.isWindows) {
+      String? outputFile = await FilePicker.saveFile(
+        dialogTitle: 'حفظ ملف الإكسل',
+        fileName: '$fileName.xlsx',
+        type: FileType.custom,
+        allowedExtensions: ['xlsx'],
+      );
+
+      if (outputFile != null) {
+        if (!outputFile.toLowerCase().endsWith('.xlsx')) {
+          outputFile += '.xlsx';
+        }
+        final file = File(outputFile);
+        await file.writeAsBytes(bytes);
+      }
+    } else {
+      await FileSaver.instance.saveFile(
+        name: fileName,
+        bytes: Uint8List.fromList(bytes),
+        fileExtension: 'xlsx',
+        mimeType: MimeType.microsoftExcel,
+      );
+    }
   }
 }

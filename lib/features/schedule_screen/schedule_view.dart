@@ -13,7 +13,7 @@ class ScheduleView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 4,
+      length: 3,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -56,7 +56,6 @@ class ScheduleView extends StatelessWidget {
                       Tab(icon: Icon(Icons.school_outlined), text: 'جدول القسم'),
                       Tab(icon: Icon(Icons.person_outlined), text: 'جدول المعلم'),
                       Tab(icon: Icon(Icons.meeting_room_outlined), text: 'جدول القاعة'),
-                      Tab(icon: Icon(Icons.upload_file_outlined), text: 'رفع الجدول'),
                     ],
                   ),
                 ),
@@ -70,7 +69,6 @@ class ScheduleView extends StatelessWidget {
                 DepartmentScheduleScreen(),
                 TeachersScheduleScreen(),
                 RoomsScheduleScreen(),
-                UploadScheduleScreen(),
               ],
             ),
           ),

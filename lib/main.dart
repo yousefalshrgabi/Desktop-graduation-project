@@ -25,16 +25,14 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // حل مشكلة الـ Debug في Windows
-  if (Platform.isWindows) {
-    try {
-      FirebaseFirestore.instance.settings = const Settings(
-        persistenceEnabled: true,
-        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
-      );
-    } catch (e) {
-      debugPrint('Firestore settings already initialized: $e');
-    }
+  // تفعيل التخزين المحلي السحابي (Offline Cache) لجميع المنصات
+  try {
+    FirebaseFirestore.instance.settings = const Settings(
+      persistenceEnabled: true,
+      cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
+    );
+  } catch (e) {
+    debugPrint('Firestore settings already initialized: $e');
   }
 
   // قراءة حالة تسجيل الدخول وتحميل بيانات الجلسة

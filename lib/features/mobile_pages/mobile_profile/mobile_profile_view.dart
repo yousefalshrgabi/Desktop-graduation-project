@@ -913,6 +913,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
         builder: (context, child) {
           return _viewModel.member != null
               ? FloatingActionButton.extended(
+                  heroTag: null,
                   onPressed: _showBulkEditDialog,
                   icon: const Icon(Icons.edit_note),
                   label: const Text('تعديل البيانات'),

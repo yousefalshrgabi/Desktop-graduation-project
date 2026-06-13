@@ -54,7 +54,8 @@ class FacultyMembersViewModel extends ChangeNotifier {
       } catch (e) {}
     } else if (member.localFilePath.startsWith('[')) {
       try {
-        localPathsMap['others'] = List<String>.from(jsonDecode(member.localFilePath));
+        localPathsMap['others'] =
+            List<String>.from(jsonDecode(member.localFilePath));
       } catch (e) {}
     } else if (member.localFilePath.isNotEmpty) {
       localPathsMap['others'] = [member.localFilePath];
@@ -97,7 +98,8 @@ class FacultyMembersViewModel extends ChangeNotifier {
       List<String> catFinalLocalPaths = [];
       List<String> catFinalUrls = [];
 
-      int maxCount = paths.length > currentUrls.length ? paths.length : currentUrls.length;
+      int maxCount =
+          paths.length > currentUrls.length ? paths.length : currentUrls.length;
 
       for (int i = 0; i < maxCount; i++) {
         String path = i < paths.length ? paths[i] : '';
@@ -123,7 +125,8 @@ class FacultyMembersViewModel extends ChangeNotifier {
 
         File sourceFile = File(path);
         String extension = p.extension(sourceFile.path);
-        String fileName = 'document_${key}_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
+        String fileName =
+            'document_${key}_${DateTime.now().millisecondsSinceEpoch}_$i$extension';
 
         String newLocalPath = p.join(memberDir.path, fileName);
         await sourceFile.copy(newLocalPath);
@@ -132,7 +135,8 @@ class FacultyMembersViewModel extends ChangeNotifier {
         String downloadUrl = url;
 
         try {
-          debugPrint('☁️ جاري رفع الملف إلى Firebase Storage بتنظيم المجلدات...');
+          debugPrint(
+              '☁️ جاري رفع الملف إلى Firebase Storage بتنظيم المجلدات...');
           Reference ref = FirebaseStorage.instance
               .ref()
               .child('faculty_files/$cleanName/$fileName');
@@ -197,9 +201,10 @@ class FacultyMembersViewModel extends ChangeNotifier {
     notifyListeners();
     try {
       final db = await DatabaseHelper.instance.database;
-      
+
       // 1. جلب العضو القديم للمقارنة لاستخراج الملفات المحذوفة
-      final oldRecord = await db.query('faculty_members', where: 'id = ?', whereArgs: [id]);
+      final oldRecord =
+          await db.query('faculty_members', where: 'id = ?', whereArgs: [id]);
       FacultyMemberModel? oldMember;
       if (oldRecord.isNotEmpty) {
         oldMember = FacultyMemberModel.fromMap(oldRecord.first);
@@ -245,9 +250,11 @@ class FacultyMembersViewModel extends ChangeNotifier {
         }
       }
 
-      // 4. تحديث القاعدة المحلية 
+      // 4. تحديث القاعدة المحلية
       await DatabaseHelper.instance.updateRecordLocal(
-        'faculty_members', finalMember.userId, finalMember.toMap(),
+        'faculty_members',
+        finalMember.userId,
+        finalMember.toMap(),
         whereColumn: 'user_id',
       );
 
@@ -265,10 +272,39 @@ class FacultyMembersViewModel extends ChangeNotifier {
             .set(finalMember.toMap());
       }
 
-      // تحديث اسم المستخدم المرتبط إذا تم تغييره من هنا
+      // تحديث حساب المستخدم المرتبط إذا تم تعديله من هنا
       if (finalMember.userId.isNotEmpty) {
-        await db.update('users', {'name': finalMember.name},
+        String facultyName = '';
+        if (finalMember.department.isNotEmpty &&
+            finalMember.department != 'غير محدد') {
+          final deptData = await db.query('departments',
+              where: 'name = ?', whereArgs: [finalMember.department], limit: 1);
+          if (deptData.isNotEmpty) {
+            final collegeId = deptData.first['college_id'];
+            final collegeData = await db.query('colleges',
+                where: 'id = ?', whereArgs: [collegeId], limit: 1);
+            if (collegeData.isNotEmpty) {
+              facultyName = collegeData.first['ar_name'].toString();
+            }
+          }
+        }
+
+        final updatedUserData = {
+          'name': finalMember.name,
+          'department': finalMember.department,
+          'status': finalMember.status,
+          if (facultyName.isNotEmpty) 'faculty': facultyName,
+        };
+
+        await db.update('users', updatedUserData,
             where: 'id = ?', whereArgs: [finalMember.userId]);
+
+        try {
+          await FirebaseFirestore.instance
+              .collection('users')
+              .doc(finalMember.userId)
+              .set(updatedUserData, SetOptions(merge: true));
+        } catch (_) {}
       }
 
       await fetchFacultyMembers();
@@ -573,17 +609,22 @@ class FacultyMembersViewModel extends ChangeNotifier {
         try {
           return {'others': List<String>.from(jsonDecode(str))};
         } catch (_) {}
-        return {'others': [str]};
+        return {
+          'others': [str]
+        };
       }
 
       Map<String, List<String>> currentUrlsMap = parseMap(member.fileUrl);
-      Map<String, List<String>> currentLocalPathsMap = parseMap(member.localFilePath);
+      Map<String, List<String>> currentLocalPathsMap =
+          parseMap(member.localFilePath);
 
       // التأكد من وجود الفئة ورقم الفهرس
-      if (currentUrlsMap.containsKey(category) && currentUrlsMap[category]!.length > fileIndex) {
+      if (currentUrlsMap.containsKey(category) &&
+          currentUrlsMap[category]!.length > fileIndex) {
         currentUrlsMap[category]!.removeAt(fileIndex);
 
-        if (currentLocalPathsMap.containsKey(category) && currentLocalPathsMap[category]!.length > fileIndex) {
+        if (currentLocalPathsMap.containsKey(category) &&
+            currentLocalPathsMap[category]!.length > fileIndex) {
           currentLocalPathsMap[category]!.removeAt(fileIndex);
         }
 
@@ -595,7 +636,9 @@ class FacultyMembersViewModel extends ChangeNotifier {
 
         // تحديث قاعدة البيانات
         await DatabaseHelper.instance.updateRecordLocal(
-          'faculty_members', member.userId, updateData,
+          'faculty_members',
+          member.userId,
+          updateData,
           whereColumn: 'user_id',
         );
 
@@ -616,7 +659,7 @@ class FacultyMembersViewModel extends ChangeNotifier {
         notifyListeners();
         return true;
       }
-      
+
       isLoading = false;
       notifyListeners();
       return false;
@@ -628,4 +671,3 @@ class FacultyMembersViewModel extends ChangeNotifier {
     }
   }
 }
-

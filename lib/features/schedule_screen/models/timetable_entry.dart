@@ -8,6 +8,7 @@ class TimetableEntry {
     required this.teachers,
     required this.studentSets,
     required this.room,
+    this.collegeName = '',
   });
 
   /// Stable identifier from the CSV (FET activity id) or a generated fallback.
@@ -28,6 +29,20 @@ class TimetableEntry {
   final List<String> studentSets;
 
   final String room;
+  final String collegeName;
+
+  TimetableEntry copyWith({String? collegeName}) {
+    return TimetableEntry(
+      id: id,
+      day: day,
+      hour: hour,
+      subject: subject,
+      teachers: teachers,
+      studentSets: studentSets,
+      room: room,
+      collegeName: collegeName ?? this.collegeName,
+    );
+  }
 
   Map<String, dynamic> toFirestoreMap() {
     return {
@@ -38,6 +53,7 @@ class TimetableEntry {
       'teachers': teachers,
       'studentSets': studentSets,
       'room': room,
+      'collegeName': collegeName,
     };
   }
 
@@ -50,6 +66,7 @@ class TimetableEntry {
       teachers: List<String>.from(data['teachers'] as List? ?? const []),
       studentSets: List<String>.from(data['studentSets'] as List? ?? const []),
       room: data['room'] as String? ?? '',
+      collegeName: data['collegeName'] as String? ?? '',
     );
   }
 
