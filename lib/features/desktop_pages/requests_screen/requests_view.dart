@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'request_model.dart';
@@ -106,13 +107,46 @@ class _RequestsViewState extends State<RequestsView>
 
   void _showRespondDialog(RequestModel request) {
     TextEditingController reasonController = TextEditingController();
+    
+    // إعداد قائمة الحقول المقبولة مبدئياً
+    List<String> approvedFields = [];
+    final ignoredKeys = ['deleted_files', 'new_files_mapping', 'faculty_doc_id'];
+    if (request.type == 'تعديل معلومات' && request.extraData != null) {
+      request.extraData!.keys.forEach((key) {
+        if (!ignoredKeys.contains(key)) {
+          approvedFields.add(key);
+        }
+      });
+    }
+
+    final keyTranslations = {
+      'name': 'الاسم', 'email': 'البريد الإلكتروني', 'status': 'الحالة', 'file_number': 'رقم الملف',
+      'id_card_number': 'رقم الهوية', 'job_number': 'الرقم الوظيفي', 'birth_place': 'مكان الميلاد',
+      'birth_date': 'تاريخ الميلاد', 'department': 'القسم', 'general_specialization': 'التخصص العام',
+      'exact_specialization': 'التخصص الدقيق', 'first_appointment_date': 'تاريخ أول تعيين',
+      'university_appointment_date': 'تاريخ التعيين بالجامعة', 'bsc_degree': 'درجة البكالوريوس',
+      'bsc_date': 'تاريخ البكالوريوس', 'bsc_university': 'جامعة البكالوريوس', 'bsc_country': 'دولة البكالوريوس',
+      'bsc_academic_title': 'لقب البكالوريوس', 'bsc_title_transfer_date': 'تاريخ النقل (بكالوريوس)',
+      'bsc_specialization': 'تخصص البكالوريوس', 'msc_degree': 'درجة الماجستير', 'msc_date': 'تاريخ الماجستير',
+      'msc_university': 'جامعة الماجستير', 'msc_country': 'دولة الماجستير', 'msc_academic_title': 'لقب الماجستير',
+      'msc_title_transfer_date': 'تاريخ النقل (ماجستير)', 'msc_decision_number': 'رقم القرار (ماجستير)',
+      'msc_exact_specialization': 'التخصص الدقيق (ماجستير)', 'current_degree': 'الدرجة الحالية',
+      'current_degree_date': 'تاريخ الدرجة الحالية', 'current_university': 'جامعة الدرجة الحالية',
+      'current_country': 'دولة الدرجة الحالية', 'assistant_prof_date': 'تاريخ أستاذ مساعد',
+      'assistant_prof_decision': 'قرار أستاذ مساعد', 'assoc_prof_date': 'تاريخ أستاذ مشارك',
+      'assoc_prof_decision': 'قرار أستاذ مشارك', 'current_academic_title': 'اللقب الأكاديمي الحالي',
+      'title_transfer_date': 'تاريخ نقل اللقب',
+    };
+
     showDialog(
       context: context,
       builder: (context) {
-        return AlertDialog(
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          title: Text('الرد على: ${request.title}'),
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              shape:
+                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              title: Text('الرد على: ${request.title}'),
           content: SizedBox(
             width: 450,
             child: SingleChildScrollView(
@@ -145,6 +179,39 @@ class _RequestsViewState extends State<RequestsView>
                         ? request.description
                         : 'لا توجد تفاصيل إضافية'),
                   ),
+                  if (request.type == 'تعديل معلومات' && request.extraData != null) ...[
+                    const SizedBox(height: 16),
+                    const Text('اختر الحقول التي توافق على تعديلها:',
+                        style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+                    const SizedBox(height: 8),
+                    Container(
+                      decoration: BoxDecoration(
+                        border: Border.all(color: Colors.grey.shade300),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        children: request.extraData!.entries.where((e) => !ignoredKeys.contains(e.key)).map((entry) {
+                          final fieldName = keyTranslations[entry.key] ?? entry.key;
+                          final newValue = entry.value;
+                          return CheckboxListTile(
+                            title: Text('تعديل $fieldName إلى: $newValue'),
+                            value: approvedFields.contains(entry.key),
+                            onChanged: (bool? value) {
+                              setState(() {
+                                if (value == true) {
+                                  approvedFields.add(entry.key);
+                                } else {
+                                  approvedFields.remove(entry.key);
+                                }
+                              });
+                            },
+                            controlAffinity: ListTileControlAffinity.leading,
+                            dense: true,
+                          );
+                        }).toList(),
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 16),
                   if (request.fileUrl != null &&
                       request.fileUrl!.isNotEmpty) ...[
@@ -242,10 +309,50 @@ class _RequestsViewState extends State<RequestsView>
               icon: const Icon(Icons.check, size: 18),
               label: const Text('قبول الطلب'),
               onPressed: () async {
+                if (request.type == 'تعديل معلومات' && approvedFields.isEmpty && request.extraData != null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('الرجاء اختيار حقل واحد على الأقل للموافقة، أو اضغط رفض الطلب')),
+                  );
+                  return;
+                }
+
                 Navigator.pop(context);
+
+                // تجهيز سبب الرفض الجزئي للحقول المرفوضة
+                String finalReason = reasonController.text.trim();
+                if (request.type == 'تعديل معلومات' && request.extraData != null) {
+                  List<String> rejected = [];
+                  request.extraData!.keys.forEach((key) {
+                    if (!ignoredKeys.contains(key) && !approvedFields.contains(key)) {
+                      rejected.add(keyTranslations[key] ?? key);
+                    }
+                  });
+                  if (rejected.isNotEmpty) {
+                    String partialReason = 'تم رفض الحقول التالية: ${rejected.join("، ")}';
+                    if (finalReason.isNotEmpty) {
+                      finalReason = '$partialReason\nملاحظة: $finalReason';
+                    } else {
+                      finalReason = partialReason;
+                    }
+                  }
+                }
+
+                // إضافة الحقول المقبولة وتحديد الحالة النهائية (إذا كان التعديل لمعلومات)
+                List<String>? approved;
+                String finalStatus = 'مقبول';
+                if (request.type == 'تعديل معلومات' && request.extraData != null) {
+                  approved = approvedFields;
+                  int updatableCount = request.extraData!.keys.where((k) => !ignoredKeys.contains(k)).length;
+                  if (approved.length < updatableCount) {
+                    finalStatus = 'مقبول جزئياً';
+                  }
+                }
+
                 bool success = await _viewModel.respondToRequest(
                   request.id,
-                  'مقبول',
+                  finalStatus,
+                  rejectionReason: finalReason.isNotEmpty ? finalReason : null,
+                  approvedFields: approved,
                 );
                 if (!success && mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -256,6 +363,7 @@ class _RequestsViewState extends State<RequestsView>
             ),
           ],
         );
+        });
       },
     );
   }
@@ -491,7 +599,10 @@ class _RequestsViewState extends State<RequestsView>
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedBuilder(
+    return Scaffold(
+      backgroundColor: DesktopColors.background,
+      appBar: const SharedDesktopAppBar(),
+      body: AnimatedBuilder(
         animation: _viewModel,
         builder: (context, child) {
           return Stack(
@@ -597,7 +708,9 @@ class _RequestsViewState extends State<RequestsView>
                 ),
             ],
           );
-        });
+        },
+      ),
+    );
   }
 
   Widget _buildReceivedRequestsTab() {
@@ -611,6 +724,7 @@ class _RequestsViewState extends State<RequestsView>
         final req = _viewModel.receivedRequests[index];
         Color statusColor = Colors.orange;
         if (req.status == 'مقبول') statusColor = Colors.green;
+        if (req.status == 'مقبول جزئياً') statusColor = Colors.teal;
         if (req.status == 'مرفوض') statusColor = Colors.red;
 
         return Card(
@@ -698,7 +812,7 @@ class _RequestsViewState extends State<RequestsView>
                     ),
                   ],
                 ),
-                if (req.status == 'مرفوض' && req.rejectionReason != null)
+                if ((req.status == 'مرفوض' || req.status == 'مقبول جزئياً') && req.rejectionReason != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 12),
                     child: Container(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/features/schedule_screen/screens/department_schedule_screen.dart';
 import 'package:academic_affairs_management/features/schedule_screen/screens/teachers_schedule_screen.dart';
@@ -49,7 +50,7 @@ class MobileScheduleView extends StatelessWidget {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('الجداول الدراسية'),
-          backgroundColor: const Color(0xFF0123C9),
+          backgroundColor: DesktopColors.primary,
           foregroundColor: Colors.white,
           bottom: TabBar(
             isScrollable: true,

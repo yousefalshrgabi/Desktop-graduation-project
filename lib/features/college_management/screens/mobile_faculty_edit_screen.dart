@@ -1,5 +1,7 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
+import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_view_model.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -23,7 +25,7 @@ class _MobileFacultyEditScreenState extends State<MobileFacultyEditScreen>
   final Map<String, TextEditingController> _ctrls = {};
 
   final List<String> _fields = [
-    'name', 'status', 'file_number', 'id_card_number', 'job_number', 
+    'name', 'email', 'status', 'file_number', 'id_card_number', 'job_number', 
     'birth_place', 'birth_date', 'department',
     'first_appointment_date', 'university_appointment_date',
     'bsc_degree', 'bsc_date', 'bsc_university', 'bsc_country', 'bsc_academic_title', 'bsc_title_transfer_date', 'bsc_specialization',
@@ -68,7 +70,36 @@ class _MobileFacultyEditScreenState extends State<MobileFacultyEditScreen>
       _ctrls[field] = TextEditingController(text: val);
     }
 
+    if (_ctrls['email']!.text.isEmpty) {
+      _fetchUserEmail();
+    }
+
     _loadExistingFiles();
+  }
+
+  Future<void> _fetchUserEmail() async {
+    final userId = widget.facultyData['user_id']?.toString() ?? '';
+    if (userId.isEmpty && AppSession().isMemberOnly) {
+      if (mounted) {
+        setState(() {
+          _ctrls['email']!.text = AppSession().userEmail;
+        });
+      }
+      return;
+    }
+    if (userId.isNotEmpty) {
+      try {
+        final doc = await FirebaseFirestore.instance.collection('users').doc(userId).get();
+        if (doc.exists) {
+          final email = doc.data()?['email']?.toString() ?? '';
+          if (email.isNotEmpty && mounted) {
+            setState(() {
+              _ctrls['email']!.text = email;
+            });
+          }
+        }
+      } catch (_) {}
+    }
   }
 
   void _loadExistingFiles() {
@@ -165,7 +196,7 @@ class _MobileFacultyEditScreenState extends State<MobileFacultyEditScreen>
         }
       }
 
-      checkChange('name', 'الاسم'); checkChange('status', 'الحالة'); checkChange('file_number', 'رقم الملف');
+      checkChange('name', 'الاسم'); checkChange('email', 'البريد الإلكتروني'); checkChange('status', 'الحالة'); checkChange('file_number', 'رقم الملف');
       checkChange('id_card_number', 'رقم الهوية'); checkChange('job_number', 'الرقم الوظيفي');
       checkChange('birth_place', 'مكان الميلاد'); checkChange('birth_date', 'تاريخ الميلاد');
       checkChange('department', 'القسم'); checkChange('general_specialization', 'التخصص العام');
@@ -342,6 +373,8 @@ class _MobileFacultyEditScreenState extends State<MobileFacultyEditScreen>
       appBar: AppBar(
         title: const Text('تعديل البيانات والمرفقات'),
         centerTitle: true,
+        backgroundColor: DesktopColors.primary,
+        foregroundColor: Colors.white,
         actions: [
           IconButton(
             icon: const Icon(Icons.send_rounded),
@@ -374,6 +407,7 @@ class _MobileFacultyEditScreenState extends State<MobileFacultyEditScreen>
                     padding: const EdgeInsets.all(16),
                     children: [
                       _buildField('name', 'الاسم الكامل', isRequired: true),
+                      _buildField('email', 'البريد الإلكتروني', isRequired: true),
                       _buildField('department', 'القسم العلمي', isRequired: true),
                       _buildField('status', 'حالة العضو (نشط/متفرغ..)'),
                       _buildField('job_number', 'الرقم الوظيفي'),

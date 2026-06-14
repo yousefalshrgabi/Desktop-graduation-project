@@ -18,7 +18,7 @@ class DatabaseHelper {
           '[SQLITE DEBUG] 🟡 لم يتم العثور على قاعدة بيانات نشطة، جاري التهيئة...');
       _initDatabaseFuture = _initDB('academic_affairss.db');
     }
-    
+
     _database = await _initDatabaseFuture!;
     return _database!;
   }
@@ -109,12 +109,15 @@ class DatabaseHelper {
           local_path TEXT NOT NULL
         )
       ''');
-      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول study_plans_storage (v7) خلال الترقية');
+      debugPrint(
+          '[SQLITE DEBUG] ✅ تم إنشاء جدول study_plans_storage (v7) خلال الترقية');
     }
 
     if (oldVersion < 8) {
-      await db.execute('ALTER TABLE colleges ADD COLUMN academic_vice_dean_id TEXT');
-      await db.execute('ALTER TABLE colleges ADD COLUMN student_vice_dean_id TEXT');
+      await db.execute(
+          'ALTER TABLE colleges ADD COLUMN academic_vice_dean_id TEXT');
+      await db
+          .execute('ALTER TABLE colleges ADD COLUMN student_vice_dean_id TEXT');
       debugPrint('[SQLITE DEBUG] ✅ تم إضافة أعمدة نواب العميد لجدول colleges');
     }
 
@@ -172,7 +175,8 @@ class DatabaseHelper {
           created_at TEXT NOT NULL
         )
       ''');
-      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول course_assignments (v13) خلال الترقية');
+      debugPrint(
+          '[SQLITE DEBUG] ✅ تم إنشاء جدول course_assignments (v13) خلال الترقية');
     }
 
     if (oldVersion < 14) {
@@ -189,7 +193,8 @@ class DatabaseHelper {
           created_at TEXT NOT NULL
         )
       ''');
-      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول timetables (v14) خلال الترقية');
+      debugPrint(
+          '[SQLITE DEBUG] ✅ تم إنشاء جدول timetables (v14) خلال الترقية');
     }
   }
 
@@ -481,11 +486,7 @@ class DatabaseHelper {
       await db.delete('departments');
       await db.delete('faculty_members');
       await db.delete('users');
-      await db.delete('subjects');
       await db.delete('requests');
-      await db.delete('programs');
-      await db.delete('studyPlans');
-      await db.delete('course_assignments');
       debugPrint('[SQLITE DEBUG] ✅ تم تنظيف قاعدة البيانات بنجاح.');
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ فشل عملية التنظيف: $e');
@@ -495,10 +496,12 @@ class DatabaseHelper {
   // =================================================================
   // دوال التحديث المحلي (Offline-First Updates)
   // =================================================================
-  Future<void> updateRecordLocal(String table, String id, Map<String, dynamic> data, {String whereColumn = 'id'}) async {
+  Future<void> updateRecordLocal(
+      String table, String id, Map<String, dynamic> data,
+      {String whereColumn = 'id'}) async {
     try {
       final db = await instance.database;
-      
+
       // التحديث المحلي
       int rowsAffected = await db.update(
         table,
@@ -506,11 +509,13 @@ class DatabaseHelper {
         where: '$whereColumn = ?',
         whereArgs: [id],
       );
-      
+
       if (rowsAffected > 0) {
-        debugPrint('[SQLITE DEBUG] ✅ تم تحديث السجل $id محلياً في جدول $table (الصفوف: $rowsAffected)');
+        debugPrint(
+            '[SQLITE DEBUG] ✅ تم تحديث السجل $id محلياً في جدول $table (الصفوف: $rowsAffected)');
       } else {
-        debugPrint('[SQLITE DEBUG] ⚠️ لم يتم العثور على السجل $id في جدول $table لتحديثه!');
+        debugPrint(
+            '[SQLITE DEBUG] ⚠️ لم يتم العثور على السجل $id في جدول $table لتحديثه!');
       }
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ فشل تحديث السجل محلياً في جدول $table: $e');

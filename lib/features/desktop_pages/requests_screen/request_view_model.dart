@@ -439,7 +439,7 @@ class RequestViewModel extends ChangeNotifier {
   }
 
   Future<bool> respondToRequest(String requestId, String status,
-      {String? rejectionReason}) async {
+      {String? rejectionReason, List<String>? approvedFields}) async {
     _isLoading = true;
     notifyListeners();
 
@@ -463,8 +463,8 @@ class RequestViewModel extends ChangeNotifier {
         'dateReplied': FieldValue.serverTimestamp(),
       });
 
-      // 3. التحديث التلقائي لبيانات العضو عند الموافقة
-      if (status == 'مقبول' && type == 'تعديل معلومات' && senderId != null) {
+      // 3. التحديث التلقائي لبيانات العضو عند الموافقة (كلياً أو جزئياً)
+      if ((status == 'مقبول' || status == 'مقبول جزئياً') && type == 'تعديل معلومات' && senderId != null) {
         debugPrint('[AUTO-UPDATE] 🚀 جاري تحديث بيانات العضو $senderId...');
         try {
           Map<String, dynamic> facultyData = {};
@@ -556,10 +556,17 @@ class RequestViewModel extends ChangeNotifier {
             if (key == 'new_files_mapping') return;
             if (key == 'deleted_files') return;
             if (key == 'faculty_doc_id') return;
-            if (key == 'name' || key == 'department' || key == 'idCardNumber') {
-              userData[key] = value;
+            // تجاهل الحقول المرفوضة
+            if (approvedFields != null && !approvedFields.contains(key)) return;
+
+            if (key == 'email') {
+              userData['pending_email'] = value;
+            } else {
+              if (key == 'name' || key == 'department' || key == 'idCardNumber') {
+                userData[key] = value;
+              }
+              facultyData[keyMap[key] ?? key] = value;
             }
-            facultyData[keyMap[key] ?? key] = value;
           });
 
           if (facultyDocId == null || currentMember.isEmpty) {

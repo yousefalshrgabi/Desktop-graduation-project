@@ -1,4 +1,5 @@
 import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
+import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'colleges_view_model.dart';
@@ -27,7 +28,7 @@ class _CollegesState extends State<Colleges> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DesktopColors.background,
-      appBar: _buildAppBar(),
+      appBar: const SharedDesktopAppBar(),
       body: AnimatedBuilder(
         animation: _viewModel,
         builder: (context, child) {
@@ -49,48 +50,7 @@ class _CollegesState extends State<Colleges> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: Row(
-        children: [
-          const Icon(Icons.school, color: DesktopColors.primary),
-          const SizedBox(width: DesktopSpacing.xs),
-          Text('نظام الشؤون الأكاديمية',
-              style:
-                  DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
-        ],
-      ),
-      actions: [
-        TextButton(onPressed: () {}, child: const Text('العربية | EN')),
-
-        // 👈 إضافة زر المزامنة هنا
-        IconButton(
-          tooltip: 'مزامنة السحابة', // يظهر كنص توضيحي عند تمرير الماوس
-          icon: const Icon(Icons.cloud_sync_outlined,
-              color: DesktopColors.primary),
-          onPressed: () {
-            showDialog(
-              context: context,
-              barrierDismissible: false, // لمنع الإغلاق بالخطأ أثناء المزامنة
-              builder: (context) => SyncDialog(),
-            );
-          },
-        ),
-
-        IconButton(
-            icon: const Icon(Icons.notifications_none), onPressed: () {}),
-        IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () {}),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: CircleAvatar(
-            backgroundColor: Color.fromARGB(255, 219, 215, 220),
-            child: Text('أ'),
-          ),
-        ),
-      ],
-    );
-  }
-
+  
   Widget _buildHeader() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

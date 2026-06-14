@@ -53,7 +53,8 @@ class CourseAssignmentModel {
         theoreticalGroups: map['theoretical_groups'] ?? 1,
         practicalGroups: map['practical_groups'] ?? 0,
         isSynced: map['is_synced'] == 1,
-        createdAt: DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now(),
+        createdAt:
+            DateTime.tryParse(map['created_at'].toString()) ?? DateTime.now(),
       );
 
   Map<String, dynamic> toFirestoreMap() => {

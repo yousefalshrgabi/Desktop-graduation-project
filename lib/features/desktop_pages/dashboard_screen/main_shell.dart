@@ -11,8 +11,8 @@ import 'package:academic_affairs_management/features/desktop_pages/users_screen/
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/requests_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/programs_screen/programs_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/subjects_screen/subjects_view.dart';
-import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/study_plans_view.dart';
-import 'package:academic_affairs_management/features/desktop_pages/workload_management/course_assignment_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/screens/study_plan_list_screen.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/course_assignment_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/workload_report_view.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/widgets/change_password_dialog.dart';
@@ -101,11 +101,27 @@ class _MainShellState extends State<MainShell>
                     DepartmentsView(key: ValueKey('depts_$_selectedIndex')),
                     FacultyMembers(key: ValueKey('faculty_$_selectedIndex')),
                     Users(key: ValueKey('users_$_selectedIndex')),
-                    ProgramsView(key: ValueKey('programs_$_selectedIndex')),
-                    SubjectsView(key: ValueKey('subjects_$_selectedIndex')),
-                    StudyPlansView(key: ValueKey('study_plans_$_selectedIndex')),
+                    StudyPlanListScreen(
+                      key: ValueKey('study_plans_$_selectedIndex'),
+                      initialCollege: AppSession().userCollege.isNotEmpty
+                          ? AppSession().userCollege
+                          : null,
+                      canEdit: AppSession().isAdminOrDeanship ||
+                          AppSession().isViceDean,
+                      lockCollege: AppSession().isViceDean &&
+                          !AppSession().isAdminOrDeanship,
+                    ),
                     RequestsView(key: ValueKey('requests_$_selectedIndex')),
-                    CourseAssignmentView(key: ValueKey('assign_$_selectedIndex')),
+                    CourseAssignmentView(
+                      key: ValueKey('assign_$_selectedIndex'),
+                      initialCollege: AppSession().userCollege.isNotEmpty
+                          ? AppSession().userCollege
+                          : 'كلية الحاسبات',
+                      canEdit: AppSession().isAdminOrDeanship ||
+                          AppSession().isViceDean,
+                      lockCollege: AppSession().isViceDean &&
+                          !AppSession().isAdminOrDeanship,
+                    ),
                     WorkloadReportView(key: ValueKey('workload_$_selectedIndex')),
                   ],
                 ),
@@ -171,12 +187,13 @@ class _MainShellState extends State<MainShell>
                 _buildSidebarItem(2, 'الأقسام', Icons.account_tree_outlined),
                 _buildSidebarItem(3, 'هيئة التدريس', Icons.people_outline),
                 _buildSidebarItem(4, 'المستخدمين', Icons.manage_accounts_outlined),
-                _buildSidebarItem(5, 'إدارة البرامج', Icons.school_outlined),
-                _buildSidebarItem(6, 'المقررات', Icons.menu_book_outlined),
-                _buildSidebarItem(7, 'الخطط الدراسية', Icons.schema_outlined),
-                _buildSidebarItem(8, 'الطلبات', Icons.request_page_outlined),
-                _buildSidebarItem(9, 'ربط المقررات', Icons.assignment_ind_outlined),
-                _buildSidebarItem(10, 'نصاب المدرسين', Icons.analytics_outlined),
+                _buildSidebarItem(5, 'الخطط الدراسية', Icons.schema_outlined),
+                _buildSidebarItem(6, 'الطلبات', Icons.request_page_outlined),
+                // إخفاء الميزة من الديسكتوب للنيابة الأكاديمية/العامة حسب طلبك
+                if (!AppSession().isViceDean && !AppSession().userRole.contains('Public Prosecution')) ...[
+                  _buildSidebarItem(7, 'ربط المقررات', Icons.assignment_ind_outlined),
+                  _buildSidebarItem(8, 'نصاب المدرسين', Icons.analytics_outlined),
+                ],
               ],
             ),
           ),

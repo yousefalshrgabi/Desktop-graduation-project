@@ -6,6 +6,11 @@ import '../models/timetable_entry.dart';
 import '../services/timetable_csv_parser.dart';
 import '../services/timetable_firestore_service.dart';
 import '../utils/csv_load.dart';
+import '../services/teacher_alias_service.dart';
+import '../models/teacher_alias.dart';
+import '../../desktop_pages/workload_management/models/faculty_option.dart';
+import '../../desktop_pages/workload_management/services/faculty_firestore_service.dart';
+import '../widgets/teacher_sync_dialog.dart';
 
 class UploadScheduleScreen extends StatefulWidget {
   const UploadScheduleScreen({super.key});
@@ -16,7 +21,70 @@ class UploadScheduleScreen extends StatefulWidget {
 
 class _UploadScheduleScreenState extends State<UploadScheduleScreen> {
   final TimetableFirestoreService _firestore = TimetableFirestoreService();
+  final FacultyFirestoreService _facultyService = FacultyFirestoreService();
+  final TeacherAliasService _aliasService = TeacherAliasService();
+
   bool _busy = false;
+  bool _isLoadingSyncData = false;
+  
+  List<TimetableEntry> _allEntries = [];
+  List<FacultyOption> _facultyMembers = [];
+  List<TeacherAlias> _aliases = [];
+  List<String> _unmappedNames = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadSyncData();
+  }
+
+  Future<void> _loadSyncData() async {
+    setState(() => _isLoadingSyncData = true);
+    final userCollege = AppSession().userCollege.trim();
+    if (userCollege.isEmpty) {
+      if (mounted) setState(() => _isLoadingSyncData = false);
+      return;
+    }
+
+    try {
+      final futures = await Future.wait([
+        _firestore.getByCollegeCachedFirst(userCollege, forceRefresh: true),
+        _facultyService.listUniversityWide(forceRefresh: true),
+        _aliasService.getAliasesForCollege(userCollege),
+      ]);
+
+      _allEntries = futures[0] as List<TimetableEntry>;
+      _facultyMembers = futures[1] as List<FacultyOption>;
+      _aliases = futures[2] as List<TeacherAlias>;
+
+      _computeUnmappedNames();
+    } catch (e) {
+      debugPrint('Error loading sync data: $e');
+    } finally {
+      if (mounted) setState(() => _isLoadingSyncData = false);
+    }
+  }
+
+  void _computeUnmappedNames() {
+    final set = <String>{};
+    for (final e in _allEntries) {
+      for (final t in e.teachers) {
+        if (t.trim().isNotEmpty) set.add(t.trim());
+      }
+    }
+    final scheduleNames = set.toList()..sort();
+
+    final facultyNames = _facultyMembers.map((f) => f.name.trim()).toSet();
+    final aliasMap = {for (var a in _aliases) a.aliasName: a.canonicalName};
+
+    final unmapped = <String>[];
+    for (final name in scheduleNames) {
+      if (!facultyNames.contains(name) && !aliasMap.containsKey(name)) {
+        unmapped.add(name);
+      }
+    }
+    _unmappedNames = unmapped;
+  }
 
   Future<void> _pickAndUpload() async {
     setState(() => _busy = true);
@@ -58,6 +126,10 @@ class _UploadScheduleScreenState extends State<UploadScheduleScreen> {
 
       if (!mounted) return;
       _toast('✅ تم رفع ${entries.length} نشاطاً لكلية ($userCollege) بنجاح');
+      
+      // Reload sync data after upload
+      await _loadSyncData();
+      
     } catch (e) {
       if (mounted) {
         _toast('خطأ: $e');
@@ -79,7 +151,7 @@ class _UploadScheduleScreenState extends State<UploadScheduleScreen> {
     final userCollege = AppSession().userCollege.trim();
     final hasCollege = userCollege.isNotEmpty;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -159,6 +231,119 @@ class _UploadScheduleScreenState extends State<UploadScheduleScreen> {
               padding: const EdgeInsets.symmetric(vertical: 16),
             ),
           ),
+          const SizedBox(height: 32),
+          if (hasCollege) ...[
+            Card(
+              elevation: 0,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+                side: BorderSide(
+                    color: _unmappedNames.isNotEmpty
+                        ? Colors.orange.shade300
+                        : theme.colorScheme.outlineVariant),
+              ),
+              color: _unmappedNames.isNotEmpty ? Colors.orange.shade50 : null,
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.sync_alt,
+                            color: _unmappedNames.isNotEmpty
+                                ? Colors.orange.shade900
+                                : theme.colorScheme.primary),
+                        const SizedBox(width: 10),
+                        Text(
+                          'مزامنة أسماء المعلمين المرفوعة',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                            color: _unmappedNames.isNotEmpty
+                                ? Colors.orange.shade900
+                                : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'للربط بين أسماء المعلمين في الجداول المرفوعة من FET مع قاعدة البيانات الرسمية حتى يتم احتساب أنصبتهم بشكل صحيح.',
+                      style: theme.textTheme.bodyMedium,
+                    ),
+                    if (_isLoadingSyncData)
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: Center(child: CircularProgressIndicator()),
+                      )
+                    else if (_unmappedNames.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.orange.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.warning_amber_rounded,
+                                color: Colors.orange.shade900),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'يوجد ${_unmappedNames.length} أسماء بحاجة للربط!',
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.orange.shade900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      FilledButton.tonalIcon(
+                        onPressed: () {
+                          showDialog(
+                            context: context,
+                            builder: (context) => TeacherSyncDialog(
+                              collegeName: userCollege,
+                              unmappedNames: _unmappedNames,
+                              facultyMembers: _facultyMembers,
+                              onSyncComplete: _loadSyncData,
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.link),
+                        label: const Text('ربط الأسماء الآن'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: Colors.orange.shade200,
+                          foregroundColor: Colors.orange.shade900,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
+                      ),
+                    ] else ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green),
+                          const SizedBox(width: 8),
+                          Text(
+                            'جميع الأسماء في الجداول مربوطة بنجاح.',
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ]
+                  ],
+                ),
+              ),
+            ),
+          ],
         ],
       ),
     );

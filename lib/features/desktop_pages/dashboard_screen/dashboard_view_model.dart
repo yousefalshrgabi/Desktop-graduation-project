@@ -42,9 +42,7 @@ class DashboardViewModel extends ChangeNotifier {
           await db.rawQuery('SELECT COUNT(*) as count FROM programs');
       final int totalPrograms = Sqflite.firstIntValue(programsCountResult) ?? 0;
 
-      final studyPlansCountResult =
-          await db.rawQuery('SELECT COUNT(*) as count FROM studyPlans');
-      final int totalStudyPlans = Sqflite.firstIntValue(studyPlansCountResult) ?? 0;
+      final int totalStudyPlans = 0; // Local caching removed for study plans
 
       // =======================================================
       // 2. جلب أحدث الكليات المضافة

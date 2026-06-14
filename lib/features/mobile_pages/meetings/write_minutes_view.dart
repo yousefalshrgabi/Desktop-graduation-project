@@ -89,7 +89,7 @@ class _WriteMinutesViewState extends State<WriteMinutesView> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('تم حفظ المسودة بنجاح.'),
-          backgroundColor: Colors.blue,
+          backgroundColor: DesktopColors.primary,
         ),
       );
     }
@@ -296,7 +296,7 @@ class _WriteMinutesViewState extends State<WriteMinutesView> {
                             icon: const Icon(Icons.download),
                             label: const Text('تصدير كـ Word (.docx)', style: TextStyle(fontFamily: 'Cairo')),
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.blue[800],
+                              backgroundColor: DesktopColors.primary,
                               foregroundColor: Colors.white,
                             ),
                           ),

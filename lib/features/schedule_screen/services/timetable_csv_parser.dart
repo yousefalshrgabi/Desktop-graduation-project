@@ -18,7 +18,7 @@ class TimetableCsvParser {
     if (text.isNotEmpty && text.codeUnitAt(0) == 0xFEFF) {
       text = text.substring(1);
     }
-    
+
     final rows = _parseCsv(text);
     if (rows.isEmpty) return [];
 
@@ -52,10 +52,10 @@ class TimetableCsvParser {
     var currentRow = <String>[];
     var currentCell = StringBuffer();
     bool inQuotes = false;
-    
+
     for (int i = 0; i < text.length; i++) {
       final c = text[i];
-      
+
       if (c == '"') {
         if (inQuotes && i + 1 < text.length && text[i + 1] == '"') {
           // Escaped quote
@@ -82,12 +82,12 @@ class TimetableCsvParser {
         currentCell.write(c);
       }
     }
-    
+
     if (currentCell.isNotEmpty || currentRow.isNotEmpty) {
       currentRow.add(currentCell.toString());
       rows.add(currentRow);
     }
-    
+
     return rows;
   }
 
@@ -112,23 +112,41 @@ class _HeaderIndices {
     required this.teachers,
     required this.studentSets,
     required this.room,
-  }) : maxIndex = [id, day, hour, subject, teachers, studentSets, room].reduce((a, b) => a > b ? a : b);
+  }) : maxIndex = [id, day, hour, subject, teachers, studentSets, room]
+            .reduce((a, b) => a > b ? a : b);
 
   factory _HeaderIndices.fromHeaders(List<String> headers) {
-    int hId = 0, hDay = 1, hHour = 2, hSubj = 3, hTeach = 4, hStud = 5, hRoom = 6;
+    int hId = 0,
+        hDay = 1,
+        hHour = 2,
+        hSubj = 3,
+        hTeach = 4,
+        hStud = 5,
+        hRoom = 6;
     for (int i = 0; i < headers.length; i++) {
       final h = headers[i].trim().toLowerCase();
-      if (h == 'id' || h == 'activity id' || h == '#') hId = i;
-      else if (h == 'day' || h == 'اليوم') hDay = i;
-      else if (h == 'hour' || h == 'الساعة') hHour = i;
-      else if (h == 'subject' || h == 'المادة') hSubj = i;
-      else if (h == 'teachers' || h == 'teacher' || h == 'المعلمين') hTeach = i;
-      else if (h == 'student sets' || h == 'students' || h == 'studentsets' || h == 'الطلاب') hStud = i;
-      else if (h == 'room' || h == 'القاعة') hRoom = i;
+      if (h == 'id' || h == 'activity id' || h == '#' || h.contains('id') || h == 'الرقم')
+        hId = i;
+      else if (h == 'day' || h == 'اليوم' || h == 'الايام')
+        hDay = i;
+      else if (h == 'hour' || h == 'الساعة' || h == 'الوقت')
+        hHour = i;
+      else if (h == 'subject' || h == 'المادة' || h == 'المقرر')
+        hSubj = i;
+      else if (h == 'teachers' || h == 'teacher' || h == 'المعلمين' || h == 'المعلمون' || h == 'المدرسين' || h == 'المدرسون')
+        hTeach = i;
+      else if (h == 'student sets' || h == 'students sets' || h == 'students' || h == 'studentsets' || h == 'الطلاب' || h == 'مجموعات الطلاب' || h == 'المجموعات')
+        hStud = i;
+      else if (h == 'room' || h == 'القاعة' || h == 'الغرفة') hRoom = i;
     }
     return _HeaderIndices(
-      id: hId, day: hDay, hour: hHour, subject: hSubj,
-      teachers: hTeach, studentSets: hStud, room: hRoom,
+      id: hId,
+      day: hDay,
+      hour: hHour,
+      subject: hSubj,
+      teachers: hTeach,
+      studentSets: hStud,
+      room: hRoom,
     );
   }
 }

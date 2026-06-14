@@ -8,6 +8,8 @@ class TimetableScheduleGrid {
     final na = int.tryParse(a.trim());
     final nb = int.tryParse(b.trim());
     if (na != null && nb != null) return na.compareTo(nb);
+    if (na != null && nb == null) return -1;
+    if (na == null && nb != null) return 1;
     return a.compareTo(b);
   }
 

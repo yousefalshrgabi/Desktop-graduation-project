@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
+import '../../schedule_screen/screens/teachers_schedule_screen.dart';
+import '../../course_study_plan/screens/mobile_study_plan_template_settings_screen.dart';
+import '../../course_study_plan/screens/mobile_course_study_plan_list_screen.dart';
+import '../../course_study_plan/screens/mobile_course_progress_tracking_screen.dart';
 
 class QuickActionItem {
   final String label;
@@ -51,7 +55,87 @@ class MobileHomeViewModel extends ChangeNotifier {
         color: const Color(0xFF7048E8),
         onTap: () => onTabChange(3), // الانتقال لتبويب الجداول (Index 3)
       ),
+      QuickActionItem(
+        label: 'الساعات الزائدة',
+        icon: Icons.more_time,
+        color: const Color(0xFFE64980),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TeachersScheduleScreen(
+                  collegeName: _session.userCollege.isNotEmpty
+                      ? _session.userCollege
+                      : null),
+            ),
+          );
+        },
+      ),
+      QuickActionItem(
+        label: 'الساعات الموازية',
+        icon: Icons.timer_outlined,
+        color: const Color(0xFF15AABF),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => TeachersScheduleScreen(
+                  collegeName: _session.userCollege.isNotEmpty
+                      ? _session.userCollege
+                      : null),
+            ),
+          );
+        },
+      ),
     ];
+
+    if (_session.isMemberOnly || _session.hasMobileRoleWithExtras) {
+      actions.add(QuickActionItem(
+        label: 'خطط المقررات',
+        icon: Icons.menu_book_outlined,
+        color: const Color(0xFF228BE6),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MobileCourseStudyPlanListScreen(),
+            ),
+          );
+        },
+      ));
+    }
+
+    if (_session.hasMobileRoleWithExtras) {
+      actions.add(QuickActionItem(
+        label: 'متابعة الخطط',
+        icon: Icons.analytics_outlined,
+        color: const Color(0xFFF03E3E),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MobileCourseProgressTrackingScreen(),
+            ),
+          );
+        },
+      ));
+    }
+
+    if (_session.isViceDean) {
+      actions.add(QuickActionItem(
+        label: 'إعداد كليشة الخطط',
+        icon: Icons.settings_applications_outlined,
+        color: const Color(0xFF4C6EF5),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MobileStudyPlanTemplateSettingsScreen(),
+            ),
+          );
+        },
+      ));
+    }
 
     // إضافة زر سريع لكل دور إضافي (قد يكون أكثر من دور)
     const roleColors = [

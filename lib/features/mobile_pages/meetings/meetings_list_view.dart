@@ -47,7 +47,7 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
   Color _getStatusColor(MeetingStatus status) {
     switch (status) {
       case MeetingStatus.scheduled:
-        return Colors.blue;
+        return DesktopColors.primary;
       case MeetingStatus.draft:
         return Colors.grey;
       case MeetingStatus.pendingViceDean:
@@ -360,7 +360,7 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
                                       value: 'edit',
                                       child: Row(
                                         children: [
-                                          Icon(Icons.edit, color: Colors.blue, size: 18),
+                                          Icon(Icons.edit, color: DesktopColors.primary, size: 18),
                                           SizedBox(width: 8),
                                           Text('تعديل التفاصيل', style: TextStyle(fontFamily: 'Cairo', fontSize: 13)),
                                         ],

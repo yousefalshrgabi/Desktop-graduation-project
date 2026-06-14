@@ -1,4 +1,5 @@
 import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
+import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/dashboard_view_model.dart';
@@ -46,6 +47,7 @@ class _DashboardViewState extends State<DashboardView> {
       icon: Icons.manage_accounts_rounded,
       gradient: [Color(0xFFE65100), Color(0xFFFF8F00)],
     ),
+    /*
     _ModuleCard(
       index: 5,
       label: 'البرامج الأكاديمية',
@@ -53,15 +55,18 @@ class _DashboardViewState extends State<DashboardView> {
       icon: Icons.school_rounded,
       gradient: [Color(0xFFC2185B), Color(0xFFE91E63)],
     ),
+    */
+    /*
     _ModuleCard(
       index: 6,
       label: 'المقررات',
       subtitle: 'إدارة المقررات الدراسية',
       icon: Icons.menu_book_rounded,
-      gradient: [Color(0xFF512DA8), Color(0xFF7E57C2)],
+      gradient: [Color(0xFF512DA8), Color(0xFF673AB7)],
     ),
+    */
     _ModuleCard(
-      index: 7,
+      index: 5,
       label: 'الخطط الدراسية',
       subtitle: 'إدارة ومزامنة خطط المقررات بملفات CSV',
       icon: Icons.schema_outlined,
@@ -72,7 +77,7 @@ class _DashboardViewState extends State<DashboardView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: _buildAppBar(),
+      appBar: const SharedDesktopAppBar(),
       backgroundColor: DesktopColors.background,
       body: AnimatedBuilder(
         animation: _viewModel,
@@ -119,48 +124,6 @@ class _DashboardViewState extends State<DashboardView> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: Row(
-        children: [
-          const Icon(Icons.school, color: DesktopColors.primary),
-          const SizedBox(width: DesktopSpacing.xs),
-          Text('نظام الشؤون الأكاديمية',
-              style:
-                  DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
-        ],
-      ),
-      actions: [
-        TextButton(onPressed: () {}, child: const Text('العربية | EN')),
-
-        // 👈 إضافة زر المزامنة هنا
-        IconButton(
-          tooltip: 'مزامنة السحابة', // يظهر كنص توضيحي عند تمرير الماوس
-          icon: const Icon(Icons.cloud_sync_outlined,
-              color: DesktopColors.primary),
-          onPressed: () {
-            showDialog(
-              context: context,
-              barrierDismissible: false, // لمنع الإغلاق بالخطأ أثناء المزامنة
-              builder: (context) => const SyncDialog(),
-            );
-          },
-        ),
-
-        IconButton(
-            icon: const Icon(Icons.notifications_none), onPressed: () {}),
-        IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () {}),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: CircleAvatar(
-            backgroundColor: Color.fromARGB(255, 219, 215, 220),
-            child: Text('أ'),
-          ),
-        ),
-      ],
-    );
-  }
-
   // ── Header ────────────────────────────────────────────────────────────────
   Widget _buildHeader() {
     return Column(
@@ -183,7 +146,10 @@ class _DashboardViewState extends State<DashboardView> {
         // 5 بطاقات: 4 في الصف الأول وواحدة في الثاني (أو تلقائياً حسب المساحة)
         int crossAxisCount = 4;
         double spacing = DesktopSpacing.md;
-        double itemWidth = ((constraints.maxWidth - (crossAxisCount - 1) * spacing) / crossAxisCount) - 0.1;
+        double itemWidth =
+            ((constraints.maxWidth - (crossAxisCount - 1) * spacing) /
+                    crossAxisCount) -
+                0.1;
 
         return Wrap(
           spacing: spacing,
@@ -248,8 +214,7 @@ class _DashboardViewState extends State<DashboardView> {
   }) {
     return Container(
       height: 110,
-      padding: const EdgeInsets.symmetric(
-          horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -284,7 +249,10 @@ class _DashboardViewState extends State<DashboardView> {
               children: [
                 Text(
                   title,
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey),
+                  style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.grey),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -316,15 +284,20 @@ class _DashboardViewState extends State<DashboardView> {
         // بناءً على طلبك، 4 بطاقات للمسار السريع وينزل للسطر
         int crossAxisCount = 4;
         double spacing = DesktopSpacing.md;
-        double itemWidth = ((constraints.maxWidth - (crossAxisCount - 1) * spacing) / crossAxisCount) - 0.1;
+        double itemWidth =
+            ((constraints.maxWidth - (crossAxisCount - 1) * spacing) /
+                    crossAxisCount) -
+                0.1;
 
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
-          children: _modules.map((m) => SizedBox(
-            width: itemWidth,
-            child: _buildModuleButton(m),
-          )).toList(),
+          children: _modules
+              .map((m) => SizedBox(
+                    width: itemWidth,
+                    child: _buildModuleButton(m),
+                  ))
+              .toList(),
         );
       },
     );
@@ -456,4 +429,3 @@ class _ModuleCard {
     required this.gradient,
   });
 }
-

@@ -455,6 +455,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
     // Map of labels to old values and their controllers
     final Map<String, Map<String, dynamic>> fields = {
       'الاسم الكامل': {'old': m.name, 'ctrl': TextEditingController(text: m.name)},
+      'البريد الإلكتروني': {'old': _viewModel.session.userEmail, 'ctrl': TextEditingController(text: _viewModel.session.userEmail)},
       'رقم الملف': {'old': m.fileNumber, 'ctrl': TextEditingController(text: m.fileNumber)},
       'رقم الهوية': {'old': m.idCardNumber, 'ctrl': TextEditingController(text: m.idCardNumber)},
       'الرقم الوظيفي': {'old': m.jobNumber, 'ctrl': TextEditingController(text: m.jobNumber)},
@@ -572,10 +573,10 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: Colors.blue.shade50,
+                                  color: DesktopColors.primary.withOpacity(0.05),
                                   borderRadius: BorderRadius.circular(10),
-                                  border:
-                                      Border.all(color: Colors.blue.shade200),
+                                  border: Border.all(
+                                      color: DesktopColors.primary.withOpacity(0.2)),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -583,7 +584,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                     Text('إرفاق ملفات داعمة للموافقة',
                                         style: TextStyle(
                                             fontWeight: FontWeight.bold,
-                                            color: Colors.blue.shade900)),
+                                            color: DesktopColors.primary)),
                                     const SizedBox(height: 8),
                                     Row(
                                       children: [
@@ -645,7 +646,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                           style: ElevatedButton.styleFrom(
                                               backgroundColor: Colors.white,
                                               foregroundColor:
-                                                  Colors.blue.shade700,
+                                                  DesktopColors.primary,
                                               shape: RoundedRectangleBorder(
                                                   borderRadius:
                                                       BorderRadius.circular(
@@ -670,14 +671,14 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                                     fontSize: 12,
                                                     fontWeight: FontWeight.bold,
                                                     color:
-                                                        Colors.blue.shade800)),
+                                                        DesktopColors.primary)),
                                             ...files
                                                 .map((f) => Row(
                                                       children: [
                                                         const Icon(
                                                             Icons.description,
                                                             size: 14,
-                                                            color: Colors.blue),
+                                                            color: DesktopColors.primary),
                                                         const SizedBox(
                                                             width: 4),
                                                         Expanded(
@@ -727,6 +728,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                 onPressed: () async {
                                   Map<String, String> fieldMapping = {
                                     'الاسم الكامل': 'name',
+                                    'البريد الإلكتروني': 'email',
                                     'رقم الملف': 'fileNumber',
                                     'رقم الهوية': 'idCardNumber',
                                     'الرقم الوظيفي': 'jobNumber',

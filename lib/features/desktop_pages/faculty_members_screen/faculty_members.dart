@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
 import 'dart:convert';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path_provider/path_provider.dart';
@@ -247,7 +248,7 @@ class _FacultyMembersState extends State<FacultyMembers> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DesktopColors.background,
-      appBar: _buildAppBar(),
+      appBar: const SharedDesktopAppBar(),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(DesktopSpacing.md),
         child: Column(
@@ -263,43 +264,7 @@ class _FacultyMembersState extends State<FacultyMembers> {
     );
   }
 
-  PreferredSizeWidget _buildAppBar() {
-    return AppBar(
-      title: Row(
-        children: [
-          const Icon(Icons.school, color: DesktopColors.primary),
-          const SizedBox(width: DesktopSpacing.xs),
-          Text('نظام الشؤون الأكاديمية',
-              style:
-                  DesktopTextStyles.body.copyWith(fontWeight: FontWeight.bold)),
-        ],
-      ),
-      actions: [
-        TextButton(onPressed: () {}, child: const Text('العربية | EN')),
-        IconButton(
-          tooltip: 'مزامنة السحابة',
-          icon: const Icon(Icons.cloud_sync_outlined,
-              color: DesktopColors.primary),
-          onPressed: () {
-            showDialog(
-                context: context,
-                barrierDismissible: false,
-                builder: (context) => SyncDialog());
-          },
-        ),
-        IconButton(
-            icon: const Icon(Icons.notifications_none), onPressed: () {}),
-        IconButton(icon: const Icon(Icons.settings_outlined), onPressed: () {}),
-        const Padding(
-          padding: EdgeInsets.symmetric(horizontal: 16.0),
-          child: CircleAvatar(
-              backgroundColor: Color.fromARGB(255, 219, 215, 220),
-              child: Text('أ')),
-        ),
-      ],
-    );
-  }
-
+  
   Widget _buildHeader() {
     return Row(
       children: [

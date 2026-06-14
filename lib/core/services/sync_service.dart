@@ -107,7 +107,8 @@ class SyncService {
     await uploadTable('faculty_members', isFaculty: true);
 
     // -- رفع البرامج غير المتزامنة --
-    final programs = await db.query('programs', where: 'is_synced = ?', whereArgs: [0]);
+    final programs =
+        await db.query('programs', where: 'is_synced = ?', whereArgs: [0]);
     for (var p in programs) {
       final ref = _firestore.collection('programs').doc(p['id'].toString());
       List<dynamic> tracksList = [];
@@ -123,26 +124,11 @@ class SyncService {
         'created_at': _toFirebaseTimestamp(p['created_at']),
       });
       // تحديث حالة المزامنة محلياً عند نجاح الـ batch كله (نحدثها مباشرة قبل التنفيذ، إذا فشل الباتش يمكن إعادة المحاولة لاحقاً)
-      await db.update('programs', {'is_synced': 1}, where: 'id = ?', whereArgs: [p['id']]);
+      await db.update('programs', {'is_synced': 1},
+          where: 'id = ?', whereArgs: [p['id']]);
     }
 
-    // -- رفع الخطط الدراسية غير المتزامنة --
-    final studyPlans = await db.query('studyPlans', where: 'is_synced = ?', whereArgs: [0]);
-    for (var sp in studyPlans) {
-      final ref = _firestore.collection('studyPlans').doc(sp['id'].toString());
-      batch.set(ref, {
-        'program_id': sp['program_id'],
-        'track_id': sp['track_id'],
-        'ar_level': sp['ar_level'],
-        'en_level': sp['en_level'],
-        'ar_semester': sp['ar_semester'],
-        'en_semester': sp['en_semester'],
-        'semester_totals': jsonDecode(sp['semester_totals'].toString()),
-        'courses': jsonDecode(sp['courses'].toString()),
-        'created_at': _toFirebaseTimestamp(sp['created_at']),
-      });
-      await db.update('studyPlans', {'is_synced': 1}, where: 'id = ?', whereArgs: [sp['id']]);
-    }
+
 
     // تنفيذ الرفع بمراعاة الـ Timeout
     await batch.commit().timeout(
@@ -189,7 +175,7 @@ class SyncService {
                   _toLocalIsoString(data['createdAt'] ?? data['created_at']);
               localData.remove('createdAt');
             }
-            
+
             // تجاهل حقل level القديم إذا كان موجوداً لمنع حدوث خطأ في SQLite
             if (tableName == 'users' && localData.containsKey('level')) {
               localData.remove('level');
@@ -210,8 +196,6 @@ class SyncService {
       await downloadTable('users', 'users');
       await downloadTable('colleges', 'colleges');
       await downloadTable('departments', 'departments');
-      await downloadTable('subjects', 'subjects');
-      await downloadTable('study_plans', 'study_plans');
       await downloadTable('faculty_members', 'faculty_members',
           isFaculty: true);
 
@@ -235,27 +219,6 @@ class SyncService {
             conflictAlgorithm: ConflictAlgorithm.replace);
       }
 
-      // -- تنزيل الخطط الدراسية --
-      final spSnap = await _firestore.collection('studyPlans').get(serverOnly);
-      for (var doc in spSnap.docs) {
-        final data = doc.data();
-        localBatch.insert(
-            'studyPlans',
-            {
-              'id': doc.id,
-              'program_id': data['program_id'] ?? '',
-              'track_id': data['track_id'],
-              'ar_level': data['ar_level'] ?? '',
-              'en_level': data['en_level'] ?? '',
-              'ar_semester': data['ar_semester'] ?? '',
-              'en_semester': data['en_semester'] ?? '',
-              'semester_totals': jsonEncode(data['semester_totals'] ?? {}),
-              'courses': jsonEncode(data['courses'] ?? []),
-              'is_synced': 1,
-              'created_at': _toLocalIsoString(data['created_at'] ?? data['createdAt']),
-            },
-            conflictAlgorithm: ConflictAlgorithm.replace);
-      }
 
       await localBatch.commit(noResult: true);
       debugPrint('📥 تم تنزيل البيانات من السحابة وتحديث الجهاز المحلي.');

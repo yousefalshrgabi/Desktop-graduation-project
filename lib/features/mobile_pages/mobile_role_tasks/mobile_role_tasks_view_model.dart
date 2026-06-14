@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/features/mobile_pages/meetings/meetings_list_view.dart';
 import 'package:academic_affairs_management/features/college_management/screens/departments_management_screen.dart';
 import 'package:academic_affairs_management/features/college_management/screens/college_faculty_screen.dart';
+import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/screens/study_plan_list_screen.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/course_assignment_view.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 
 class TaskItem {
   final String title;
@@ -55,6 +59,15 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'مراجعة وتعديل الخطط الدراسية للأقسام',
           icon: Icons.schema_outlined,
           color: const Color(0xFF0CA678),
+          onTap: () => onNavigate?.call(
+            StudyPlanListScreen(
+              initialCollege: AppSession().userCollege.isNotEmpty
+                  ? AppSession().userCollege
+                  : null,
+              lockCollege: true,
+              canEdit: true,
+            ),
+          ),
         ),
         TaskItem(
           title: 'اعتماد محاضر الاجتماعات',
@@ -91,10 +104,34 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
     } else if (isViceDean) {
       return [
         TaskItem(
-          title: 'الإشراف على البرامج الأكاديمية',
+          title: 'الإشراف على البرامج الأكاديمية (الخطط الدراسية)',
           subtitle: 'متابعة جودة البرامج والمقررات الدراسية',
           icon: Icons.school_outlined,
           color: const Color(0xFF3B5BDB),
+          onTap: () => onNavigate?.call(
+            StudyPlanListScreen(
+              initialCollege: AppSession().userCollege.isNotEmpty
+                  ? AppSession().userCollege
+                  : null,
+              lockCollege: true,
+              canEdit: true,
+            ),
+          ),
+        ),
+        TaskItem(
+          title: 'ربط المقررات بالمدرسين',
+          subtitle: 'إسناد المقررات لمدرسي النظري والعملي',
+          icon: Icons.assignment_ind_outlined,
+          color: const Color(0xFF099268),
+          onTap: () => onNavigate?.call(
+            CourseAssignmentView(
+              initialCollege: AppSession().userCollege.isNotEmpty
+                  ? AppSession().userCollege
+                  : 'كلية الحاسبات',
+              lockCollege: true,
+              canEdit: true,
+            ),
+          ),
         ),
         TaskItem(
           title: 'مراجعة محاضر الاجتماعات',
@@ -176,6 +213,34 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'مراجعة وتطوير الخطة الدراسية',
           icon: Icons.auto_stories_outlined,
           color: const Color(0xFFE03131),
+          onTap: () async {
+            String? deptName;
+            if (AppSession().userDepartment.isNotEmpty) {
+              final db = await DatabaseHelper.instance.database;
+              final res = await db.query(
+                'departments',
+                where: 'id = ?',
+                whereArgs: [AppSession().userDepartment],
+              );
+              if (res.isNotEmpty) {
+                deptName = res.first['name'].toString();
+              } else {
+                deptName = AppSession().userDepartment;
+              }
+            }
+
+            onNavigate?.call(
+              StudyPlanListScreen(
+                initialCollege: AppSession().userCollege.isNotEmpty
+                    ? AppSession().userCollege
+                    : null,
+                lockCollege: true,
+                initialProgram: deptName,
+                lockProgram: true,
+                canEdit: false,
+              ),
+            );
+          },
         ),
         TaskItem(
           title: 'تقرير القسم',

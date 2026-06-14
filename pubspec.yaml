@@ -55,6 +55,10 @@ dependencies:
   file_saver: ^0.3.1
   open_filex: ^4.7.0
   charset_converter: ^2.3.0
+  archive: ^3.6.1
+  pdf: ^3.12.0
+  http: ^1.6.0
+  docx_template: ^0.4.0
 
 
 dev_dependencies:
@@ -82,7 +86,7 @@ flutter:
   # To add images to your application, add an images section, like this:
   assets:
       - images/
-  #   - images/a_dot_ham.jpeg
+      - assets/templates/
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

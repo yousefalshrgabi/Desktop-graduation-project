@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
@@ -165,6 +166,8 @@ class MobileFacultyProfileScreen extends StatelessWidget {
       appBar: AppBar(
         title: Text('الملف الشخصي: ${_getString('name')}'),
         centerTitle: true,
+        backgroundColor: DesktopColors.primary,
+        foregroundColor: Colors.white,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
@@ -222,7 +225,7 @@ class MobileFacultyProfileScreen extends StatelessWidget {
                   children: [
                     const Text('البكالوريوس',
                         style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.blue)),
+                            fontWeight: FontWeight.bold, color: DesktopColors.primary)),
                     _buildInfoRow('الدرجة', _getString('bsc_degree')),
                     _buildInfoRow('التاريخ', _getString('bsc_date')),
                     _buildInfoRow('الجامعة', _getString('bsc_university')),
@@ -231,7 +234,7 @@ class MobileFacultyProfileScreen extends StatelessWidget {
                     const Divider(),
                     const Text('الماجستير',
                         style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.blue)),
+                            fontWeight: FontWeight.bold, color: DesktopColors.primary)),
                     _buildInfoRow('الدرجة', _getString('msc_degree')),
                     _buildInfoRow('التاريخ', _getString('msc_date')),
                     _buildInfoRow('الجامعة', _getString('msc_university')),
@@ -241,7 +244,7 @@ class MobileFacultyProfileScreen extends StatelessWidget {
                     const Divider(),
                     const Text('الدرجة الحالية (دكتوراه وما يعادلها)',
                         style: TextStyle(
-                            fontWeight: FontWeight.bold, color: Colors.blue)),
+                            fontWeight: FontWeight.bold, color: DesktopColors.primary)),
                     _buildInfoRow('الدرجة', _getString('current_degree')),
                     _buildInfoRow('التاريخ', _getString('current_degree_date')),
                     _buildInfoRow('الجامعة', _getString('current_university')),
@@ -377,10 +380,10 @@ class _FileItemWidgetState extends State<FileItemWidget> {
               width: 24,
               height: 24,
               child: CircularProgressIndicator(strokeWidth: 2))
-          : const Icon(Icons.download, color: Colors.blue),
+          : const Icon(Icons.download, color: DesktopColors.primary),
       title: Text(widget.title,
           style: const TextStyle(
-              color: Colors.blue, decoration: TextDecoration.underline)),
+              color: DesktopColors.primary, decoration: TextDecoration.underline)),
       onTap: _isDownloading ? null : _downloadAndOpenFile,
     );
   }

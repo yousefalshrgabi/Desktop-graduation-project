@@ -56,14 +56,14 @@ class _MobileHomeViewState extends State<MobileHomeView> {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF0123C9), Color(0xFF3B5BDB)],
+          colors: [DesktopColors.primary, DesktopColors.primaryDark],
           begin: Alignment.topRight,
           end: Alignment.bottomLeft,
         ),
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: const Color(0xFF0123C9).withOpacity(0.3),
+            color: DesktopColors.primary.withOpacity(0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),

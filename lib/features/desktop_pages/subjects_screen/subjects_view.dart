@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
 import 'subjects_view_model.dart';
 import 'subject_model.dart';
 
@@ -24,6 +25,7 @@ class _SubjectsViewState extends State<SubjectsView> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DesktopColors.background,
+      appBar: const SharedDesktopAppBar(),
       body: AnimatedBuilder(
         animation: _viewModel,
         builder: (context, _) {

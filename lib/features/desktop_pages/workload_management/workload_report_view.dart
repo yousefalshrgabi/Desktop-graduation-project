@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
 import 'workload_viewmodel.dart';
 
 class WorkloadReportView extends StatelessWidget {
@@ -22,10 +23,7 @@ class _WorkloadReportContent extends StatelessWidget {
     final viewModel = Provider.of<WorkloadViewModel>(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('تقرير النصاب التدريسي للأعضاء'),
-        centerTitle: true,
-      ),
+      appBar: const SharedDesktopAppBar(customTitle: 'تقرير النصاب التدريسي للأعضاء'),
       body: viewModel.isLoading
           ? const Center(child: CircularProgressIndicator())
           : _buildReportTable(viewModel, context),

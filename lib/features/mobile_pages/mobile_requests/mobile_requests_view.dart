@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_model.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_view_model.dart';
+import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -195,7 +196,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                                   .map((f) => Row(
                                         children: [
                                           const Icon(Icons.file_present,
-                                              color: Colors.blue),
+                                              color: DesktopColors.primary),
                                           const SizedBox(width: 8),
                                           Expanded(
                                               child: Text(f.name,
@@ -268,7 +269,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                       }
                     },
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue[800],
+                      backgroundColor: DesktopColors.primary,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       shape: RoundedRectangleBorder(
@@ -428,7 +429,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
       child: Scaffold(
         appBar: AppBar(
           title: const Text('الطلبات'),
-          backgroundColor: Colors.blue[800],
+          backgroundColor: DesktopColors.primary,
           foregroundColor: Colors.white,
           actions: [
             IconButton(
@@ -487,7 +488,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
         floatingActionButton: FloatingActionButton.extended(
           heroTag: null,
           onPressed: _showNewRequestBottomSheet,
-          backgroundColor: Colors.blue[800],
+          backgroundColor: DesktopColors.primary,
           icon: const Icon(Icons.add, color: Colors.white),
           label: const Text('طلب جديد', style: TextStyle(color: Colors.white)),
         ),
@@ -599,7 +600,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                       ElevatedButton(
                         onPressed: () => _showRespondBottomSheet(req),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.blue[800],
+                          backgroundColor: DesktopColors.primary,
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8)),

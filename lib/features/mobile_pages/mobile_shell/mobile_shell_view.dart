@@ -1,8 +1,10 @@
 import 'package:academic_affairs_management/main.dart';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
+import 'package:academic_affairs_management/core/services/sync_service.dart';
 import 'mobile_shell_view_model.dart';
 import '../mobile_profile/mobile_profile_view.dart';
 import '../mobile_requests/mobile_requests_view.dart';
@@ -26,6 +28,104 @@ class _MobileShellState extends State<MobileShell> {
   void initState() {
     super.initState();
     _buildNavItems();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkPendingEmail();
+    });
+  }
+
+  Future<void> _checkPendingEmail() async {
+    final session = AppSession();
+    if (session.userId.isEmpty) return;
+
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(session.userId)
+          .get();
+      if (!doc.exists) return;
+      final data = doc.data() as Map<String, dynamic>;
+      final pendingEmail = data['pending_email']?.toString() ?? '';
+
+      if (pendingEmail.isNotEmpty && mounted) {
+        final confirm = await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => AlertDialog(
+            title: const Row(
+              children: [
+                Icon(Icons.mark_email_unread, color: Colors.blue),
+                SizedBox(width: 8),
+                Text('تأكيد تغيير البريد الإلكتروني'),
+              ],
+            ),
+            content: Text(
+                'لقد وافقت النيابة على تغيير بريدك الإلكتروني إلى:\n\n$pendingEmail\n\nهل تريد تأكيد التغيير الآن؟ سيتم إرسال رابط تحقق إلى بريدك الجديد ولن يكتمل التغيير حتى تضغط عليه. سيتم تسجيل خروجك وعليك الدخول بالبريد الجديد بعد التحقق.'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('تأجيل'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('تأكيد وتغيير البريد'),
+              ),
+            ],
+          ),
+        );
+
+        if (confirm == true && mounted) {
+          showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (_) => const Center(child: CircularProgressIndicator()),
+          );
+
+          try {
+            await FirebaseAuth.instance.currentUser!
+                .verifyBeforeUpdateEmail(pendingEmail);
+
+            // تحديث قاعدة البيانات
+            await FirebaseFirestore.instance
+                .collection('users')
+                .doc(session.userId)
+                .update({
+              'email': pendingEmail,
+              'pending_email': FieldValue.delete(),
+            });
+
+            final facultyQuery = await FirebaseFirestore.instance
+                .collection('faculty_members')
+                .where('user_id', isEqualTo: session.userId)
+                .limit(1)
+                .get();
+            if (facultyQuery.docs.isNotEmpty) {
+              await facultyQuery.docs.first.reference.update({
+                'email': pendingEmail,
+              });
+            }
+
+            await AppSession().clear();
+            await FirebaseAuth.instance.signOut();
+
+            if (mounted) {
+              Navigator.of(context, rootNavigator: true)
+                  .pop(); // إغلاق الدايلوج
+              MyApp.restartApp(context, loggedIn: false);
+            }
+          } catch (e) {
+            if (mounted) {
+              Navigator.of(context, rootNavigator: true)
+                  .pop(); // إغلاق الدايلوج
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text(
+                      'حدث خطأ أثناء التحديث (قد تحتاج لإعادة تسجيل الدخول أولاً لتحديث البريد): $e')));
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking pending email: $e');
+    }
   }
 
   void _buildNavItems() {
@@ -113,7 +213,8 @@ class _MobileShellState extends State<MobileShell> {
       barrierDismissible: false,
       builder: (_) => Center(
         child: Card(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
           child: Container(
             padding: const EdgeInsets.all(24),
             child: Column(
@@ -156,6 +257,46 @@ class _MobileShellState extends State<MobileShell> {
           SnackBar(content: Text('خطأ غير متوقع: $e')),
         );
       }
+    }
+  }
+
+  Future<void> _performSync() async {
+    final syncService = SyncService();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('جاري المزامنة مع السحابة...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      await syncService.performSmartSync();
+      if (!mounted) return;
+      Navigator.pop(context); // إغلاق الحوار
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تمت المزامنة بنجاح!')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // إغلاق الحوار
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('فشلت المزامنة: $e'), backgroundColor: Colors.red),
+      );
     }
   }
 
@@ -205,6 +346,11 @@ class _MobileShellState extends State<MobileShell> {
         ],
       ),
       actions: [
+        IconButton(
+          icon: const Icon(Icons.sync_rounded),
+          tooltip: 'مزامنة',
+          onPressed: _performSync,
+        ),
         // قائمة الإشعارات المتصلة بـ Firestore مع شارة العدد غير المقروء (مفرزة محلياً لتجنب الحاجة لفهرس سحابي)
         StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
@@ -214,12 +360,13 @@ class _MobileShellState extends State<MobileShell> {
           builder: (context, snapshot) {
             int unreadCount = 0;
             List<QueryDocumentSnapshot> sortedDocs = [];
-            
+
             if (snapshot.hasData) {
               unreadCount = snapshot.data!.docs
-                  .where((doc) => (doc.data() as Map<String, dynamic>)['isRead'] == false)
+                  .where((doc) =>
+                      (doc.data() as Map<String, dynamic>)['isRead'] == false)
                   .length;
-                  
+
               // ترتيب الإشعارات محلياً من الأحدث إلى الأقدم
               sortedDocs = List.from(snapshot.data!.docs);
               sortedDocs.sort((a, b) {
@@ -235,13 +382,15 @@ class _MobileShellState extends State<MobileShell> {
             }
 
             return Badge(
-              label: Text(unreadCount.toString(), style: const TextStyle(color: Colors.white, fontSize: 10)),
+              label: Text(unreadCount.toString(),
+                  style: const TextStyle(color: Colors.white, fontSize: 10)),
               isLabelVisible: unreadCount > 0,
               backgroundColor: Colors.red,
               child: IconButton(
                 icon: const Icon(Icons.notifications_outlined),
                 tooltip: 'الإشعارات',
-                onPressed: () => _showNotificationsBottomSheet(context, sortedDocs),
+                onPressed: () =>
+                    _showNotificationsBottomSheet(context, sortedDocs),
               ),
             );
           },
@@ -256,7 +405,8 @@ class _MobileShellState extends State<MobileShell> {
   }
 
   // عرض قائمة الإشعارات في لوحة سفلية منبثقة
-  void _showNotificationsBottomSheet(BuildContext context, List<QueryDocumentSnapshot> docs) {
+  void _showNotificationsBottomSheet(
+      BuildContext context, List<QueryDocumentSnapshot> docs) {
     showModalBottomSheet(
       context: context,
       shape: const RoundedRectangleBorder(
@@ -282,7 +432,8 @@ class _MobileShellState extends State<MobileShell> {
                         fontFamily: 'Cairo',
                       ),
                     ),
-                    if (docs.any((d) => (d.data() as Map<String, dynamic>)['isRead'] == false))
+                    if (docs.any((d) =>
+                        (d.data() as Map<String, dynamic>)['isRead'] == false))
                       TextButton(
                         onPressed: () async {
                           // تحديد كل الإشعارات كمقروءة دفعة واحدة
@@ -306,40 +457,51 @@ class _MobileShellState extends State<MobileShell> {
                       ? const Center(
                           child: Text(
                             'لا توجد إشعارات حالياً',
-                            style: TextStyle(fontFamily: 'Cairo', color: Colors.grey),
+                            style: TextStyle(
+                                fontFamily: 'Cairo', color: Colors.grey),
                           ),
                         )
                       : ListView.builder(
                           itemCount: docs.length,
                           itemBuilder: (context, index) {
-                            final data = docs[index].data() as Map<String, dynamic>;
+                            final data =
+                                docs[index].data() as Map<String, dynamic>;
                             final isRead = data['isRead'] ?? false;
                             return Container(
                               margin: const EdgeInsets.only(bottom: 8),
                               decoration: BoxDecoration(
-                                color: isRead ? Colors.transparent : Colors.blue.shade50,
+                                color: isRead
+                                    ? Colors.transparent
+                                    : DesktopColors.primary.withOpacity(0.05),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: ListTile(
                                 leading: Icon(
                                   Icons.notifications_active_outlined,
-                                  color: isRead ? Colors.grey : Colors.blue,
+                                  color: isRead
+                                      ? Colors.grey
+                                      : DesktopColors.primary,
                                 ),
                                 title: Text(
                                   data['title'] ?? 'إشعار جديد',
                                   style: TextStyle(
-                                    fontWeight: isRead ? FontWeight.normal : FontWeight.bold,
+                                    fontWeight: isRead
+                                        ? FontWeight.normal
+                                        : FontWeight.bold,
                                     fontSize: 14,
                                     fontFamily: 'Cairo',
                                   ),
                                 ),
                                 subtitle: Text(
                                   data['body'] ?? '',
-                                  style: const TextStyle(fontSize: 12, fontFamily: 'Cairo'),
+                                  style: const TextStyle(
+                                      fontSize: 12, fontFamily: 'Cairo'),
                                 ),
                                 onTap: () async {
                                   // تحديد الإشعار كمقروء عند النقر عليه
-                                  await docs[index].reference.update({'isRead': true});
+                                  await docs[index]
+                                      .reference
+                                      .update({'isRead': true});
                                   if (context.mounted) Navigator.pop(context);
                                 },
                               ),
@@ -374,7 +536,8 @@ class _MobileShellState extends State<MobileShell> {
           backgroundColor: Colors.white,
           selectedItemColor: DesktopColors.primary,
           unselectedItemColor: const Color(0xFF6B7280),
-          selectedLabelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+          selectedLabelStyle:
+              const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
           unselectedLabelStyle: const TextStyle(fontSize: 11),
           type: BottomNavigationBarType.fixed,
           elevation: 0,
