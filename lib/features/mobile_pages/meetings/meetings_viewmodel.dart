@@ -319,6 +319,8 @@ class MeetingsViewModel extends ChangeNotifier {
 
       final cleanName = file.name.replaceAll(' ', '_');
       final storagePath = 'meetings/${meeting.departmentId}/${meeting.id}_$cleanName';
+      
+      debugPrint('[STORAGE UPLOAD] Target Path: $storagePath');
       final storageRef = _storage.ref().child(storagePath);
 
       // قراءة بايتات الملف بأمان (تجنباً لمشاكل مسارات ويندوز مع الحروف العربية)
@@ -331,10 +333,14 @@ class MeetingsViewModel extends ChangeNotifier {
         throw Exception('ملف فارغ أو غير متاح.');
       }
 
+      debugPrint('[STORAGE UPLOAD] File Size: ${bytes.length} bytes. Starting uploadTask...');
+
       // الرفع إلى التخزين السحابي Cloud Storage
       final uploadTask = storageRef.putData(bytes);
       final snapshot = await uploadTask;
       final documentUrl = await snapshot.ref.getDownloadURL();
+      
+      debugPrint('[STORAGE UPLOAD] Success! Download URL: $documentUrl');
 
       // التحديث في Firestore: تعيين الحالة إلى في انتظار نائب العميد
       await _firestore.collection('meetings').doc(meeting.id).update({
@@ -346,7 +352,9 @@ class MeetingsViewModel extends ChangeNotifier {
 
       await loadMeetings();
       return true;
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('[STORAGE UPLOAD ERROR] Exception occurred during upload: $e');
+      debugPrint('[STORAGE UPLOAD ERROR] StackTrace: $stackTrace');
       _errorMessage = 'حدث خطأ أثناء رفع وتوثيق المحضر: $e';
       return false;
     } finally {
