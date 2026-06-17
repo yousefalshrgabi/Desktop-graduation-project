@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 
 import '../services/course_study_plan_service.dart';
@@ -183,7 +184,8 @@ class _MobileCourseStudyPlanEditorScreenState
   Future<void> _saveDraft() async {
     setState(() => _saving = true);
     try {
-      final submission = _buildSubmission('draft');
+      final statusToSave = _submission?.status ?? 'draft';
+      final submission = _buildSubmission(statusToSave);
       await _service.saveSubmission(submission);
       _submission = submission;
       if (!mounted) return;
@@ -206,13 +208,13 @@ class _MobileCourseStudyPlanEditorScreenState
   Future<void> _submit() async {
     setState(() => _submitting = true);
     try {
-      final submission = _buildSubmission('submitted');
+      final submission = _buildSubmission('pending_dept_head');
       await _service.saveSubmission(submission);
       _submission = submission;
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('تم رفع الخطة التدريسية للرئيس والنائب الأكاديمي.'),
+          content: Text('تم رفع الخطة التدريسية لاعتماد رئيس القسم.'),
         ),
       );
     } catch (e) {
@@ -249,9 +251,154 @@ class _MobileCourseStudyPlanEditorScreenState
     }
   }
 
+  Future<void> _updateStatus(String newStatus, {String? reason}) async {
+    if (_submission == null) return;
+    setState(() => _submitting = true);
+    try {
+      await _service.updateSubmissionStatus(_submission!.id, newStatus, rejectionReason: reason);
+      _submission = await _service.loadSubmission(facultyDocId: widget.facultyDocId, courseId: widget.courseId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(reason != null ? 'تم رفض الخطة.' : 'تم اعتماد الخطة وتحويلها بنجاح.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحديث الحالة: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  Future<void> _revertToDraft() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('إلغاء الاعتماد للتعديل'),
+        content: const Text(
+          'إرجاع الخطة للتعديل سيوقف صلاحية تسجيل الإنجاز الأسبوعي، '
+          'وسيتطلب إرسال الخطة لاعتمادها من جديد من قِبل الإدارة.\n\nهل أنت متأكد؟',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.orange,
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('نعم، إرجاع كمسودة'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    setState(() => _submitting = true);
+    try {
+      await _service.updateSubmissionStatus(_submission!.id, 'draft');
+      _submission = await _service.loadSubmission(
+          facultyDocId: widget.facultyDocId, courseId: widget.courseId);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+            content: Text('تم إرجاع الخطة إلى مسودة للتعديل بنجاح.')),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+            content: Text('تعذر إرجاع الخطة: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
+  void _showRejectDialog() {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('رفض الخطة'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(labelText: 'سبب الرفض'),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              if (ctrl.text.trim().isEmpty) return;
+              Navigator.pop(ctx);
+              _updateStatus('rejected', reason: ctrl.text.trim());
+            },
+            child: const Text('تأكيد الرفض'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApprovalButtons() {
+    final status = _submission?.status;
+    if (status == null || status == 'approved' || status == 'draft' || status == 'rejected') return const SizedBox.shrink();
+
+    final session = AppSession();
+    bool canApprove = false;
+    String nextStatus = '';
+
+    if (status == 'pending_dept_head' && session.isDeptHead) {
+      canApprove = true;
+      nextStatus = 'pending_vice_dean';
+    } else if (status == 'pending_vice_dean' && session.isViceDean) {
+      canApprove = true;
+      nextStatus = 'pending_dean';
+    } else if (status == 'pending_dean' && session.isDean) {
+      canApprove = true;
+      nextStatus = 'pending_academic_affairs';
+    } else if (status == 'pending_academic_affairs' && session.isAdminOrDeanship) {
+      canApprove = true;
+      nextStatus = 'approved';
+    }
+
+    if (!canApprove) return const SizedBox.shrink();
+
+    return Row(
+      children: [
+        Expanded(
+          child: OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.red, side: const BorderSide(color: Colors.red)),
+            onPressed: _submitting ? null : _showRejectDialog,
+            icon: const Icon(Icons.close),
+            label: const Text('رفض'),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.green),
+            onPressed: _submitting ? null : () => _updateStatus(nextStatus),
+            icon: const Icon(Icons.check),
+            label: const Text('اعتماد'),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = _settings;
+    final bool canEditText = !widget.isReadOnly && (_submission == null || _submission!.status == 'draft' || _submission!.status == 'rejected');
+    final bool canEditProgress = !widget.isReadOnly && (_submission != null && _submission!.status == 'approved');
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -293,15 +440,44 @@ class _MobileCourseStudyPlanEditorScreenState
                                 style: TextStyle(color: Colors.grey),
                               ),
                               if (_submission != null) ...[
-                                const SizedBox(height: 12),
+                                const SizedBox(height: 16),
+                                if (_submission?.status == 'rejected' && _submission?.rejectionReason != null)
+                                  Container(
+                                    margin: const EdgeInsets.only(bottom: 16),
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: Colors.red.shade50,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: Colors.red.shade200),
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.error_outline, color: Colors.red.shade700),
+                                        const SizedBox(width: 8),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment: CrossAxisAlignment.start,
+                                            children: [
+                                              Text('تم رفض الخطة', style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.bold)),
+                                              Text(_submission!.rejectionReason!, style: TextStyle(color: Colors.red.shade900)),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
                                 Text(
                                   _submission!.status == 'submitted'
                                       ? 'الحالة: مرفوعة'
+                                      : _submission!.status == 'pending_dept_head' ? 'الحالة: بانتظار رئيس القسم'
+                                      : _submission!.status == 'pending_vice_dean' ? 'الحالة: بانتظار وكيل الكلية'
+                                      : _submission!.status == 'pending_dean' ? 'الحالة: بانتظار العميد'
+                                      : _submission!.status == 'pending_academic_affairs' ? 'الحالة: بانتظار الشؤون الأكاديمية'
+                                      : _submission!.status == 'approved' ? 'الحالة: معتمدة'
+                                      : _submission!.status == 'rejected' ? 'الحالة: مرفوضة'
                                       : 'الحالة: مسودة',
                                   style: TextStyle(
-                                    color: _submission!.status == 'submitted'
-                                        ? Colors.green.shade700
-                                        : Colors.orange.shade700,
+                                    color: _submission!.status == 'approved' ? Colors.green.shade700 : Colors.orange.shade700,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
@@ -336,14 +512,14 @@ class _MobileCourseStudyPlanEditorScreenState
                                         const Text('تم الإنجاز'),
                                         Checkbox(
                                           value: _isCompletedFlags[i],
-                                          onChanged: widget.isReadOnly
-                                              ? null
-                                              : (val) {
+                                          onChanged: canEditProgress
+                                              ? (val) {
                                                   setState(() {
                                                     _isCompletedFlags[i] =
                                                         val ?? false;
                                                   });
-                                                },
+                                                }
+                                              : null,
                                         ),
                                       ],
                                     ),
@@ -367,7 +543,7 @@ class _MobileCourseStudyPlanEditorScreenState
                                 const SizedBox(height: 12),
                                 TextField(
                                   controller: _topicControllers[i],
-                                  readOnly: widget.isReadOnly,
+                                  readOnly: !canEditText,
                                   minLines: 2,
                                   maxLines: 4,
                                   decoration: const InputDecoration(
@@ -381,7 +557,7 @@ class _MobileCourseStudyPlanEditorScreenState
                                     Expanded(
                                       child: TextField(
                                         controller: _theoryControllers[i],
-                                        readOnly: widget.isReadOnly,
+                                        readOnly: !canEditText,
                                         keyboardType: TextInputType.number,
                                         decoration: const InputDecoration(
                                           labelText: 'الساعات (ن)',
@@ -393,7 +569,7 @@ class _MobileCourseStudyPlanEditorScreenState
                                     Expanded(
                                       child: TextField(
                                         controller: _practicalControllers[i],
-                                        readOnly: widget.isReadOnly,
+                                        readOnly: !canEditText,
                                         keyboardType: TextInputType.number,
                                         decoration: const InputDecoration(
                                           labelText: 'الساعات (م/ع)',
@@ -406,7 +582,7 @@ class _MobileCourseStudyPlanEditorScreenState
                                 const SizedBox(height: 12),
                                 TextField(
                                   controller: _notesControllers[i],
-                                  readOnly: widget.isReadOnly,
+                                  readOnly: !canEditText,
                                   minLines: 1,
                                   maxLines: 3,
                                   decoration: const InputDecoration(
@@ -430,36 +606,58 @@ class _MobileCourseStudyPlanEditorScreenState
               runSpacing: 12,
               children: [
                 if (!widget.isReadOnly) ...[
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _saving || _submitting || _exporting
-                          ? null
-                          : _saveDraft,
-                      icon: _saving
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.save_outlined),
-                      label: const Text('حفظ الإنجاز والخطة'),
+                  if (canEditText || canEditProgress)
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _saving || _submitting || _exporting
+                            ? null
+                            : _saveDraft,
+                        icon: _saving
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.save_outlined),
+                        label: Text(canEditText ? 'حفظ مسودة الخطة' : 'حفظ الإنجاز الأسبوعي'),
+                      ),
                     ),
-                  ),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton.icon(
-                      onPressed:
-                          _saving || _submitting || _exporting ? null : _submit,
-                      icon: _submitting
-                          ? const SizedBox.square(
-                              dimension: 18,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.send_rounded),
-                      label: const Text('رفع الخطة النهائية للإدارة'),
+                  if (canEditText)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        onPressed:
+                            _saving || _submitting || _exporting ? null : _submit,
+                        icon: _submitting
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.upload_file),
+                        label: const Text('رفع الخطة التدريسية للاعتماد'),
+                      ),
                     ),
-                  ),
+                  if (canEditProgress)
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.orange.shade800,
+                          side: BorderSide(color: Colors.orange.shade800),
+                        ),
+                        onPressed:
+                            _saving || _submitting || _exporting ? null : _revertToDraft,
+                        icon: _submitting
+                            ? const SizedBox.square(
+                                dimension: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.lock_open),
+                        label: const Text('إلغاء الاعتماد للتعديل (إرجاع كمسودة)'),
+                      ),
+                    ),
                 ],
+                _buildApprovalButtons(),
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(

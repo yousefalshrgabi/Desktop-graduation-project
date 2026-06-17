@@ -58,7 +58,8 @@ class LoginViewModel extends ChangeNotifier {
 
       // حفظ نوع المستخدم
       final userData = userQuery.docs.first.data() as Map<String, dynamic>;
-      final String systemUserId = userQuery.docs.first.id; // المعرف الداخلي الصحيح
+      final String systemUserId =
+          userQuery.docs.first.id; // المعرف الداخلي الصحيح
       currentUserRole = userData['role'] ?? 'unknown';
 
       // 3. مزامنة جميع البيانات إلى SQLite للاستخدام بدون إنترنت
@@ -79,7 +80,8 @@ class LoginViewModel extends ChangeNotifier {
       await prefs.setString('userRole', currentUserRole!);
       await prefs.setString('userName', userData['name'] ?? 'مستخدم');
       await prefs.setString('userEmail', email.trim());
-      await prefs.setString('college', userData['faculty'] ?? userData['college'] ?? 'غير محدد');
+      await prefs.setString(
+          'college', userData['faculty'] ?? userData['college'] ?? 'غير محدد');
       await prefs.setString('userDepartment', userData['department'] ?? '');
       if (!rememberMe) {
         // إذا لم يختر "تذكرني"، نحفظ الجلسة بشكل مؤقت فقط
@@ -99,8 +101,7 @@ class LoginViewModel extends ChangeNotifier {
     }
   }
 
-  // 👈 تعديل: إرجاع bool لمعرفة هل نجح الخروج أم فشل
-  Future<bool> logout() async {
+  Future<bool> logout({bool forceLogout = false}) async {
     status = LoginStatus.loading;
     notifyListeners();
 
@@ -108,11 +109,12 @@ class LoginViewModel extends ChangeNotifier {
       debugPrint(
           '[LOGOUT DEBUG] جاري تأمين ورفع البيانات المحلية قبل الخروج...');
       try {
-        await _syncService
-            .performSmartSync(); // محاولة رفع التعديلات قبل تسجيل الخروج   
+        await _syncService.performSmartSync();
       } catch (syncError) {
-        throw Exception(
-            'لا يمكن تسجيل الخروج الآن. يوجد تعديلات محلية لم تُرفع للسحابة ولا يوجد اتصال بالإنترنت.');
+        if (!forceLogout) {
+          throw Exception('فشل المزامنة'); // نمرر هذه الكلمة المفتاحية للواجهة
+        }
+        debugPrint('[LOGOUT DEBUG] Sync failed, but forceLogout is true. Proceeding...');
       }
 
       // 1. تسجيل الخروج من Firebase

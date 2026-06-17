@@ -49,10 +49,11 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
     if (isDean) {
       return [
         TaskItem(
-          title: 'مراجعة الطلبات الواردة',
-          subtitle: 'مراجعة طلبات أعضاء الكلية والبت فيها',
+          title: 'الطلبات والأنصبة',
+          subtitle: 'مراجعة طلبات الكلية وأنصبة الأعضاء والبت فيها',
           icon: Icons.inbox_outlined,
           color: const Color(0xFF3B5BDB),
+          onTap: () => onTabChange?.call(2), // التوجيه لتبويب الطلبات
         ),
         TaskItem(
           title: 'الموافقة على الخطط الدراسية',
@@ -77,37 +78,27 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           onTap: () => onNavigate?.call(const MeetingsListView()),
         ),
         TaskItem(
-          title: 'إصدار القرارات الإدارية',
-          subtitle: 'إنشاء وإصدار القرارات على مستوى الكلية',
-          icon: Icons.gavel_outlined,
-          color: const Color(0xFFF59F00),
-        ),
-        TaskItem(
-          title: 'الإشراف على أعضاء الكلية',
-          subtitle: 'متابعة شؤون أعضاء هيئة التدريس',
+          title: 'أعضاء هيئة التدريس بالكلية',
+          subtitle: 'استعراض بيانات الأعضاء وإدارتها',
           icon: Icons.supervised_user_circle_outlined,
           color: const Color(0xFF7048E8),
-        ),
-        TaskItem(
-          title: 'تقارير الكلية',
-          subtitle: 'مراجعة تقارير الأداء والإنجاز الدورية',
-          icon: Icons.bar_chart_outlined,
-          color: const Color(0xFFE03131),
-        ),
-        TaskItem(
-          title: 'التنسيق مع الجامعة',
-          subtitle: 'التواصل مع إدارة الجامعة والنيابة الأكاديمية',
-          icon: Icons.link_outlined,
-          color: const Color(0xFF099268),
+          onTap: () => onNavigate?.call(const CollegeFacultyScreen()),
         ),
       ];
     } else if (isViceDean) {
       return [
         TaskItem(
-          title: 'الإشراف على البرامج الأكاديمية (الخطط الدراسية)',
+          title: 'الطلبات والاحتياج الأكاديمي',
+          subtitle: 'مراجعة الطلبات ورفع الأنصبة والاحتياج للعميد',
+          icon: Icons.request_page_outlined,
+          color: const Color(0xFF3B5BDB),
+          onTap: () => onTabChange?.call(2), // التوجيه لتبويب الطلبات
+        ),
+        TaskItem(
+          title: 'الإشراف على الخطط الدراسية',
           subtitle: 'متابعة جودة البرامج والمقررات الدراسية',
           icon: Icons.school_outlined,
-          color: const Color(0xFF3B5BDB),
+          color: const Color(0xFF0CA678),
           onTap: () => onNavigate?.call(
             StudyPlanListScreen(
               initialCollege: AppSession().userCollege.isNotEmpty
@@ -119,7 +110,7 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           ),
         ),
         TaskItem(
-          title: 'ربط المقررات بالمدرسين',
+          title: 'ربط المقررات والأنصبة',
           subtitle: 'إسناد المقررات لمدرسي النظري والعملي',
           icon: Icons.assignment_ind_outlined,
           color: const Color(0xFF099268),
@@ -144,26 +135,8 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           title: 'جداول المحاضرات',
           subtitle: 'مراجعة وتنسيق الجداول الدراسية للكلية',
           icon: Icons.calendar_month_outlined,
-          color: const Color(0xFF0CA678),
-          onTap: () => onTabChange?.call(3), // تبويب الجداول
-        ),
-        TaskItem(
-          title: 'الشؤون الأكاديمية للطلاب',
-          subtitle: 'متابعة الشؤون الأكاديمية وحالات الطلاب',
-          icon: Icons.people_outline,
           color: const Color(0xFFF59F00),
-        ),
-        TaskItem(
-          title: 'تقارير الأداء الأكاديمي',
-          subtitle: 'إعداد ومراجعة تقارير الأداء الأكاديمي',
-          icon: Icons.analytics_outlined,
-          color: const Color(0xFF7048E8),
-        ),
-        TaskItem(
-          title: 'الاعتراضات الأكاديمية',
-          subtitle: 'دراسة ومعالجة اعتراضات الطلاب والأعضاء',
-          icon: Icons.balance_outlined,
-          color: const Color(0xFFE03131),
+          onTap: () => onTabChange?.call(3), // تبويب الجداول
         ),
         TaskItem(
           title: 'إدارة الأقسام العلمية',
@@ -183,10 +156,11 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
     } else if (isDeptHead) {
       return [
         TaskItem(
-          title: 'إدارة أعضاء القسم',
-          subtitle: 'متابعة شؤون أعضاء هيئة التدريس في القسم',
-          icon: Icons.people_outline,
+          title: 'الطلبات',
+          subtitle: 'رفع ومراجعة طلبات أعضاء القسم',
+          icon: Icons.request_page_outlined,
           color: const Color(0xFF3B5BDB),
+          onTap: () => onTabChange?.call(2), // التوجيه لتبويب الطلبات
         ),
         TaskItem(
           title: 'جدول القسم',
@@ -201,12 +175,6 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           icon: Icons.meeting_room_outlined,
           color: const Color(0xFFF59F00),
           onTap: () => onNavigate?.call(const MeetingsListView()),
-        ),
-        TaskItem(
-          title: 'طلبات القسم',
-          subtitle: 'مراجعة والبت في طلبات أعضاء القسم',
-          icon: Icons.request_page_outlined,
-          color: const Color(0xFF7048E8),
         ),
         TaskItem(
           title: 'الخطة الدراسية للقسم',
@@ -241,12 +209,6 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
               ),
             );
           },
-        ),
-        TaskItem(
-          title: 'تقرير القسم',
-          subtitle: 'إعداد التقارير الدورية للقسم',
-          icon: Icons.summarize_outlined,
-          color: const Color(0xFF099268),
         ),
       ];
     }

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:file_saver/file_saver.dart';
+import 'package:flutter/widgets.dart';
 
 import '../models/semester_nasab_assignment.dart';
 import 'computed_nasab_service.dart';
@@ -86,16 +87,22 @@ class SavedCourseNeedLetter {
     required this.collegeName,
     required this.term,
     required this.data,
+    required this.status,
+    this.rejectionReason,
     this.createdAt,
     this.createdByEmail = '',
+    this.createdByUid = '',
   });
 
   final String id;
   final String collegeName;
   final String term;
   final CourseNeedLetterData data;
+  final String status;
+  final String? rejectionReason;
   final DateTime? createdAt;
   final String createdByEmail;
+  final String createdByUid;
 
   factory SavedCourseNeedLetter.fromFirestore(
     String id,
@@ -109,8 +116,11 @@ class SavedCourseNeedLetter {
       data: CourseNeedLetterData.fromMap(
         (map['data'] as Map?)?.cast<String, dynamic>() ?? const {},
       ),
+      status: (map['status'] ?? 'pending_dean').toString(),
+      rejectionReason: map['rejectionReason']?.toString(),
       createdAt: createdAt is Timestamp ? createdAt.toDate() : null,
       createdByEmail: (map['createdByEmail'] ?? '').toString(),
+      createdByUid: (map['createdByUid'] ?? '').toString(),
     );
   }
 }
@@ -122,7 +132,8 @@ class CourseNeedLetterService {
   })  : _db = firestore ?? FirebaseFirestore.instance,
         _auth = auth ?? FirebaseAuth.instance;
 
-  static const _templateAsset = 'assets/templates/course_need_letter_template.docx';
+  static const _templateAsset =
+      'assets/templates/course_need_letter_template.docx';
   static const collection = 'course_need_letters';
 
   final FirebaseFirestore _db;
@@ -215,6 +226,8 @@ class CourseNeedLetterService {
     required CourseNeedLetterData data,
   }) async {
     final user = _auth.currentUser;
+    debugPrint(
+        '[UPLOAD_DEAN] المستخدم الحالي: UID=${user?.uid}, Email=${user?.email}');
     final doc = await _db.collection(collection).add({
       'collegeName': collegeName.trim(),
       'term': term,
@@ -222,9 +235,43 @@ class CourseNeedLetterService {
       'createdByUid': user?.uid ?? '',
       'createdByEmail': user?.email ?? '',
       'createdAt': FieldValue.serverTimestamp(),
-      'status': 'submitted',
+      'status': 'pending_dean',
     });
+    debugPrint(
+        '[UPLOAD_DEAN] تم حفظ الخطاب بمعرف ${doc.id}, كلية=$collegeName');
     return doc.id;
+  }
+
+  Future<void> updateStatus(String id, String status, {String? reason}) async {
+    final Map<String, dynamic> data = {
+      'status': status,
+    };
+    if (reason != null && reason.isNotEmpty) {
+      data['rejectionReason'] = reason;
+    } else if (status != 'rejected_by_dean' &&
+        status != 'rejected_by_academic_affairs') {
+      data['rejectionReason'] = FieldValue.delete();
+    }
+    await _db.collection(collection).doc(id).update(data);
+  }
+
+  Stream<List<SavedCourseNeedLetter>> watchLetters({String? collegeName}) {
+    Query query = _db.collection(collection);
+    if (collegeName != null && collegeName.isNotEmpty) {
+      query = query.where('collegeName', isEqualTo: collegeName.trim());
+    }
+    return query.snapshots().map((snap) {
+      final list = snap.docs
+          .map((doc) => SavedCourseNeedLetter.fromFirestore(
+              doc.id, doc.data() as Map<String, dynamic>))
+          .toList();
+      list.sort((a, b) {
+        final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+      return list;
+    });
   }
 
   Future<List<SavedCourseNeedLetter>> listForCollege({

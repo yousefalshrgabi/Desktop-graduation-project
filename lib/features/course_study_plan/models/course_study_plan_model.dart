@@ -94,6 +94,7 @@ class CourseStudyPlanSubmission {
     required this.entries,
     required this.weekRanges,
     required this.academicYear,
+    this.rejectionReason,
     this.updatedAt,
     this.submittedAt,
   });
@@ -115,6 +116,7 @@ class CourseStudyPlanSubmission {
   final List<CourseStudyPlanEntry> entries;
   final List<String> weekRanges;
   final String academicYear;
+  final String? rejectionReason;
   final DateTime? updatedAt;
   final DateTime? submittedAt;
 
@@ -150,9 +152,10 @@ class CourseStudyPlanSubmission {
       'entries': entries.map((e) => e.toMap()).toList(),
       'weekRanges': weekRanges,
       'academicYear': academicYear,
+      'rejectionReason': rejectionReason,
       'updatedAt': FieldValue.serverTimestamp(),
       'submittedAt':
-          status == 'submitted' ? FieldValue.serverTimestamp() : submittedAt,
+          status == 'pending_dept_head' ? FieldValue.serverTimestamp() : submittedAt,
     };
   }
 
@@ -183,6 +186,7 @@ class CourseStudyPlanSubmission {
           .map((e) => e.toString())
           .toList(),
       academicYear: (map['academicYear'] ?? '').toString(),
+      rejectionReason: map['rejectionReason']?.toString(),
       updatedAt: (map['updatedAt'] as Timestamp?)?.toDate(),
       submittedAt: (map['submittedAt'] as Timestamp?)?.toDate(),
     );

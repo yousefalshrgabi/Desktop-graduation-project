@@ -6,6 +6,7 @@ import '../../../core/services/app_session.dart';
 import '../../desktop_pages/workload_management/models/graduation_project_group.dart';
 import '../../desktop_pages/workload_management/services/graduation_project_firestore_service.dart';
 import '../../desktop_pages/workload_management/services/overtime_hours_excel_export_service.dart';
+import '../../desktop_pages/workload_management/services/college_overtime_submission_service.dart';
 import '../models/timetable_entry.dart';
 import '../services/timetable_firestore_service.dart';
 import '../services/excel_export_service.dart';
@@ -550,11 +551,115 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
     }
   }
 
+  Future<void> _submitCollegeOvertime(String type) async {
+    final session = AppSession();
+    final typeName =
+        type == 'overtime' ? 'الساعات الزائدة' : 'الساعات الموازية';
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('رفع كشوفات $typeName'),
+        content: Text(
+            'هل أنت متأكد من رغبتك في رفع كشوفات $typeName للكلية إلى العميد لاعتمادها؟'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('تأكيد الرفع'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    try {
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const Center(child: CircularProgressIndicator()),
+      );
+
+      final service = CollegeOvertimeSubmissionService();
+      final exportService = OvertimeHoursExcelExportService();
+
+      final entriesByTeacher = <String, List<TimetableEntry>>{};
+      for (final entry in _allEntries) {
+        for (final teacher in entry.teachers) {
+          if (teacher.trim().isEmpty) continue;
+          final mappedTeacher = teacher.trim();
+          entriesByTeacher.putIfAbsent(mappedTeacher, () => []).add(entry);
+        }
+      }
+
+      final summary = await exportService.calculateCollegeSummary(
+        collegeName: session.userCollege,
+        term: 'second', // يُفضل جلبه من الإعدادات لاحقاً
+        entriesByTeacher: entriesByTeacher,
+        halfWeightEntryIds: {},
+        halfWeightSessionKeys: {},
+        graduationProjectScheduleType: type == 'overtime' ? 'عام' : 'موازي',
+      );
+
+      await service.submitToDean(
+        collegeName: session.userCollege,
+        term: 'second',
+        type: type,
+        entries: summary,
+      );
+
+      if (mounted) {
+        Navigator.pop(context); // إغلاق التحميل
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('تم رفع كشوفات $typeName للعميد بنجاح!'),
+              backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // إغلاق التحميل
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text('حدث خطأ أثناء الرفع: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final session = AppSession();
+    final isViceDean = session.isViceDean;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('جدول المعلمين'),
+        actions: [
+          if (isViceDean && _allEntries.isNotEmpty) ...[
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: Colors.teal),
+              onPressed: () => _submitCollegeOvertime('overtime'),
+              icon: const Icon(Icons.upload_file, size: 18),
+              label: const Text('رفع الساعات الزائدة للعميد',
+                  style: TextStyle(fontSize: 12)),
+            ),
+            const SizedBox(width: 8),
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: Colors.indigo),
+              onPressed: () => _submitCollegeOvertime('parallel'),
+              icon: const Icon(Icons.upload_file, size: 18),
+              label: const Text('رفع الساعات الموازية للعميد',
+                  style: TextStyle(fontSize: 12)),
+            ),
+            const SizedBox(width: 16),
+          ]
+        ],
       ),
       body: FutureBuilder<void>(
         future: _initFuture,

@@ -57,6 +57,20 @@ class CourseStudyPlanService {
         .set(submission.toMap(), SetOptions(merge: true));
   }
 
+  Future<void> updateSubmissionStatus(String id, String newStatus, {String? rejectionReason}) {
+    final Map<String, dynamic> data = {
+      'status': newStatus,
+      'updatedAt': FieldValue.serverTimestamp(),
+    };
+    if (rejectionReason != null) {
+      data['rejectionReason'] = rejectionReason;
+    } else if (newStatus != 'rejected') {
+      // Clear rejection reason if not rejected anymore
+      data['rejectionReason'] = FieldValue.delete();
+    }
+    return _db.collection(submissionsCollection).doc(id).update(data);
+  }
+
   Stream<List<CourseStudyPlanSubmission>> watchSubmissions({
     String? collegeName,
     String? departmentName,

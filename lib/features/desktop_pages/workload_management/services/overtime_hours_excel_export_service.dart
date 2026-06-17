@@ -501,6 +501,88 @@ class OvertimeHoursExcelExportService {
     label = label.replaceAll(RegExp(r'\s+G\d+\b', caseSensitive: false), '');
     return label.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
+
+  Future<List<Map<String, dynamic>>> calculateCollegeSummary({
+    required String collegeName,
+    required String term,
+    required Map<String, List<TimetableEntry>> entriesByTeacher,
+    required Set<String> halfWeightEntryIds,
+    required Set<String> halfWeightSessionKeys,
+    required String graduationProjectScheduleType,
+  }) async {
+    final catalog = await _loadCourseCatalog(collegeName: collegeName, term: term);
+    final nasabRows = await _nasab.loadSheet(collegeName: collegeName, term: term);
+    final nasabByKey = {
+      for (final row in nasabRows) row.course.courseKey: row.assignment,
+    };
+    final facultyList = await _faculty.listUniversityWide();
+
+    final results = <Map<String, dynamic>>[];
+
+    for (final mapEntry in entriesByTeacher.entries) {
+      final teacherName = mapEntry.key;
+      final teacherEntries = mapEntry.value;
+
+      var teacherCollege = collegeName;
+      for (final f in facultyList) {
+        if (f.name.trim() == teacherName.trim()) {
+          if (f.college.trim().isNotEmpty) teacherCollege = f.college;
+          break;
+        }
+      }
+
+      final gradGroups = (await _gradProject.getGroupsForTeacher(teacherName))
+          .where((group) => group.scheduleType.trim() == graduationProjectScheduleType.trim())
+          .toList();
+
+      double totalHours = 0;
+
+      for (final entry in teacherEntries) {
+        final match = _findCourse(catalog, entry.subject);
+        final isLab = _isLabSession(entry);
+        final weight = halfWeightEntryIds.contains(entry.id) ||
+                halfWeightSessionKeys.contains(sessionKeyFor(entry))
+            ? 0.5
+            : 1.0;
+
+        num theoryHours = 0;
+        num practicalHours = 0;
+        num practicalSupervisionHours = 0;
+
+        if (isLab) {
+          practicalHours = 2 * weight;
+        } else {
+          theoryHours = 2 * weight;
+          if (_shouldAddPracticalSupervision(
+            teacherName: teacherName,
+            subject: entry.subject,
+            match: match,
+            catalog: catalog,
+            nasabByKey: nasabByKey,
+            allEntries: teacherEntries,
+          )) {
+            practicalSupervisionHours = 1 * weight;
+          }
+        }
+
+        totalHours += (theoryHours + practicalHours + practicalSupervisionHours);
+      }
+
+      for (final group in gradGroups) {
+        totalHours += (group.studentCount * 0.5);
+      }
+
+      if (totalHours > 0) {
+        results.add({
+          'teacherName': teacherName,
+          'totalHours': totalHours,
+          'collegeName': teacherCollege,
+        });
+      }
+    }
+
+    return results;
+  }
 }
 
 class _CatalogEntry {

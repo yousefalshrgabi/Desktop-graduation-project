@@ -1,3 +1,4 @@
+import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
 
@@ -9,11 +10,13 @@ class CourseNeedPreviewScreen extends StatefulWidget {
     required this.collegeName,
     required this.term,
     required this.data,
+    this.savedLetter,
   });
 
   final String collegeName;
   final String term;
   final CourseNeedLetterData data;
+  final SavedCourseNeedLetter? savedLetter;
 
   @override
   State<CourseNeedPreviewScreen> createState() =>
@@ -22,8 +25,64 @@ class CourseNeedPreviewScreen extends StatefulWidget {
 
 class _CourseNeedPreviewScreenState extends State<CourseNeedPreviewScreen> {
   final _letterService = CourseNeedLetterService();
+  final _session = AppSession();
   bool _exporting = false;
   bool _uploading = false;
+
+  Future<void> _updateStatus(String newStatus, {String? reason}) async {
+    if (widget.savedLetter == null) return;
+    setState(() => _uploading = true);
+    try {
+      await _letterService.updateStatus(widget.savedLetter!.id, newStatus, reason: reason);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(reason != null ? 'تم رفض الطلب.' : 'تمت الموافقة على الطلب بنجاح.')),
+      );
+      Navigator.pop(context); // العودة للشاشة السابقة بعد اتخاذ القرار
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تعذر تحديث الحالة: $e'), backgroundColor: Colors.red),
+      );
+    } finally {
+      if (mounted) setState(() => _uploading = false);
+    }
+  }
+
+  void _showRejectDialog() {
+    final ctrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('رفض الطلب'),
+        content: TextField(
+          controller: ctrl,
+          decoration: const InputDecoration(labelText: 'سبب الرفض (إلزامي)'),
+          maxLines: 3,
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('إلغاء')),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+            onPressed: () {
+              if (ctrl.text.trim().isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('يرجى كتابة سبب الرفض')),
+                );
+                return;
+              }
+              Navigator.pop(ctx);
+              _updateStatus(
+                _session.isDean ? 'rejected_by_dean' : 'rejected_by_academic_affairs',
+                reason: ctrl.text.trim(),
+              );
+            },
+            child: const Text('تأكيد الرفض'),
+          ),
+        ],
+      ),
+    );
+  }
 
   Future<void> _export() async {
     setState(() => _exporting = true);
@@ -62,6 +121,7 @@ class _CourseNeedPreviewScreenState extends State<CourseNeedPreviewScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تم رفع مقررات الاحتياج للعميد بنجاح')),
       );
+      Navigator.pop(context); // إغلاق الشاشة بعد الرفع بنجاح
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -88,18 +148,52 @@ class _CourseNeedPreviewScreenState extends State<CourseNeedPreviewScreen> {
         appBar: SharedDesktopAppBar(
           customTitle: 'مقررات الاحتياج',
           extraActions: [
-            FilledButton.tonalIcon(
-              onPressed:
-                  _uploading || widget.data.isEmpty ? null : _uploadForDean,
-              icon: _uploading
-                  ? const SizedBox.square(
-                      dimension: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.cloud_upload_outlined),
-              label: const Text('رفع للعميد'),
-            ),
-            const SizedBox(width: 8),
+            if (widget.savedLetter == null) ...[
+              FilledButton.tonalIcon(
+                onPressed:
+                    _uploading || widget.data.isEmpty ? null : _uploadForDean,
+                icon: _uploading
+                    ? const SizedBox.square(
+                        dimension: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cloud_upload_outlined),
+                label: const Text('رفع للعميد'),
+              ),
+              const SizedBox(width: 8),
+            ] else ...[
+              if (_session.isDean && widget.savedLetter!.status == 'pending_dean') ...[
+                FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(backgroundColor: Colors.green.shade100, foregroundColor: Colors.green.shade900),
+                  onPressed: _uploading ? null : () => _updateStatus('pending_academic_affairs'),
+                  icon: const Icon(Icons.check),
+                  label: const Text('موافقة ورفع للنيابة'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(backgroundColor: Colors.red.shade100, foregroundColor: Colors.red.shade900),
+                  onPressed: _uploading ? null : _showRejectDialog,
+                  icon: const Icon(Icons.close),
+                  label: const Text('رفض الطلب'),
+                ),
+                const SizedBox(width: 8),
+              ] else if (_session.isAdminOrDeanship && widget.savedLetter!.status == 'pending_academic_affairs') ...[
+                FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(backgroundColor: Colors.green.shade100, foregroundColor: Colors.green.shade900),
+                  onPressed: _uploading ? null : () => _updateStatus('approved'),
+                  icon: const Icon(Icons.check_circle),
+                  label: const Text('اعتماد نهائي'),
+                ),
+                const SizedBox(width: 8),
+                FilledButton.tonalIcon(
+                  style: FilledButton.styleFrom(backgroundColor: Colors.red.shade100, foregroundColor: Colors.red.shade900),
+                  onPressed: _uploading ? null : _showRejectDialog,
+                  icon: const Icon(Icons.cancel),
+                  label: const Text('رفض نهائي'),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ],
             FilledButton.icon(
               onPressed: _exporting ? null : _export,
               icon: _exporting
@@ -108,7 +202,7 @@ class _CourseNeedPreviewScreenState extends State<CourseNeedPreviewScreen> {
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
                   : const Icon(Icons.description_outlined),
-              label: const Text('حفظ الخطاب'),
+              label: const Text('حفظ/تصدير Word'),
             ),
             const SizedBox(width: 12),
           ],
@@ -123,6 +217,41 @@ class _CourseNeedPreviewScreenState extends State<CourseNeedPreviewScreen> {
             : ListView(
                 padding: const EdgeInsets.all(16),
                 children: [
+                  if (widget.savedLetter?.rejectionReason != null && widget.savedLetter!.rejectionReason!.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      margin: const EdgeInsets.only(bottom: 16),
+                      decoration: BoxDecoration(
+                        color: Colors.red.shade50,
+                        border: Border.all(color: Colors.red.shade200),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              Icon(Icons.info_outline, color: Colors.red.shade900),
+                              const SizedBox(width: 8),
+                              Text(
+                                'سبب الرفض:',
+                                style: TextStyle(
+                                  color: Colors.red.shade900,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            widget.savedLetter!.rejectionReason!,
+                            style: TextStyle(color: Colors.red.shade900),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                   _Summary(
                     theoryCount: widget.data.theoryRows.length,
                     practicalCount: widget.data.practicalRows.length,

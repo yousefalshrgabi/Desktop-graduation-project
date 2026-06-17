@@ -29,13 +29,16 @@ class DashboardViewModel extends ChangeNotifier {
       // =======================================================
       // 1. جلب الإحصائيات (العدد الإجمالي)
       // =======================================================
-      final collegesCountResult = await db.rawQuery('SELECT COUNT(*) as count FROM colleges');
+      final collegesCountResult =
+          await db.rawQuery('SELECT COUNT(*) as count FROM colleges');
       final int totalColleges = Sqflite.firstIntValue(collegesCountResult) ?? 0;
 
-      final facultyCountResult = await db.rawQuery('SELECT COUNT(*) as count FROM faculty_members');
+      final facultyCountResult =
+          await db.rawQuery('SELECT COUNT(*) as count FROM faculty_members');
       final int totalFaculty = Sqflite.firstIntValue(facultyCountResult) ?? 0;
 
-      final usersCountResult = await db.rawQuery('SELECT COUNT(*) as count FROM users');
+      final usersCountResult =
+          await db.rawQuery('SELECT COUNT(*) as count FROM users');
       final int totalUsers = Sqflite.firstIntValue(usersCountResult) ?? 0;
 
       final programsCountResult =
@@ -68,7 +71,9 @@ class DashboardViewModel extends ChangeNotifier {
       );
 
       // استخدام دالة fromMap الجاهزة والشاملة
-      final recentFaculty = recentFacultyLocal.map((map) => FacultyMemberModel.fromMap(map)).toList();
+      final recentFaculty = recentFacultyLocal
+          .map((map) => FacultyMemberModel.fromMap(map))
+          .toList();
 
       // =======================================================
       // 4. تعيين البيانات وتحديث الواجهة
@@ -100,10 +105,13 @@ class DashboardViewModel extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final collegesCount = await _firestore.collection('colleges').count().get();
-      final facultyCount = await _firestore.collection('faculty_members').count().get();
+      final collegesCount =
+          await _firestore.collection('colleges').count().get();
+      final facultyCount =
+          await _firestore.collection('faculty_members').count().get();
       final usersCount = await _firestore.collection('users').count().get();
-      final programsCount = await _firestore.collection('programs').count().get();
+      final programsCount =
+          await _firestore.collection('programs').count().get();
 
       final recentCollegesSnapshot = await _firestore
           .collection('colleges')

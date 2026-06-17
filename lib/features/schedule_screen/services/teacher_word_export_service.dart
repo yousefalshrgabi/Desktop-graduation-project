@@ -15,7 +15,7 @@ import '../utils/timetable_schedule_grid.dart';
 /// Fills the official teacher timetable Word template from assets.
 class TeacherWordExportService {
   static const _templateAsset =
-      'assets/word tamp/teacher time table tampelete.docx';
+      'assets/templates/teacher time table tampelete.docx';
 
   static const _checkMark = '✓';
 

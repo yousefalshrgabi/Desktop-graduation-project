@@ -116,35 +116,7 @@ class _MobileRoleTasksPageState extends State<MobileRoleTasksPage> {
                 ),
               ),
 
-              // قسم الإشعار
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.shade50,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.amber.shade200),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.construction_outlined,
-                            color: Colors.amber.shade700, size: 20),
-                        const SizedBox(width: 8),
-                        const Expanded(
-                          child: Text(
-                            'هذه المهام قيد التطوير. سيتم تفعيلها في الإصدارات القادمة.',
-                            style: TextStyle(fontSize: 12, color: Colors.black87),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
 
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
 
               // قائمة المهام
               SliverPadding(
@@ -185,20 +157,7 @@ class _MobileRoleTasksPageState extends State<MobileRoleTasksPage> {
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
           onTap: task.onTap ?? () {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Row(
-                  children: [
-                    Icon(task.icon, color: Colors.white, size: 18),
-                    const SizedBox(width: 8),
-                    Text('${task.title} - قيد التطوير'),
-                  ],
-                ),
-                backgroundColor: task.color,
-                behavior: SnackBarBehavior.floating,
-                duration: const Duration(seconds: 2),
-              ),
-            );
+            // تجاهل النقر إذا لم يكن هناك إجراء محدد
           },
           child: Padding(
             padding: const EdgeInsets.all(16),

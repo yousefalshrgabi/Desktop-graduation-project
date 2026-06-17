@@ -4,6 +4,7 @@ import '../../schedule_screen/screens/teachers_schedule_screen.dart';
 import '../../course_study_plan/screens/mobile_study_plan_template_settings_screen.dart';
 import '../../course_study_plan/screens/mobile_course_study_plan_list_screen.dart';
 import '../../course_study_plan/screens/mobile_course_progress_tracking_screen.dart';
+import '../mobile_schedule/mobile_my_schedule_screen.dart';
 
 class QuickActionItem {
   final String label;
@@ -29,7 +30,8 @@ class MobileHomeViewModel extends ChangeNotifier {
   String get userCollege => _session.userCollege;
   String get userDepartment => _session.userDepartment;
 
-  List<QuickActionItem> buildQuickActions(BuildContext context, Function(int) onTabChange) {
+  List<QuickActionItem> buildQuickActions(
+      BuildContext context, Function(int) onTabChange) {
     final List<QuickActionItem> actions = [
       QuickActionItem(
         label: 'ملفي الشخصي',
@@ -47,7 +49,21 @@ class MobileHomeViewModel extends ChangeNotifier {
         label: 'طلب تعديل',
         icon: Icons.edit_note_outlined,
         color: const Color(0xFFF59F00),
-        onTap: () => onTabChange(1), // الانتقال لتبويب الملف الشخصي لطلب التعديل
+        onTap: () =>
+            onTabChange(1), // الانتقال لتبويب الملف الشخصي لطلب التعديل
+      ),
+      QuickActionItem(
+        label: 'نصابي',
+        icon: Icons.view_timeline_outlined,
+        color: const Color(0xFFF59F00),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const MobileMyScheduleScreen(),
+            ),
+          );
+        },
       ),
       QuickActionItem(
         label: 'الجداول',
@@ -130,7 +146,8 @@ class MobileHomeViewModel extends ChangeNotifier {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const MobileStudyPlanTemplateSettingsScreen(),
+              builder: (context) =>
+                  const MobileStudyPlanTemplateSettingsScreen(),
             ),
           );
         },

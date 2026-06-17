@@ -1,5 +1,6 @@
 import 'package:academic_affairs_management/features/schedule_screen/models/timetable_entry.dart';
 import 'package:academic_affairs_management/features/schedule_screen/services/timetable_firestore_service.dart';
+import 'package:academic_affairs_management/features/schedule_screen/services/teacher_alias_service.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:flutter/material.dart';
 import '../../../../core/services/app_session.dart';
@@ -37,10 +38,20 @@ class _MobileCourseStudyPlanListScreenState
       final entries = await _timetableService.getByCollegeCachedFirst(
         _session.userCollege,
       );
-
+      
+      final aliases = await TeacherAliasService().getAliasesForCollege(_session.userCollege);
       final myName = _session.userName.trim().toLowerCase();
+
+      final matchingAliases = aliases
+          .where((a) => a.canonicalName.trim().toLowerCase() == myName)
+          .map((a) => a.aliasName.trim().toLowerCase())
+          .toSet();
+
       final myEntries = entries.where((e) {
-        return e.teachers.any((t) => t.trim().toLowerCase() == myName);
+        return e.teachers.any((t) {
+          final teacherName = t.trim().toLowerCase();
+          return teacherName == myName || matchingAliases.contains(teacherName);
+        });
       }).toList();
 
       // Get unique courses
@@ -111,7 +122,18 @@ class _MobileCourseStudyPlanListScreenState
                       final course = _courses[index];
                       final sub = _submissions[course.subject];
                       final percent = sub?.completionPercent ?? 0;
-                      final isSubmitted = sub?.status == 'submitted';
+                      
+                      final statusInfo = switch (sub?.status) {
+                        'draft' => (icon: Icons.edit_document, color: Colors.orange, text: 'مسودة'),
+                        'pending_dept_head' => (icon: Icons.pending, color: Colors.blue, text: 'بانتظار رئيس القسم'),
+                        'pending_vice_dean' => (icon: Icons.pending, color: Colors.blue, text: 'بانتظار نائب العميد'),
+                        'pending_dean' => (icon: Icons.pending, color: Colors.blue, text: 'بانتظار العميد'),
+                        'pending_academic_affairs' => (icon: Icons.pending, color: Colors.blue, text: 'بانتظار النيابة'),
+                        'approved' => (icon: Icons.check_circle, color: Colors.green, text: 'معتمدة'),
+                        'rejected' => (icon: Icons.cancel, color: Colors.red, text: 'مرفوضة'),
+                        null => (icon: Icons.add_circle_outline, color: Colors.grey, text: 'جديد (لم يتم الإنشاء)'),
+                        _ => (icon: Icons.help_outline, color: Colors.grey, text: 'غير معروف'),
+                      };
 
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
@@ -129,21 +151,17 @@ class _MobileCourseStudyPlanListScreenState
                               Row(
                                 children: [
                                   Icon(
-                                    isSubmitted
-                                        ? Icons.check_circle
-                                        : Icons.edit_document,
+                                    statusInfo.icon,
                                     size: 16,
-                                    color: isSubmitted
-                                        ? Colors.green
-                                        : Colors.orange,
+                                    color: statusInfo.color,
                                   ),
                                   const SizedBox(width: 4),
                                   Text(
-                                    isSubmitted ? 'تم الرفع' : 'مسودة / جديد',
+                                    statusInfo.text,
                                     style: TextStyle(
-                                      color: isSubmitted
-                                          ? Colors.green
-                                          : Colors.orange,
+                                      color: statusInfo.color,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 13,
                                     ),
                                   ),
                                 ],

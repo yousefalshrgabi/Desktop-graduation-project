@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
 
 import '../models/faculty_option.dart';
 import '../models/incentive_entry.dart';
 import '../services/computed_nasab_print_service.dart';
 import '../services/computed_nasab_service.dart';
+import '../services/college_workload_submission_service.dart';
 import '../services/faculty_firestore_service.dart';
 import '../services/incentive_word_export_service.dart';
 import '../utils/nasab_department_filter.dart';
@@ -39,6 +41,7 @@ class _ComputedNasabViewScreenState extends State<ComputedNasabViewScreen> {
   bool _loading = false;
   bool _exportingWord = false;
   bool _printing = false;
+  bool _submitting = false;
   List<IncentiveEntry> _entries = [];
   Map<String, String> _deptByTeacherName = {};
 
@@ -180,6 +183,61 @@ class _ComputedNasabViewScreenState extends State<ComputedNasabViewScreen> {
     }
   }
 
+  Future<void> _submitToDean() async {
+    final college = _collegeController.text.trim();
+    if (college.isEmpty || _entries.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد بيانات ليتم رفعها')),
+      );
+      return;
+    }
+    
+    // تأكيد من المستخدم
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('رفع النصاب للعميد'),
+        content: Text('هل أنت متأكد من رغبتك في رفع النصاب المحسوب (الفصل ${_term == 'first' ? 'الأول' : 'الثاني'}) لجميع المدرسين إلى العميد لاعتماده؟\n\nإجمالي السجلات: ${_entries.length}'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.green),
+            child: const Text('تأكيد الرفع'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm != true) return;
+
+    setState(() => _submitting = true);
+    try {
+      final service = CollegeWorkloadSubmissionService();
+      await service.submitToDean(
+        collegeName: college,
+        term: _term,
+        entries: _entries,
+      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم رفع النصاب للعميد بنجاح!'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر الرفع: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final filtered = _filtered();
@@ -206,6 +264,23 @@ class _ComputedNasabViewScreenState extends State<ComputedNasabViewScreen> {
             onPressed: _loading ? null : () => _load(forceRefresh: true),
             icon: const Icon(Icons.refresh_rounded),
           ),
+          if (AppSession().isViceDean)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: FilledButton.icon(
+                onPressed: _submitting || _entries.isEmpty || _loading
+                    ? null
+                    : _submitToDean,
+                icon: _submitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.cloud_upload_outlined, size: 18),
+                label: const Text('رفع للعميد'),
+              ),
+            ),
         ],
       ),
       body: Column(
@@ -389,6 +464,7 @@ class _ComputedNasabViewScreenState extends State<ComputedNasabViewScreen> {
                         : const Icon(Icons.print_rounded, size: 20),
                     label: const Text('طباعة PDF'),
                   ),
+
                 ],
               ),
             ),

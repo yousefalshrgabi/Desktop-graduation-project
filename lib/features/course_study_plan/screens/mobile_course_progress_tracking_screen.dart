@@ -19,7 +19,8 @@ class _MobileCourseProgressTrackingScreenState
   final _session = AppSession();
   final _service = CourseStudyPlanService();
 
-  String _filterDepartment = '';
+  String? _selectedCollege;
+  String? _selectedDepartment;
   List<CourseStudyPlanSubmission> _submissions = [];
   bool _exporting = false;
 
@@ -29,21 +30,21 @@ class _MobileCourseProgressTrackingScreenState
   @override
   void initState() {
     super.initState();
-    _canSeeAllDepartments = _session.isAdminOrDeanship ||
-        _session.isViceDean ||
-        _session.isDean;
+    _canSeeAllDepartments =
+        _session.isAdminOrDeanship || _session.isViceDean || _session.isDean;
     final defaultDepartment =
         _canSeeAllDepartments ? null : _session.userDepartment;
 
+    final String? defaultCollege = _session.isAdminOrDeanship ? null : _session.userCollege;
+
     _stream = _service.watchSubmissions(
-      collegeName: _session.userCollege,
+      collegeName: defaultCollege,
       departmentName: defaultDepartment,
     );
   }
 
   @override
   Widget build(BuildContext context) {
-
     return Directionality(
       textDirection: TextDirection.rtl,
       child: Scaffold(
@@ -53,64 +54,118 @@ class _MobileCourseProgressTrackingScreenState
           foregroundColor: Colors.white,
           actions: [
             IconButton(
-              icon: _exporting 
-                ? const SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.download),
+              icon: _exporting
+                  ? const SizedBox.square(
+                      dimension: 16,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.download),
               tooltip: 'تصدير تقرير الإنجاز CSV',
               onPressed: _exporting ? null : _exportReport,
             ),
           ],
         ),
-        body: Column(
-          children: [
-            if (_canSeeAllDepartments)
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: TextField(
-                  decoration: const InputDecoration(
-                    labelText: 'تصفية حسب القسم (اختياري)',
-                    border: OutlineInputBorder(),
-                    prefixIcon: Icon(Icons.search),
-                  ),
-                  onChanged: (value) {
-                    setState(() {
-                      _filterDepartment = value.trim();
-                    });
-                  },
-                ),
-              ),
-            Expanded(
-              child: StreamBuilder<List<CourseStudyPlanSubmission>>(
-                stream: _stream,
-                builder: (context, snapshot) {
-                  if (snapshot.connectionState == ConnectionState.waiting) {
-                    return const Center(child: CircularProgressIndicator());
-                  }
-                  if (snapshot.hasError) {
-                    return Center(child: Text('حدث خطأ: ${snapshot.error}'));
-                  }
+        body: StreamBuilder<List<CourseStudyPlanSubmission>>(
+          stream: _stream,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return const Center(child: CircularProgressIndicator());
+            }
+            if (snapshot.hasError) {
+              return Center(child: Text('حدث خطأ: ${snapshot.error}'));
+            }
 
-                  var list = snapshot.data ?? [];
+            var allData = snapshot.data ?? [];
 
-                  if (_canSeeAllDepartments && _filterDepartment.isNotEmpty) {
-                    final query = _filterDepartment.toLowerCase();
-                    list = list.where((sub) {
-                      return sub.departmentName.toLowerCase().contains(query);
-                    }).toList();
-                  }
+            // استخراج الخيارات المتاحة للفلترة
+            final colleges = allData.map((e) => e.collegeName).toSet().toList()..sort();
+            var deptSource = allData;
+            if (_selectedCollege != null) {
+              deptSource = deptSource.where((e) => e.collegeName == _selectedCollege).toList();
+            }
+            final depts = deptSource.map((e) => e.departmentName).toSet().toList()..sort();
+
+            var list = allData;
+            if (_session.isAdminOrDeanship && _selectedCollege != null) {
+              list = list.where((e) => e.collegeName == _selectedCollege).toList();
+            }
+            if (_canSeeAllDepartments && _selectedDepartment != null) {
+              list = list.where((e) => e.departmentName == _selectedDepartment).toList();
+            }
+
+            // تصفية الحالات حسب مستوى الصلاحية لعدم إزعاج المسؤولين بمسودات وخطط لم تصلهم بعد
+                  list = list.where((sub) {
+                    final s = sub.status;
+                    if (s == 'approved' || s == 'rejected') return true;
+
+                    if (_session.isAdminOrDeanship) {
+                      return s == 'pending_academic_affairs';
+                    } else if (_session.isDean) {
+                      return s == 'pending_dean' || s == 'pending_academic_affairs';
+                    } else if (_session.isViceDean) {
+                      return s == 'pending_vice_dean' || s == 'pending_dean' || s == 'pending_academic_affairs';
+                    } else if (_session.isDeptHead) {
+                      return s != 'draft';
+                    }
+                    return true;
+                  }).toList();
 
                   _submissions = list;
 
+                  Widget content;
                   if (_submissions.isEmpty) {
-                    return const Center(child: Text('لا توجد خطط مقررات مسجلة حتى الآن.'));
-                  }
-
-                  return ListView.builder(
+                    content = const Center(
+                        child: Text('لا توجد خطط مقررات مسجلة حتى الآن.'));
+                  } else {
+                    content = ListView.builder(
                     padding: const EdgeInsets.all(16),
                     itemCount: _submissions.length,
                     itemBuilder: (context, index) {
                       final sub = _submissions[index];
                       final percent = sub.completionPercent;
+                      final statusInfo = switch (sub.status) {
+                        'draft' => (
+                            icon: Icons.edit_document,
+                            color: Colors.orange,
+                            text: 'مسودة'
+                          ),
+                        'pending_dept_head' => (
+                            icon: Icons.pending,
+                            color: Colors.blue,
+                            text: 'بانتظار رئيس القسم'
+                          ),
+                        'pending_vice_dean' => (
+                            icon: Icons.pending,
+                            color: Colors.blue,
+                            text: 'بانتظار نائب العميد'
+                          ),
+                        'pending_dean' => (
+                            icon: Icons.pending,
+                            color: Colors.blue,
+                            text: 'بانتظار العميد'
+                          ),
+                        'pending_academic_affairs' => (
+                            icon: Icons.pending,
+                            color: Colors.blue,
+                            text: 'بانتظار النيابة'
+                          ),
+                        'approved' => (
+                            icon: Icons.check_circle,
+                            color: Colors.green,
+                            text: 'معتمدة'
+                          ),
+                        'rejected' => (
+                            icon: Icons.cancel,
+                            color: Colors.red,
+                            text: 'مرفوضة'
+                          ),
+                        _ => (
+                            icon: Icons.help_outline,
+                            color: Colors.grey,
+                            text: 'غير معروف'
+                          ),
+                      };
+
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         clipBehavior: Clip.antiAlias,
@@ -139,7 +194,8 @@ class _MobileCourseProgressTrackingScreenState
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(
-                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  mainAxisAlignment:
+                                      MainAxisAlignment.spaceBetween,
                                   children: [
                                     Expanded(
                                       child: Text(
@@ -150,11 +206,13 @@ class _MobileCourseProgressTrackingScreenState
                                         ),
                                       ),
                                     ),
-                                    const Icon(Icons.arrow_forward_ios, size: 14, color: Colors.grey),
+                                    const Icon(Icons.arrow_forward_ios,
+                                        size: 14, color: Colors.grey),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
-                                Text('الدكتور: ${sub.facultyName} | القسم: ${sub.departmentName}'),
+                                Text(
+                                    'الدكتور: ${sub.facultyName} | القسم: ${sub.departmentName}'),
                                 const SizedBox(height: 12),
                                 Row(
                                   children: [
@@ -164,27 +222,30 @@ class _MobileCourseProgressTrackingScreenState
                                         backgroundColor: Colors.grey.shade200,
                                         color: percent == 100
                                             ? Colors.green
-                                            : Theme.of(context).colorScheme.primary,
+                                            : Theme.of(context)
+                                                .colorScheme
+                                                .primary,
                                       ),
                                     ),
                                     const SizedBox(width: 12),
-                                    Text('%$percent (${sub.completedTopics}/${sub.totalTopics})'),
+                                    Text(
+                                        '%$percent (${sub.completedTopics}/${sub.totalTopics})'),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
                                 Row(
                                   children: [
                                     Icon(
-                                      sub.status == 'submitted' ? Icons.check_circle : Icons.pending,
+                                      statusInfo.icon,
                                       size: 14,
-                                      color: sub.status == 'submitted' ? Colors.green : Colors.orange,
+                                      color: statusInfo.color,
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      sub.status == 'submitted' ? 'تم الرفع' : 'مسودة',
+                                      statusInfo.text,
                                       style: TextStyle(
                                         fontSize: 12,
-                                        color: sub.status == 'submitted' ? Colors.green : Colors.orange,
+                                        color: statusInfo.color,
                                       ),
                                     ),
                                   ],
@@ -196,11 +257,65 @@ class _MobileCourseProgressTrackingScreenState
                       );
                     },
                   );
+                  }
+
+                  return Column(
+                    children: [
+                      if (_canSeeAllDepartments)
+                        Padding(
+                          padding: const EdgeInsets.all(16.0),
+                          child: Row(
+                            children: [
+                              if (_session.isAdminOrDeanship) ...[
+                                Expanded(
+                                  child: DropdownButtonFormField<String>(
+                                    decoration: const InputDecoration(
+                                      labelText: 'تصفية حسب الكلية',
+                                      border: OutlineInputBorder(),
+                                      prefixIcon: Icon(Icons.business),
+                                    ),
+                                    value: colleges.contains(_selectedCollege) ? _selectedCollege : null,
+                                    items: [
+                                      const DropdownMenuItem(value: null, child: Text('الكل')),
+                                      ...colleges.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                                    ],
+                                    onChanged: (val) {
+                                      setState(() {
+                                        _selectedCollege = val;
+                                        _selectedDepartment = null;
+                                      });
+                                    },
+                                  ),
+                                ),
+                                const SizedBox(width: 16),
+                              ],
+                              Expanded(
+                                child: DropdownButtonFormField<String>(
+                                  decoration: const InputDecoration(
+                                    labelText: 'تصفية حسب القسم',
+                                    border: OutlineInputBorder(),
+                                    prefixIcon: Icon(Icons.account_tree),
+                                  ),
+                                  value: depts.contains(_selectedDepartment) ? _selectedDepartment : null,
+                                  items: [
+                                    const DropdownMenuItem(value: null, child: Text('الكل')),
+                                    ...depts.map((d) => DropdownMenuItem(value: d, child: Text(d))),
+                                  ],
+                                  onChanged: (val) {
+                                    setState(() {
+                                      _selectedDepartment = val;
+                                    });
+                                  },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      Expanded(child: content),
+                    ],
+                  );
                 },
               ),
-            ),
-          ],
-        ),
       ),
     );
   }
