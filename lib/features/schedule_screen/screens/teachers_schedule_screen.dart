@@ -585,31 +585,30 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
       );
 
       final service = CollegeOvertimeSubmissionService();
-      final exportService = OvertimeHoursExcelExportService();
 
-      final entriesByTeacher = <String, List<TimetableEntry>>{};
+      // استخراج أسماء المعلمين المشمولين في الجداول
+      final teacherNames = <String>{};
       for (final entry in _allEntries) {
         for (final teacher in entry.teachers) {
-          if (teacher.trim().isEmpty) continue;
-          final mappedTeacher = teacher.trim();
-          entriesByTeacher.putIfAbsent(mappedTeacher, () => []).add(entry);
+          if (teacher.trim().isNotEmpty) {
+            teacherNames.add(teacher.trim());
+          }
         }
       }
 
-      final summary = await exportService.calculateCollegeSummary(
-        collegeName: session.userCollege,
-        term: 'second', // يُفضل جلبه من الإعدادات لاحقاً
-        entriesByTeacher: entriesByTeacher,
-        halfWeightEntryIds: {},
-        halfWeightSessionKeys: {},
-        graduationProjectScheduleType: type == 'overtime' ? 'عام' : 'موازي',
-      );
+      // حفظ قائمة المعلمين فقط (الاسم والكلية)
+      final teacherEntries = teacherNames
+          .map((name) => {
+                'teacherName': name,
+                'collegeName': session.userCollege,
+              })
+          .toList();
 
       await service.submitToDean(
         collegeName: session.userCollege,
         term: 'second',
         type: type,
-        entries: summary,
+        entries: teacherEntries,
       );
 
       if (mounted) {

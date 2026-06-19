@@ -122,4 +122,49 @@ class TimetableFirestoreService {
         .map((d) => TimetableEntry.fromFirestoreMap(d.data()))
         .toList();
   }
+
+  /// يستبدل اسم معلم غير معروف (الاسم المستعار القديم) باسم معلم صحيح في كل المحاضرات
+  Future<void> replaceTeacherNameInActivities(String collegeName, String oldName, String newName) async {
+    final college = collegeName.trim();
+    if (college.isEmpty || oldName.isEmpty || newName.isEmpty || oldName == newName) return;
+
+    // جلب جميع الأنشطة التابعة للكلية والتي تحتوي على الاسم القديم ضمن المعلمين
+    final snap = await _col
+        .where('collegeName', isEqualTo: college)
+        .where('teachers', arrayContains: oldName)
+        .get();
+
+    if (snap.docs.isEmpty) return;
+
+    WriteBatch batch = _db.batch();
+    int batchCount = 0;
+
+    for (var doc in snap.docs) {
+      final data = doc.data();
+      final teachersList = List<String>.from(data['teachers'] ?? []);
+
+      // إزالة الاسم القديم وإضافة الجديد (وتجنب التكرار في حال كان الجديد موجوداً مسبقاً)
+      final Set<String> updatedTeachers = {};
+      for (var t in teachersList) {
+        if (t == oldName) {
+          updatedTeachers.add(newName);
+        } else {
+          updatedTeachers.add(t);
+        }
+      }
+
+      batch.update(doc.reference, {'teachers': updatedTeachers.toList()});
+      batchCount++;
+
+      if (batchCount >= 400) {
+        await batch.commit();
+        batch = _db.batch();
+        batchCount = 0;
+      }
+    }
+
+    if (batchCount > 0) {
+      await batch.commit();
+    }
+  }
 }

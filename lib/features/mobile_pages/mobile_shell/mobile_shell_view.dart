@@ -177,7 +177,7 @@ class _MobileShellState extends State<MobileShell> {
   }
 
   Future<void> _handleLogout() async {
-    final confirmed = await showDialog<bool>(
+    final int? choice = await showDialog<int>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -188,24 +188,30 @@ class _MobileShellState extends State<MobileShell> {
             Text('تسجيل الخروج'),
           ],
         ),
-        content: const Text('هل أنت متأكد من تسجيل الخروج؟'),
+        content: const Text('هل ترغب في مزامنة بياناتك مع السحابة قبل الخروج لضمان عدم فقدان أي تعديلات، أم ترغب في الخروج السريع (بدون مزامنة)؟'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, false),
+            onPressed: () => Navigator.pop(ctx, 0),
             child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
           ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, 2),
+            child: const Text('خروج بدون مزامنة', style: TextStyle(color: Colors.red)),
+          ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('خروج', style: TextStyle(color: Colors.white)),
+            onPressed: () => Navigator.pop(ctx, 1),
+            style: ElevatedButton.styleFrom(backgroundColor: DesktopColors.primary),
+            child: const Text('مزامنة ثم خروج', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
 
-    if (confirmed != true) return;
+    if (choice == null || choice == 0) return;
 
     if (!mounted) return;
+
+    final bool skipSync = (choice == 2);
 
     // 1. إظهار مؤشر التحميل
     showDialog(
@@ -219,10 +225,10 @@ class _MobileShellState extends State<MobileShell> {
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: const [
-                CircularProgressIndicator(),
-                SizedBox(height: 16),
-                Text('جاري تسجيل الخروج ورفع البيانات...'),
+              children: [
+                const CircularProgressIndicator(),
+                const SizedBox(height: 16),
+                Text(skipSync ? 'جاري تسجيل الخروج السريع...' : 'جاري تسجيل الخروج ورفع البيانات...'),
               ],
             ),
           ),
@@ -232,7 +238,7 @@ class _MobileShellState extends State<MobileShell> {
 
     try {
       // 2. استدعاء تسجيل الخروج
-      bool success = await _viewModel.logout();
+      bool success = await _viewModel.logout(skipSync: skipSync);
 
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop(); // إغلاق الدايلوج

@@ -25,7 +25,8 @@ class LoginViewModel extends ChangeNotifier {
   Future<void> login(
       {required String email,
       required String password,
-      required bool rememberMe}) async {
+      required bool rememberMe,
+      bool skipSync = false}) async {
     if (email.isEmpty || password.isEmpty) {
       errorMessage = 'يرجى إدخال البريد الإلكتروني وكلمة المرور';
       status = LoginStatus.error;
@@ -58,23 +59,37 @@ class LoginViewModel extends ChangeNotifier {
 
       // حفظ نوع المستخدم
       final userData = userQuery.docs.first.data() as Map<String, dynamic>;
-      final String systemUserId =
-          userQuery.docs.first.id; // المعرف الداخلي الصحيح
+      final String systemUserId = userQuery.docs.first.id; 
       currentUserRole = userData['role'] ?? 'unknown';
 
-      // 3. مزامنة جميع البيانات إلى SQLite للاستخدام بدون إنترنت
-      debugPrint('[LOGIN DEBUG] جاري تنزيل البيانات الأساسية للجهاز...');
-      try {
-        await DatabaseHelper.instance.clearAllData();
-        await _syncService.performSmartSync();
-        await syncExtraData();
-        debugPrint('[LOGIN DEBUG] تم تنزيل البيانات بنجاح.');
-      } catch (e) {
-        debugPrint('[LOGIN DEBUG] تحذير: فشلت المزامنة المحلية: $e');
+      // 3. التحقق من المستخدم لتجنب مسح البيانات إذا كان نفس المستخدم
+      final prefs = await SharedPreferences.getInstance();
+      final lastEmail = prefs.getString('last_logged_in_email');
+
+      if (lastEmail != null && lastEmail.isNotEmpty && lastEmail.toLowerCase() != email.trim().toLowerCase()) {
+         debugPrint('[LOGIN DEBUG] مستخدم جديد قام بتسجيل الدخول! سيتم مسح بيانات المستخدم السابق...');
+         await DatabaseHelper.instance.clearAllData();
+      } else {
+         debugPrint('[LOGIN DEBUG] نفس المستخدم السابق، سيتم الاحتفاظ بالبيانات المحلية وتحديثها...');
       }
 
-      // 4. حفظ حالة تسجيل الدخول في SharedPreferences
-      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('last_logged_in_email', email.trim());
+
+      // 4. مزامنة جميع البيانات إلى SQLite للاستخدام بدون إنترنت
+      if (skipSync) {
+        debugPrint('[LOGIN DEBUG] تم تخطي المزامنة بناءً على اختيار المستخدم (دخول سريع).');
+      } else {
+        debugPrint('[LOGIN DEBUG] جاري تنزيل البيانات الأساسية للجهاز...');
+        try {
+          await _syncService.performSmartSync();
+          await syncExtraData();
+          debugPrint('[LOGIN DEBUG] تم تنزيل البيانات بنجاح.');
+        } catch (e) {
+          debugPrint('[LOGIN DEBUG] تحذير: فشلت المزامنة المحلية: $e');
+        }
+      }
+
+      // 5. حفظ حالة تسجيل الدخول في SharedPreferences
       await prefs.setBool('isLoggedIn', true);
       await prefs.setString('userId', systemUserId); // المعرف الداخلي
       await prefs.setString('userRole', currentUserRole!);
@@ -101,40 +116,40 @@ class LoginViewModel extends ChangeNotifier {
     }
   }
 
-  Future<bool> logout({bool forceLogout = false}) async {
+  Future<bool> logout({bool forceLogout = false, bool skipSync = false}) async {
     status = LoginStatus.loading;
     notifyListeners();
 
     try {
-      debugPrint(
-          '[LOGOUT DEBUG] جاري تأمين ورفع البيانات المحلية قبل الخروج...');
-      try {
-        await _syncService.performSmartSync();
-      } catch (syncError) {
-        if (!forceLogout) {
-          throw Exception('فشل المزامنة'); // نمرر هذه الكلمة المفتاحية للواجهة
+      if (!skipSync) {
+        debugPrint('[LOGOUT DEBUG] جاري تأمين ورفع البيانات المحلية قبل الخروج...');
+        try {
+          await _syncService.performSmartSync();
+        } catch (syncError) {
+          if (!forceLogout) {
+            throw Exception('فشل المزامنة'); // نمرر هذه الكلمة المفتاحية للواجهة
+          }
+          debugPrint('[LOGOUT DEBUG] Sync failed, but forceLogout is true. Proceeding...');
         }
-        debugPrint('[LOGOUT DEBUG] Sync failed, but forceLogout is true. Proceeding...');
+      } else {
+        debugPrint('[LOGOUT DEBUG] جاري تسجيل الخروج مباشرة بدون مزامنة بناءً على طلب المستخدم...');
       }
 
       // 1. تسجيل الخروج من Firebase
       await _auth.signOut();
 
-      // 2. مسح بيانات الجلسة من SharedPreferences
+      // 2. مسح بيانات الجلسة من SharedPreferences (بدون مسح آخر إيميل مسجل)
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('isLoggedIn');
       await prefs.remove('userId');
       await prefs.remove('userRole');
 
-      // 3. مسح البيانات المحلية من SQLite والذاكرة المؤقتة
-      await DatabaseHelper.instance.clearAllData();
-      await AppSession().clear(); // تم النقل لهنا لضمان التصفير الكامل
+      // 3. مسح الذاكرة المؤقتة (مع الإبقاء على SQLite لعدم فقدان البيانات في حال العودة بدون إنترنت)
+      await AppSession().clear();
 
       // 4. تصفير المتغيرات
       currentUserRole = null;
       status = LoginStatus.idle;
-
-      // 🛑 (تم حذف كود الـ Navigator من هنا)
 
       notifyListeners();
       return true; // 👈 إرجاع "نجاح"

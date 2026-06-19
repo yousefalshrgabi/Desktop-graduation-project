@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_member_model.dart';
@@ -50,7 +51,7 @@ class SyncService {
     }
 
     await batch.commit().timeout(
-          const Duration(seconds: 10),
+          const Duration(seconds: 60),
           onTimeout: () =>
               throw TimeoutException('فشل الاتصال أثناء مزامنة الحذفيات.'),
         );
@@ -61,61 +62,119 @@ class SyncService {
   }
 
   // =======================================================================
-  // 2. الرفع الآمن للسحابة (Push)
+  // 2. الرفع التفاضلي (Delta Push) — يرفع فقط ما تغيّر
   // =======================================================================
   Future<void> _pushToFirebase() async {
     final db = await DatabaseHelper.instance.database;
+    final prefs = await SharedPreferences.getInstance();
+    
+    // قراءة وقت آخر مزامنة ناجحة (null = مجرد تشغيل = رفع كل شيء)
+    final String? lastPushStr = prefs.getString('last_push_timestamp');
+    final DateTime? lastPushTime = lastPushStr != null ? DateTime.tryParse(lastPushStr) : null;
+
+    if (lastPushTime == null) {
+      debugPrint('📤 [DELTA SYNC] أول مزامنة — سيتم رفع جميع البيانات...');
+    } else {
+      debugPrint('📤 [DELTA SYNC] آخر مزامنة: $lastPushStr — سيتم رفع السجلات المتغيّرة فقط.');
+    }
+
     WriteBatch batch = _firestore.batch();
+    int batchCount = 0;
+    int batchIndex = 1;
+    int totalUploaded = 0;
 
-    // دالة مساعدة لرفع أي جدول ديناميكياً
-    Future<void> uploadTable(String tableName, {bool isFaculty = false}) async {
-      final records = await db.query(tableName);
+    Future<void> commitBatch() async {
+      if (batchCount > 0) {
+        debugPrint('⏳ [SYNC] جاري رفع الدفعة رقم $batchIndex (تحتوي على $batchCount عنصر)...');
+        try {
+          await batch.commit().timeout(
+                const Duration(seconds: 120),
+                onTimeout: () => throw TimeoutException('انتهى وقت الرفع للسحابة في الدفعة رقم $batchIndex.'),
+              );
+          debugPrint('✅ [SYNC] تمت بنجاح الدفعة رقم $batchIndex.');
+        } catch (e) {
+          debugPrint('❌ [SYNC] فشل رفع الدفعة رقم $batchIndex. الخطأ: $e');
+          rethrow;
+        }
+        totalUploaded += batchCount;
+        batch = _firestore.batch();
+        batchCount = 0;
+        batchIndex++;
+      }
+    }
+
+    Future<void> addToBatch(DocumentReference ref, Map<String, dynamic> data) async {
+      batch.set(ref, data, SetOptions(merge: true));
+      batchCount++;
+      if (batchCount >= 400) {
+        await commitBatch();
+      }
+    }
+
+    // دالة مساعدة لرفع السجلات المتغيّرة فقط (الديلتا)
+    Future<void> uploadChangedRecords(String tableName, {bool isFaculty = false}) async {
+      List<Map<String, dynamic>> records;
+
+      if (lastPushTime == null) {
+        // مزامنة كاملة للمرة الأولى
+        records = await db.query(tableName);
+      } else {
+        // رفع السجلات التي updated_at أحدث من آخر مزامنة فقط
+        records = await db.query(
+          tableName,
+          where: "updated_at > ?",
+          whereArgs: [lastPushStr],
+        );
+      }
+
+      if (records.isEmpty) {
+        debugPrint('✅ [DELTA SYNC] لا تغييرات في جدول: $tableName');
+        return;
+      }
+
+      debugPrint('📤 [DELTA SYNC] جدول $tableName: سيتم رفع ${records.length} سجل متغيّر.');
+
       for (var record in records) {
-        final ref =
-            _firestore.collection(tableName).doc(record['id'].toString());
-
+        final ref = _firestore.collection(tableName).doc(record['id'].toString());
         Map<String, dynamic> dataToUpload;
 
         if (isFaculty) {
-          // استخدام المودل لضمان تضمين روابط الملفات (file_url) وغيرها
           final faculty = FacultyMemberModel.fromMap(record);
           dataToUpload = faculty.toMap();
           dataToUpload['created_at'] = _toFirebaseTimestamp(faculty.createdAt);
         } else {
           dataToUpload = Map<String, dynamic>.from(record);
+          // حذف updated_at من البيانات التي ترفع للسحابة (حقل محلي بحت)
+          dataToUpload.remove('updated_at');
           if (dataToUpload.containsKey('created_at')) {
-            dataToUpload['created_at'] =
-                _toFirebaseTimestamp(dataToUpload['created_at']);
+            dataToUpload['created_at'] = _toFirebaseTimestamp(dataToUpload['created_at']);
           }
         }
 
-        // حذف حقل level القديم من السحابة إذا كان الجدول هو users
         if (tableName == 'users') {
           dataToUpload['level'] = FieldValue.delete();
         }
 
-        // دمج البيانات: SetOptions(merge: true) تضمن أننا لا نمسح حقولاً في السحابة قد لا تكون موجودة محلياً
-        batch.set(ref, dataToUpload, SetOptions(merge: true));
+        await addToBatch(ref, dataToUpload);
       }
     }
 
-    await uploadTable('users');
-    await uploadTable('colleges');
-    await uploadTable('departments');
-    await uploadTable('subjects');
-    await uploadTable('study_plans');
-    await uploadTable('faculty_members', isFaculty: true);
+    await uploadChangedRecords('users');
+    await uploadChangedRecords('colleges');
+    await uploadChangedRecords('departments');
+    await uploadChangedRecords('faculty_members', isFaculty: true);
 
-    // -- رفع البرامج غير المتزامنة --
-    final programs =
-        await db.query('programs', where: 'is_synced = ?', whereArgs: [0]);
+    // -- رفع البرامج غير المتزامنة (is_synced = 0) — كما هو --
+    final programs = await db.query('programs', where: 'is_synced = ?', whereArgs: [0]);
     for (var p in programs) {
       final ref = _firestore.collection('programs').doc(p['id'].toString());
       List<dynamic> tracksList = [];
       try {
         tracksList = jsonDecode(p['tracks'].toString());
-      } catch (e) {}
-      batch.set(ref, {
+      } catch (e) {
+        debugPrint('[SYNC] تحذير: فشل تحليل tracks للبرنامج ${p['id']}: $e');
+      }
+      await addToBatch(ref, {
         'name_ar': p['name_ar'],
         'name_en': p['name_en'],
         'total_levels': p['total_levels'],
@@ -123,19 +182,24 @@ class SyncService {
         'tracks': tracksList,
         'created_at': _toFirebaseTimestamp(p['created_at']),
       });
-      // تحديث حالة المزامنة محلياً عند نجاح الـ batch كله (نحدثها مباشرة قبل التنفيذ، إذا فشل الباتش يمكن إعادة المحاولة لاحقاً)
       await db.update('programs', {'is_synced': 1},
           where: 'id = ?', whereArgs: [p['id']]);
     }
 
+    // الرفع النهائي لما تبقى في الدفعة
+    await commitBatch();
 
+    // حفظ وقت آخر مزامنة ناجحة (فقط إذا تم الرفع بنجاح)
+    if (totalUploaded > 0 || programs.isNotEmpty) {
+      await prefs.setString('last_push_timestamp', DateTime.now().toIso8601String());
+      debugPrint('📅 [DELTA SYNC] تم حفظ وقت آخر مزامنة ناجحة.');
+    } else {
+      // حتى لو لم يكن هناك شيء يُرفع، نحدد وقت المزامنة لتجنب إعادة فحص نفس السجلات
+      await prefs.setString('last_push_timestamp', DateTime.now().toIso8601String());
+      debugPrint('✅ [DELTA SYNC] لا تغييرات جديدة للرفع — تم تحديث وقت المزامنة.');
+    }
 
-    // تنفيذ الرفع بمراعاة الـ Timeout
-    await batch.commit().timeout(
-          const Duration(seconds: 20),
-          onTimeout: () => throw TimeoutException('انتهى وقت الرفع للسحابة.'),
-        );
-    debugPrint('📤 تم رفع التعديلات المحلية للسحابة.');
+    debugPrint('📤 [DELTA SYNC] انتهت عملية الرفع — إجمالي ما تم رفعه: $totalUploaded سجل.');
   }
 
   // =======================================================================
@@ -155,6 +219,10 @@ class SyncService {
         final snap =
             await _firestore.collection(collectionName).get(serverOnly);
 
+        // جلب أعمدة الجدول المحلي لتصفية الحقول الغريبة
+        final tableInfo = await db.rawQuery("PRAGMA table_info($tableName)");
+        final validColumns = tableInfo.map((col) => col['name'] as String).toSet();
+
         for (var doc in snap.docs) {
           Map<String, dynamic> data = doc.data();
           Map<String, dynamic> localData;
@@ -163,7 +231,6 @@ class SyncService {
             final faculty = FacultyMemberModel.fromFirestore(doc);
             localData = faculty.toMap();
           } else {
-            // تحويل مفاتيح الفايربيس (camelCase) إلى SQLite (snake_case) إن تطلب الأمر
             localData = {
               'id': doc.id,
               ...data,
@@ -182,8 +249,13 @@ class SyncService {
             }
           }
 
-          // استخدام ConflictAlgorithm.replace يضمن أن البيانات القادمة من السحابة
-          // (والتي أصبحت الآن أحدث نسخة لأننا رفعنا تعديلاتنا للتو) ستحدث القاعدة المحلية
+          // ⚠️ إزالة updated_at من البيانات القادمة من السحابة
+          // لأنها لا تحتوي عليه وإدخاله كـ null يُفسد آلية الديلتا
+          localData.remove('updated_at');
+
+          // تصفية الحقول الغريبة التي لا توجد في schema المحلي
+          localData.removeWhere((key, _) => !validColumns.contains(key));
+
           localBatch.insert(
             tableName,
             localData,

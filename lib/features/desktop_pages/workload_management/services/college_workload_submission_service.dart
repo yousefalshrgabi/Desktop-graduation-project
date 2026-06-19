@@ -60,6 +60,18 @@ class CollegeWorkloadSubmissionService {
     required List<IncentiveEntry> entries,
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+    
+    // أولاً: حذف أي طلبات سابقة معلقة (pending_dean) لنفس الكلية والفصل
+    final existingPending = await _collection
+        .where('collegeName', isEqualTo: collegeName)
+        .where('term', isEqualTo: term)
+        .where('status', isEqualTo: 'pending_dean')
+        .get();
+        
+    for (var doc in existingPending.docs) {
+      await doc.reference.delete();
+    }
+
     final sub = CollegeWorkloadSubmission(
       id: '',
       collegeName: collegeName,

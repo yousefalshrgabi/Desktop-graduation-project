@@ -214,6 +214,7 @@ class _ComputedNasabViewScreenState extends State<ComputedNasabViewScreen> {
 
     if (confirm != true) return;
 
+    if (!mounted) return;
     setState(() => _submitting = true);
     try {
       final service = CollegeWorkloadSubmissionService();

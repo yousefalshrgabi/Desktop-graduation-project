@@ -19,6 +19,7 @@ class _LoginViewState extends State<LoginView> {
   final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
   bool _rememberMe = false;
+  bool _skipSync = false;
 
   @override
   void dispose() {
@@ -37,6 +38,7 @@ class _LoginViewState extends State<LoginView> {
         email: _emailController.text,
         password: _passwordController.text,
         rememberMe: _rememberMe,
+        skipSync: _skipSync,
       );
 
       if (!mounted) return;
@@ -314,6 +316,25 @@ class _LoginViewState extends State<LoginView> {
                   ],
                 ),
                 const SizedBox(height: 8),
+
+                // تسجيل دخول سريع (بدون مزامنة)
+                Row(
+                  children: [
+                    SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: Checkbox(
+                        value: _skipSync,
+                        activeColor: Colors.orange,
+                        onChanged: (v) => setState(() => _skipSync = v ?? false),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    const Text('دخول سريع (تخطي تنزيل البيانات من الإنترنت)',
+                        style: TextStyle(fontSize: 13, color: Colors.orange, fontWeight: FontWeight.bold)),
+                  ],
+                ),
+                const SizedBox(height: 12),
 
                 // رسالة الخطأ
                 if (_viewModel.status == LoginStatus.error)

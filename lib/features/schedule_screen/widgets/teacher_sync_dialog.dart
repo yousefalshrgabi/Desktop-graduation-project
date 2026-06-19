@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../desktop_pages/workload_management/models/faculty_option.dart';
 import '../models/teacher_alias.dart';
 import '../services/teacher_alias_service.dart';
+import '../services/timetable_firestore_service.dart';
 
 class TeacherSyncDialog extends StatefulWidget {
   final String collegeName;
@@ -23,6 +24,7 @@ class TeacherSyncDialog extends StatefulWidget {
 
 class _TeacherSyncDialogState extends State<TeacherSyncDialog> {
   final _aliasService = TeacherAliasService();
+  final _timetableService = TimetableFirestoreService();
   final Map<String, String?> _selectedMappings = {};
   bool _isSaving = false;
 
@@ -49,6 +51,10 @@ class _TeacherSyncDialogState extends State<TeacherSyncDialog> {
             aliasName: aliasName,
           );
           await _aliasService.saveAlias(alias);
+          
+          // استبدال الاسم بشكل جذري داخل المحاضرات
+          await _timetableService.replaceTeacherNameInActivities(
+              widget.collegeName, aliasName, canonicalName);
         }
       }
       if (mounted) {

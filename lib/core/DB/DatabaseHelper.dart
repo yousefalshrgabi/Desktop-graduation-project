@@ -32,7 +32,7 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
     return await openDatabase(
       path,
-      version: 14,
+      version: 15,
       // 👈 تفعيل القيود المرجعية (Foreign Keys) لضمان صحة الربط بين الجداول
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -196,6 +196,24 @@ class DatabaseHelper {
       debugPrint(
           '[SQLITE DEBUG] ✅ تم إنشاء جدول timetables (v14) خلال الترقية');
     }
+
+    if (oldVersion < 15) {
+      // إضافة عمود updated_at للجداول الرئيسية (للمزامنة التفاضلية)
+      final tables = ['users', 'colleges', 'departments', 'faculty_members'];
+      for (final table in tables) {
+        try {
+          await db.execute('ALTER TABLE $table ADD COLUMN updated_at TEXT');
+          // تعيين قيمة افتراضية قديمة جداً لضمان رفع كل السجلات في أول مزامنة
+          await db.execute("UPDATE $table SET updated_at = '1970-01-01T00:00:00.000'");
+        } catch (e) {
+          debugPrint('[SQLITE v15] ⚠️ العمود updated_at موجود بالفعل في $table: $e');
+        }
+      }
+
+      // إنشاء الـ Triggers للتحديث التلقائي لـ updated_at
+      await _createUpdateTimestampTriggers(db);
+      debugPrint('[SQLITE DEBUG] ✅ تم إضافة updated_at والـ Triggers (v15)');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {
@@ -214,7 +232,8 @@ class DatabaseHelper {
           faculty TEXT, 
           department TEXT, 
           status TEXT,
-          idCardNumber TEXT
+          idCardNumber TEXT,
+          updated_at TEXT
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول users');
@@ -225,7 +244,8 @@ class DatabaseHelper {
           id TEXT PRIMARY KEY, ar_name TEXT NOT NULL, en_name TEXT NOT NULL,
           code TEXT NOT NULL, dean_id TEXT NOT NULL, 
           academic_vice_dean_id TEXT, student_vice_dean_id TEXT,
-          created_at TEXT NOT NULL
+          created_at TEXT NOT NULL,
+          updated_at TEXT
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول colleges');
@@ -234,7 +254,8 @@ class DatabaseHelper {
       await db.execute('''
         CREATE TABLE departments (
           id TEXT PRIMARY KEY, name TEXT NOT NULL, college_id TEXT NOT NULL,
-          hod_id TEXT NOT NULL, created_at TEXT NOT NULL
+          hod_id TEXT NOT NULL, created_at TEXT NOT NULL,
+          updated_at TEXT
         )
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول departments');
@@ -437,10 +458,39 @@ class DatabaseHelper {
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول timetables');
 
+      // إنشاء الـ Triggers للتحديث التلقائي لـ updated_at
+      await _createUpdateTimestampTriggers(db);
+
       debugPrint('[SQLITE DEBUG] 🎉 اكتمل بناء قاعدة البيانات المحلية بنجاح!');
     } catch (e) {
       debugPrint('[SQLITE DEBUG] ❌ خطأ فادح أثناء إنشاء الجداول: $e');
     }
+  }
+
+  /// ينشئ Triggers في SQLite تضبط updated_at تلقائياً عند أي INSERT أو UPDATE
+  Future<void> _createUpdateTimestampTriggers(Database db) async {
+    final tables = ['users', 'colleges', 'departments', 'faculty_members'];
+    for (final table in tables) {
+      // Trigger عند الإدخال
+      await db.execute('''
+        CREATE TRIGGER IF NOT EXISTS ${table}_set_updated_at_insert
+        AFTER INSERT ON $table
+        FOR EACH ROW
+        BEGIN
+          UPDATE $table SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
+        END;
+      ''');
+      // Trigger عند التعديل (أي عمود)
+      await db.execute('''
+        CREATE TRIGGER IF NOT EXISTS ${table}_set_updated_at_update
+        AFTER UPDATE ON $table
+        FOR EACH ROW
+        BEGIN
+          UPDATE $table SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
+        END;
+      ''');
+    }
+    debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جميع الـ Triggers للتحديث التلقائي.');
   }
 
   // =================================================================

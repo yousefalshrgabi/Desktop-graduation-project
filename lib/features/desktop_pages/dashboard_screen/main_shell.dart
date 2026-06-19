@@ -349,6 +349,33 @@ class _MainShellState extends State<MainShell>
               icon: const Icon(Icons.logout, color: Colors.red),
               tooltip: 'تسجيل الخروج',
               onPressed: () async {
+                final int? choice = await showDialog<int>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('تسجيل الخروج'),
+                    content: const Text('هل ترغب في مزامنة بياناتك مع السحابة قبل الخروج لضمان عدم فقدان أي تعديلات، أم ترغب في الخروج السريع (بدون مزامنة)؟'),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, 0),
+                        child: const Text('إلغاء'),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, 2),
+                        child: const Text('خروج بدون مزامنة', style: TextStyle(color: Colors.red)),
+                      ),
+                      ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: DesktopColors.primary, foregroundColor: Colors.white),
+                        onPressed: () => Navigator.pop(context, 1),
+                        child: const Text('مزامنة ثم خروج'),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (choice == null || choice == 0) return;
+
+                final bool skipSync = (choice == 2);
+
                 // 1. إظهار مؤشر التحميل
                 showDialog(
                   context: context,
@@ -358,8 +385,7 @@ class _MainShellState extends State<MainShell>
                 );
 
                 // 2. استدعاء دالة تسجيل الخروج وانتظار النتيجة (true أو false)
-                // لاحظ أننا لم نعد نمرر context للدالة
-                bool success = await _loginViewModel.logout();
+                bool success = await _loginViewModel.logout(skipSync: skipSync);
 
                 // 3. إغلاق مؤشر التحميل بأمان (قبل أي توجيه آخر)
                 if (context.mounted) {
