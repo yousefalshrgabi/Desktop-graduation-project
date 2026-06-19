@@ -24,12 +24,12 @@ class _ReviewMeetingDialogState extends State<ReviewMeetingDialog> {
     super.dispose();
   }
 
-  Future<void> _openDocument() async {
-    if (widget.meeting.documentUrl == null) return;
-    final url = Uri.parse(widget.meeting.documentUrl!);
-    if (await canLaunchUrl(url)) {
+  Future<void> _openUrl(String? documentUrl) async {
+    if (documentUrl == null || documentUrl.isEmpty) return;
+    final url = Uri.parse(documentUrl);
+    try {
       await launchUrl(url, mode: LaunchMode.externalApplication);
-    } else {
+    } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تعذر فتح رابط الملف.')),
@@ -155,13 +155,41 @@ class _ReviewMeetingDialogState extends State<ReviewMeetingDialog> {
                     child: ListTile(
                       leading: const Icon(Icons.description, color: DesktopColors.primary),
                       title: const Text('ملف المحضر المرفوع (.docx / .pdf)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
-                      subtitle: const Text('انقر لفتح وتحميل الملف ومراجعته', style: TextStyle(fontSize: 11)),
-                      trailing: const Icon(Icons.open_in_new, color: DesktopColors.primary),
-                      onTap: _openDocument,
+                      subtitle: Text(
+                        widget.meeting.documentUrl == 'local_pending_upload'
+                            ? 'بانتظار مزامنة ورفع الملف إلى السيرفر...'
+                            : 'انقر لفتح وتحميل الملف ومراجعته',
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                      trailing: widget.meeting.documentUrl == 'local_pending_upload'
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : const Icon(Icons.open_in_new, color: DesktopColors.primary),
+                      onTap: widget.meeting.documentUrl == 'local_pending_upload'
+                          ? null
+                          : () => _openUrl(widget.meeting.documentUrl),
                     ),
                   )
                 else
                   const Text('لم يتم رفع مستند رسمي للاجتماع بعد.', style: TextStyle(color: Colors.red, fontSize: 13, fontWeight: FontWeight.bold)),
+
+                if (widget.meeting.previousMinutesUrl != null && widget.meeting.previousMinutesUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.green.withOpacity(0.05),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.withOpacity(0.2)),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(Icons.description, color: Colors.green),
+                      title: Text(widget.meeting.previousMinutesName ?? 'محضر الاجتماع السابق.docx', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo')),
+                      subtitle: const Text('ملف محضر الاجتماع السابق المرفق', style: TextStyle(fontSize: 11)),
+                      trailing: const Icon(Icons.open_in_new, color: Colors.green),
+                      onTap: () => _openUrl(widget.meeting.previousMinutesUrl),
+                    ),
+                  ),
+                ],
 
                 const SizedBox(height: 16),
 

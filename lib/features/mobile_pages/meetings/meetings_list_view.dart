@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:provider/provider.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
@@ -29,6 +30,21 @@ class _MeetingsListViewContent extends StatefulWidget {
 
 class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
   final AppSession _session = AppSession();
+
+  Future<void> _openDocument(String? documentUrl) async {
+    if (documentUrl == null || documentUrl.isEmpty) return;
+    final url = Uri.parse(documentUrl);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
+    try {
+      await launchUrl(url, mode: LaunchMode.externalApplication);
+    } catch (e) {
+      if (mounted) {
+        scaffoldMessenger.showSnackBar(
+          const SnackBar(content: Text('تعذر فتح رابط الملف.')),
+        );
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -108,6 +124,7 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
 
   void _editMeeting(BuildContext context, MeetingModel meeting) {
     final meetingsViewModel = Provider.of<MeetingsViewModel>(context, listen: false);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -118,7 +135,7 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
       ),
     ).then((success) {
       if (success == true && mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        scaffoldMessenger.showSnackBar(
           const SnackBar(
             content: Text('تم تعديل الاجتماع بنجاح!'),
             backgroundColor: Colors.green,
@@ -131,31 +148,32 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
 
   void _confirmCancelMeeting(BuildContext context, MeetingModel meeting) {
     final meetingsViewModel = Provider.of<MeetingsViewModel>(context, listen: false);
+    final scaffoldMessenger = ScaffoldMessenger.of(context);
     showDialog(
       context: context,
-      builder: (context) => Directionality(
+      builder: (dialogContext) => Directionality(
         textDirection: TextDirection.rtl,
         child: AlertDialog(
           title: const Text('تأكيد إلغاء الاجتماع', style: TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
           content: Text('هل أنت متأكد من رغبتك في إلغاء الاجتماع بعنوان "${meeting.title}"؟\nسيتم إرسال إشعار إلغاء للحاضرين.'),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(context),
+              onPressed: () => Navigator.pop(dialogContext),
               child: const Text('تراجع', style: TextStyle(fontFamily: 'Cairo')),
             ),
             TextButton(
               onPressed: () async {
-                Navigator.pop(context);
+                Navigator.pop(dialogContext);
                 final success = await meetingsViewModel.cancelMeeting(meeting);
                 if (success && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  scaffoldMessenger.showSnackBar(
                     const SnackBar(
                       content: Text('تم إلغاء الاجتماع بنجاح!'),
                       backgroundColor: Colors.orange,
                     ),
                   );
                 } else if (mounted && meetingsViewModel.errorMessage != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
+                  scaffoldMessenger.showSnackBar(
                     SnackBar(
                       content: Text(meetingsViewModel.errorMessage!),
                       backgroundColor: Colors.red,
@@ -179,39 +197,110 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
         child: AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Text(meeting.title, style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('التاريخ: ${meeting.date}  |  الوقت: ${meeting.time}'),
-              if (meeting.room.isNotEmpty) ...[
-                const SizedBox(height: 8),
-                Text('القاعة: ${meeting.room}'),
-              ],
-              const SizedBox(height: 12),
-              const Text('حالة الاعتماد:', style: TextStyle(fontWeight: FontWeight.bold)),
-              Container(
-                margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(
-                  color: _getStatusColor(meeting.status).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: _getStatusColor(meeting.status).withOpacity(0.3)),
-                ),
-                child: Text(
-                  meeting.status.displayName,
-                  style: TextStyle(color: _getStatusColor(meeting.status), fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo'),
-                ),
-              ),
-              if (meeting.status == MeetingStatus.rejected && meeting.rejectReason != null) ...[
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('التاريخ: ${meeting.date}  |  الوقت: ${meeting.time}'),
+                if (meeting.room.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Text('القاعة: ${meeting.room}'),
+                ],
                 const SizedBox(height: 12),
-                const Text('سبب طلب التعديل/الرفض:', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
-                Text(meeting.rejectReason!, style: const TextStyle(color: Colors.black87)),
+                const Text('حالة الاعتماد:', style: TextStyle(fontWeight: FontWeight.bold)),
+                Container(
+                  margin: const EdgeInsets.only(top: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: _getStatusColor(meeting.status).withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: _getStatusColor(meeting.status).withOpacity(0.3)),
+                  ),
+                  child: Text(
+                    meeting.status.displayName,
+                    style: TextStyle(color: _getStatusColor(meeting.status), fontWeight: FontWeight.bold, fontSize: 13, fontFamily: 'Cairo'),
+                  ),
+                ),
+                if (meeting.status == MeetingStatus.rejected && meeting.rejectReason != null) ...[
+                  const SizedBox(height: 12),
+                  const Text('سبب طلب التعديل/الرفض:', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                  Text(meeting.rejectReason!, style: const TextStyle(color: Colors.black87)),
+                ],
+                const SizedBox(height: 16),
+                const Text('جدول الأعمال:', style: TextStyle(fontWeight: FontWeight.bold)),
+                ...meeting.agenda.map((a) => Text('• $a')),
+                if (meeting.previousMinutesUrl != null && meeting.previousMinutesUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('محضر الاجتماع السابق المرفق:', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 13)),
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: () => _openDocument(meeting.previousMinutesUrl),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: DesktopColors.primary.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: DesktopColors.primary.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.description, color: DesktopColors.primary, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              meeting.previousMinutesName ?? 'محضر الاجتماع السابق.docx',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo', color: DesktopColors.primary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const Icon(Icons.open_in_new, color: DesktopColors.primary, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                if (meeting.documentUrl != null && meeting.documentUrl!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  const Text('مستند محضر الاجتماع المرفوع:', style: TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo', fontSize: 13)),
+                  const SizedBox(height: 6),
+                  InkWell(
+                    onTap: meeting.documentUrl == 'local_pending_upload'
+                        ? null
+                        : () => _openDocument(meeting.documentUrl),
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: DesktopColors.primary.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: DesktopColors.primary.withOpacity(0.2)),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.description, color: DesktopColors.primary, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              meeting.documentUrl == 'local_pending_upload'
+                                  ? 'بانتظار مزامنة ورفع الملف إلى السيرفر...'
+                                  : 'عرض ملف المحضر المرفوع (.docx / .pdf)',
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12, fontFamily: 'Cairo', color: DesktopColors.primary),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          if (meeting.documentUrl == 'local_pending_upload')
+                            const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          else
+                            const Icon(Icons.open_in_new, color: DesktopColors.primary, size: 16),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ],
-              const SizedBox(height: 16),
-              const Text('جدول الأعمال:', style: TextStyle(fontWeight: FontWeight.bold)),
-              ...meeting.agenda.map((a) => Text('• $a')),
-            ],
+            ),
           ),
           actions: [
             TextButton(
@@ -240,6 +329,7 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
                 tooltip: 'جدولة اجتماع جديد',
                 onPressed: () {
                   final meetingsViewModel = Provider.of<MeetingsViewModel>(context, listen: false);
+                  final scaffoldMessenger = ScaffoldMessenger.of(context);
                   Navigator.push<bool>(
                     context,
                     MaterialPageRoute(
@@ -250,7 +340,7 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
                     ),
                   ).then((success) {
                     if (success == true && mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
+                      scaffoldMessenger.showSnackBar(
                         const SnackBar(
                           content: Text('تمت جدولة الاجتماع بنجاح!'),
                           backgroundColor: Colors.green,

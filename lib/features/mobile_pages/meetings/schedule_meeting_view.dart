@@ -7,6 +7,7 @@ import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/widgets/searchable_user_dropdown.dart';
 import 'meetings_viewmodel.dart';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:academic_affairs_management/features/mobile_pages/meetings/meeting_model.dart';
 
 class ScheduleMeetingView extends StatefulWidget {
@@ -30,6 +31,11 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
   List<String?> _selectedAttendeeIds = [null];
   List<Map<String, dynamic>> _facultyMembers = [];
 
+  PlatformFile? _previousMinutesFile;
+  String? _existingPreviousMinutesUrl;
+  String? _existingPreviousMinutesName;
+  bool _clearPreviousMinutes = false;
+
   @override
   void initState() {
     super.initState();
@@ -40,6 +46,8 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
       _dateController.text = widget.meeting!.date;
       _timeController.text = widget.meeting!.time;
       _roomController.text = widget.meeting!.room;
+      _existingPreviousMinutesUrl = widget.meeting!.previousMinutesUrl;
+      _existingPreviousMinutesName = widget.meeting!.previousMinutesName;
       
       _agendaControllers = widget.meeting!.agenda
           .map((item) => TextEditingController(text: item))
@@ -207,6 +215,25 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
     }
   }
 
+  Future<void> _pickPreviousMinutesFile() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['docx', 'doc'],
+    );
+
+    if (result != null && result.files.isNotEmpty) {
+      setState(() {
+        _previousMinutesFile = result.files.first;
+        _clearPreviousMinutes = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم اختيار ملف المحضر السابق: ${_previousMinutesFile!.name}')),
+        );
+      }
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -265,6 +292,10 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
             agenda: agenda,
             attendees: attendees,
             attendeeIds: attendeeIds,
+            previousMinutesFile: _previousMinutesFile,
+            existingPreviousMinutesUrl: _existingPreviousMinutesUrl,
+            existingPreviousMinutesName: _existingPreviousMinutesName,
+            clearPreviousMinutes: _clearPreviousMinutes,
           )
         : await meetingsViewModel.scheduleMeeting(
             title: _titleController.text.trim(),
@@ -274,6 +305,7 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
             agenda: agenda,
             attendees: attendees,
             attendeeIds: attendeeIds,
+            previousMinutesFile: _previousMinutesFile,
           );
 
     if (success && mounted) {
@@ -491,6 +523,89 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                       );
                     },
                   ),
+                  const SizedBox(height: 20),
+
+                  // Previous Minutes File Section
+                  const Text(
+                    'محضر الاجتماع السابق (اختياري)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo'),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_previousMinutesFile != null) ...[
+                          Row(
+                            children: [
+                              const Icon(Icons.description, color: Colors.green),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _previousMinutesFile!.name,
+                                  style: const TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.bold),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    _previousMinutesFile = null;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ] else if (_existingPreviousMinutesUrl != null && !_clearPreviousMinutes) ...[
+                          Row(
+                            children: [
+                              const Icon(Icons.description, color: DesktopColors.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _existingPreviousMinutesName ?? 'محضر الاجتماع السابق.docx',
+                                  style: const TextStyle(fontFamily: 'Cairo', fontSize: 13, fontWeight: FontWeight.bold),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.close, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    _clearPreviousMinutes = true;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          Center(
+                            child: OutlinedButton.icon(
+                              onPressed: _pickPreviousMinutesFile,
+                              icon: const Icon(Icons.upload_file),
+                              label: const Text('اختيار ملف Word للمحضر السابق', style: TextStyle(fontFamily: 'Cairo')),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(color: DesktopColors.primary),
+                                foregroundColor: DesktopColors.primary,
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 32),
 
                   // Submit Buttons
