@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:archive/archive.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/utils/docx_template_helper.dart';
 
 class DocxExportService {
   /// توليد البايتات الخام لملف مايكروسوفت وورد .docx صالح يحتوي على محضر الاجتماع.
@@ -14,7 +15,8 @@ class DocxExportService {
     final archive = Archive();
 
     // 1. ملف [Content_Types].xml
-    const contentTypesXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    const contentTypesXml =
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/markup-compatibility/2006">
   <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
   <Default Extension="xml" ContentType="application/xml"/>
@@ -164,7 +166,8 @@ class DocxExportService {
       ''');
     }
 
-    final documentXml = '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+    final documentXml =
+        '''<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
     ${bodyContent.toString()}
@@ -176,11 +179,101 @@ class DocxExportService {
 </w:document>''';
 
     // إضافة الملفات إلى ملف ZIP المضغوط للوورد
-    archive.addFile(ArchiveFile('[Content_Types].xml', contentTypesXml.length, utf8.encode(contentTypesXml)));
-    archive.addFile(ArchiveFile('_rels/.rels', relsXml.length, utf8.encode(relsXml)));
-    archive.addFile(ArchiveFile('word/document.xml', documentXml.length, utf8.encode(documentXml)));
+    archive.addFile(ArchiveFile('[Content_Types].xml', contentTypesXml.length,
+        utf8.encode(contentTypesXml)));
+    archive.addFile(
+        ArchiveFile('_rels/.rels', relsXml.length, utf8.encode(relsXml)));
+    archive.addFile(ArchiveFile(
+        'word/document.xml', documentXml.length, utf8.encode(documentXml)));
 
     final encoder = ZipEncoder();
     return encoder.encode(archive)!;
+  }
+
+  /// توليد البايتات الخام لاستمارة طلب الإجازة بناءً على القالب المرفق.
+  static Future<List<int>> createLeaveRequestDocx({
+    required String applicantName,
+    required String college,
+    required String department,
+    required String leaveType,
+    required String duration,
+    required String startDate,
+    required String requestDate,
+    required List<dynamic> approvalHistory,
+  }) async {
+    final loaded = await DocxTemplateHelper.loadTemplate(
+        'assets/templates/leave_template.docx');
+    var documentXml = loaded.documentXml;
+
+    String formatDate(dynamic dateVal) {
+      if (dateVal == null) return '';
+      try {
+        final dt = DateTime.parse(dateVal.toString());
+        return "${dt.year}/${dt.month.toString().padLeft(2, '0')}/${dt.day.toString().padLeft(2, '0')}";
+      } catch (_) {
+        return dateVal.toString();
+      }
+    }
+
+    String deptHeadName = '....................';
+    String deptHeadDate = '....................';
+    String deanName = '....................';
+    String deanDate = '....................';
+    String vpName = '....................';
+    String vpDate = '....................';
+
+    for (final step in approvalHistory) {
+      if (step is Map) {
+        final stepNum = step['step'];
+        final name = step['approver_name'] ?? step['name'] ?? '';
+        final date = formatDate(step['date'] ?? step['timestamp']);
+
+        if (stepNum == 1) {
+          deptHeadName = name;
+          deptHeadDate = date;
+        } else if (stepNum == 3) {
+          deanName = name;
+          deanDate = date;
+        } else if (stepNum == 4) {
+          vpName = name;
+          vpDate = date;
+        }
+      }
+    }
+
+    final bool isHajj = leaveType.contains('حج') || leaveType.contains('الحج');
+    final bool isUmrah =
+        leaveType.contains('عمرة') || leaveType.contains('العمرة');
+    final bool isChildbirth = leaveType.contains('وضع');
+    final bool isSick =
+        leaveType.contains('مرض') || leaveType.contains('المرض');
+    final bool isCompanion =
+        leaveType.contains('مرافقة') || leaveType.contains('المرافقة');
+    final bool isEmergency =
+        leaveType.contains('اضطرار') || leaveType.contains('الاضطرارية');
+
+    documentXml = DocxTemplateHelper.replacePlaceholders(documentXml, {
+      '{{applicantName}}': applicantName,
+      '{{college}}': college,
+      '{{department}}': department,
+      '{{duration}}': duration,
+      '{{startDate}}': startDate,
+      '{{requestDate}}': requestDate,
+      '{{deptHeadName}}': deptHeadName,
+      '{{deptHeadDate}}': deptHeadDate,
+      '{{deanName}}': deanName,
+      '{{deanDate}}': deanDate,
+      '{{vpName}}': vpName,
+      '{{vpDate}}': vpDate,
+      '{{isHajj}}': isHajj ? '✔' : '  ',
+      '{{isUmrah}}': isUmrah ? '✔' : '  ',
+      '{{isChildbirth}}': isChildbirth ? '✔' : '  ',
+      '{{isSick}}': isSick ? '✔' : '  ',
+      '{{isCompanion}}': isCompanion ? '✔' : '  ',
+      '{{isEmergency}}': isEmergency ? '✔' : '  ',
+    });
+
+    return DocxTemplateHelper.repackDocx(
+        loaded.archive, utf8.encode(documentXml));
   }
 }

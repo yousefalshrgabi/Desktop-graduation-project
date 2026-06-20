@@ -177,7 +177,7 @@ class _MobileShellState extends State<MobileShell> {
   }
 
   Future<void> _handleLogout() async {
-    final int? choice = await showDialog<int>(
+    final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -188,30 +188,24 @@ class _MobileShellState extends State<MobileShell> {
             Text('تسجيل الخروج'),
           ],
         ),
-        content: const Text('هل ترغب في مزامنة بياناتك مع السحابة قبل الخروج لضمان عدم فقدان أي تعديلات، أم ترغب في الخروج السريع (بدون مزامنة)؟'),
+        content: const Text('هل أنت متأكد من تسجيل الخروج؟'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(ctx, 0),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, 2),
-            child: const Text('خروج بدون مزامنة', style: TextStyle(color: Colors.red)),
-          ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, 1),
-            style: ElevatedButton.styleFrom(backgroundColor: DesktopColors.primary),
-            child: const Text('مزامنة ثم خروج', style: TextStyle(color: Colors.white)),
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('خروج', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
 
-    if (choice == null || choice == 0) return;
+    if (confirmed != true) return;
 
     if (!mounted) return;
-
-    final bool skipSync = (choice == 2);
 
     // 1. إظهار مؤشر التحميل
     showDialog(
@@ -225,10 +219,10 @@ class _MobileShellState extends State<MobileShell> {
             padding: const EdgeInsets.all(24),
             child: Column(
               mainAxisSize: MainAxisSize.min,
-              children: [
-                const CircularProgressIndicator(),
-                const SizedBox(height: 16),
-                Text(skipSync ? 'جاري تسجيل الخروج السريع...' : 'جاري تسجيل الخروج ورفع البيانات...'),
+              children: const [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('جاري تسجيل الخروج ورفع البيانات...'),
               ],
             ),
           ),
@@ -238,7 +232,92 @@ class _MobileShellState extends State<MobileShell> {
 
     try {
       // 2. استدعاء تسجيل الخروج
-      bool success = await _viewModel.logout(skipSync: skipSync);
+      bool success = await _viewModel.logout();
+
+      if (mounted) {
+        Navigator.of(context, rootNavigator: true).pop(); // إغلاق الدايلوج
+      }
+
+      if (success && mounted) {
+        MyApp.restartApp(context, loggedIn: false);
+      } else if (!success && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_viewModel.logoutErrorMessage.isNotEmpty
+                ? _viewModel.logoutErrorMessage
+                : 'حدث خطأ أثناء تسجيل الخروج'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('خطأ غير متوقع: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _handleDirectLogout() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange),
+            SizedBox(width: 8),
+            Text('تسجيل خروج مباشر'),
+          ],
+        ),
+        content: const Text(
+            'هل أنت متأكد من تسجيل الخروج المباشر؟ لن يتم مزامنة تعديلاتك المحلية مع السحابة وقد تفقد البيانات غير المرفوعة.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('إلغاء', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange),
+            child: const Text('خروج مباشر', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (!mounted) return;
+
+    // 1. إظهار مؤشر التحميل
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Center(
+        child: Card(
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+          child: Container(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('جاري تسجيل الخروج المباشر...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    try {
+      // 2. استدعاء تسجيل الخروج المباشر (sync: false)
+      bool success = await _viewModel.logout(sync: false);
 
       if (mounted) {
         Navigator.of(context, rootNavigator: true).pop(); // إغلاق الدايلوج
@@ -400,6 +479,11 @@ class _MobileShellState extends State<MobileShell> {
               ),
             );
           },
+        ),
+        IconButton(
+          icon: const Icon(Icons.exit_to_app, color: Colors.orangeAccent),
+          tooltip: 'تسجيل خروج مباشر (بدون مزامنة)',
+          onPressed: _handleDirectLogout,
         ),
         IconButton(
           icon: const Icon(Icons.logout),

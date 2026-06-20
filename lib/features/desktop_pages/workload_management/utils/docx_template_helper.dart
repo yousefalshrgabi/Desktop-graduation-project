@@ -12,7 +12,10 @@ class DocxTemplateHelper {
   ) async {
     final templateBytes = await rootBundle.load(assetPath);
     final decoded = ZipDecoder().decodeBytes(
-      templateBytes.buffer.asUint8List(),
+      templateBytes.buffer.asUint8List(
+        templateBytes.offsetInBytes,
+        templateBytes.lengthInBytes,
+      ),
     );
     final docFile = decoded.files.firstWhere(
       (f) => f.name == 'word/document.xml',
@@ -104,6 +107,14 @@ class DocxTemplateHelper {
     var result = xml;
     for (final entry in placeholders.entries) {
       final escaped = escapeXml(sanitizeText(entry.value));
+
+      // Handle potential splitting of placeholder in Word XML (e.g. {{key}} split across tags/runs)
+      final keyName = entry.key.replaceAll('{', '').replaceAll('}', '');
+      final pattern =
+          '\\{(?:<[^>]+>|\\s)*\\{(?:<[^>]+>|\\s)*${RegExp.escape(keyName)}(?:<[^>]+>|\\s)*\\}(?:<[^>]+>|\\s)*\\}';
+      result = result.replaceAllMapped(RegExp(pattern), (match) => escaped);
+
+      // Fallback/standard replace for exact matches
       for (final key in [
         entry.key,
         entry.key.replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
