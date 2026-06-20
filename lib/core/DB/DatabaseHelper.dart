@@ -32,7 +32,7 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
     return await openDatabase(
       path,
-      version: 15,
+      version: 16,
       // 👈 تفعيل القيود المرجعية (Foreign Keys) لضمان صحة الربط بين الجداول
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -197,7 +197,7 @@ class DatabaseHelper {
           '[SQLITE DEBUG] ✅ تم إنشاء جدول timetables (v14) خلال الترقية');
     }
 
-    if (oldVersion < 15) {
+    if (oldVersion < 16) {
       // إضافة عمود updated_at للجداول الرئيسية (للمزامنة التفاضلية)
       final tables = ['users', 'colleges', 'departments', 'faculty_members'];
       for (final table in tables) {
@@ -324,6 +324,7 @@ class DatabaseHelper {
           unpaid_leaves TEXT,
 
           created_at TEXT NOT NULL,
+          updated_at TEXT,
           
           -- 🔗 الربط المرجعي بجدول المستخدمين
           FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
