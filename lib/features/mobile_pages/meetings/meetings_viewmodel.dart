@@ -164,8 +164,13 @@ class MeetingsViewModel extends ChangeNotifier {
           .doc(id)
           .set(newMeeting.toMap());
 
-      // كتابة مستندات إشعار لكل حاضر في Firestore
-      for (final attendeeId in attendeeIds) {
+      // كتابة مستندات إشعار لكل حاضر ومنشئ الاجتماع في Firestore
+      final Set<String> notificationReceivers = Set.from(attendeeIds);
+      if (_session.userId.isNotEmpty) {
+        notificationReceivers.add(_session.userId); // لكي يظهر الإشعار لك عند الاختبار
+      }
+
+      for (final attendeeId in notificationReceivers) {
         if (attendeeId.isNotEmpty) {
           final notificationId = const Uuid().v4();
           await _firestore.collection('notifications').doc(notificationId).set({
@@ -257,8 +262,13 @@ class MeetingsViewModel extends ChangeNotifier {
         'previousMinutesName': previousMinutesName,
       });
 
-      // كتابة إشعارات التعديل لكل الحاضرين في Firestore
-      for (final attendeeId in attendeeIds) {
+      // كتابة إشعارات التعديل لكل الحاضرين ومنشئ الاجتماع في Firestore
+      final Set<String> notificationReceivers = Set.from(attendeeIds);
+      if (_session.userId.isNotEmpty) {
+        notificationReceivers.add(_session.userId);
+      }
+
+      for (final attendeeId in notificationReceivers) {
         if (attendeeId.isNotEmpty) {
           final notificationId = const Uuid().v4();
           await _firestore.collection('notifications').doc(notificationId).set({
@@ -296,8 +306,13 @@ class MeetingsViewModel extends ChangeNotifier {
         'status': MeetingStatus.canceled.key,
       });
 
-      // إرسال إشعارات الإلغاء لجميع الحاضرين المسجلين
-      for (final attendeeId in meeting.attendeeIds) {
+      // إرسال إشعارات الإلغاء لجميع الحاضرين المسجلين ومنشئ الاجتماع
+      final Set<String> notificationReceivers = Set.from(meeting.attendeeIds);
+      if (_session.userId.isNotEmpty) {
+        notificationReceivers.add(_session.userId);
+      }
+
+      for (final attendeeId in notificationReceivers) {
         if (attendeeId.isNotEmpty) {
           final notificationId = const Uuid().v4();
           await _firestore.collection('notifications').doc(notificationId).set({

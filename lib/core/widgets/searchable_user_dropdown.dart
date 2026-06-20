@@ -3,6 +3,7 @@ import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 
 class SearchableUserDropdown extends StatelessWidget {
   final String? value;
+  final String? initialName;
   final String hint;
   final List<Map<String, dynamic>> items;
   final void Function(String?) onChanged;
@@ -10,6 +11,7 @@ class SearchableUserDropdown extends StatelessWidget {
   const SearchableUserDropdown({
     super.key,
     required this.value,
+    this.initialName,
     required this.hint,
     required this.items,
     required this.onChanged,
@@ -45,7 +47,11 @@ class SearchableUserDropdown extends StatelessWidget {
           onSelected: (Map<String, dynamic> selection) {
             onChanged(selection['id']);
           },
-          initialValue: TextEditingValue(text: initialUser['name'] ?? ''),
+          initialValue: TextEditingValue(
+            text: (initialName != null && initialName!.isNotEmpty)
+                ? initialName!
+                : (initialUser['name'] ?? ''),
+          ),
           fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
             return TextFormField(
               controller: controller,

@@ -11,6 +11,7 @@ import '../mobile_requests/mobile_requests_view.dart';
 import '../mobile_role_tasks/mobile_role_tasks_view.dart';
 import '../mobile_schedule/mobile_schedule_view.dart';
 import '../mobile_home/mobile_home_view.dart';
+import 'notification_details_view.dart';
 
 /// واجهة الموبايل الرئيسية الموحدة لجميع الأدوار (عضو، عميد، نائب عميد، رئيس قسم)
 class MobileShell extends StatefulWidget {
@@ -502,7 +503,18 @@ class _MobileShellState extends State<MobileShell> {
                                   await docs[index]
                                       .reference
                                       .update({'isRead': true});
-                                  if (context.mounted) Navigator.pop(context);
+                                  if (context.mounted) {
+                                    Navigator.pop(context); // إغلاق اللوحة السفلية
+                                    Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (_) => NotificationDetailsView(
+                                          notificationId: docs[index].id,
+                                          notificationData: data,
+                                        ),
+                                      ),
+                                    );
+                                  }
                                 },
                               ),
                             );
