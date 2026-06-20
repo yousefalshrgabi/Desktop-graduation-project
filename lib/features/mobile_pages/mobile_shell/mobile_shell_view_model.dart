@@ -24,8 +24,8 @@ class MobileShellViewModel extends ChangeNotifier {
   String roleKeyToLabel(String roleKey) => _session.roleKeyToLabel(roleKey);
 
   /// تسجيل الخروج: يرجع [true] عند النجاح، [false] عند الفشل مع رسالة خطأ في [loginViewModel.errorMessage]
-  Future<bool> logout({bool skipSync = false}) async {
-    return await _loginViewModel.logout(skipSync: skipSync);
+  Future<bool> logout({bool forceLogout = false, bool sync = true}) async {
+    return await _loginViewModel.logout(forceLogout: forceLogout, sync: sync);
   }
 
   String get logoutErrorMessage => _loginViewModel.errorMessage;

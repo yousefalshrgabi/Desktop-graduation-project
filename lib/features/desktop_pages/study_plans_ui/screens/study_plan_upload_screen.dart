@@ -323,7 +323,10 @@ class _StudyPlanUploadScreenState extends State<StudyPlanUploadScreen> {
       for (final item in bundles) {
         final data = await rootBundle.load(item.asset);
         final plan = _parser.parseBytes(
-          data.buffer.asUint8List(),
+          data.buffer.asUint8List(
+            data.offsetInBytes,
+            data.lengthInBytes,
+          ),
           collegeName: 'كلية الحاسبات',
           defaultProgramName: item.program,
           defaultTrackName: item.track,

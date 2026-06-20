@@ -214,6 +214,16 @@ class DatabaseHelper {
       await _createUpdateTimestampTriggers(db);
       debugPrint('[SQLITE DEBUG] ✅ تم إضافة updated_at والـ Triggers (v15)');
     }
+
+    if (oldVersion < 16) {
+      try {
+        await db.execute('ALTER TABLE faculty_members ADD COLUMN updated_at TEXT');
+        await db.execute("UPDATE faculty_members SET updated_at = '1970-01-01T00:00:00.000'");
+      } catch (e) {
+        debugPrint('[SQLITE v16] ⚠️ العمود updated_at موجود بالفعل في faculty_members: $e');
+      }
+      debugPrint('[SQLITE DEBUG] ✅ تم ترقية قاعدة البيانات للإصدار 16 وإضافة updated_at لجدول faculty_members');
+    }
   }
 
   Future<void> _createDB(Database db, int version) async {

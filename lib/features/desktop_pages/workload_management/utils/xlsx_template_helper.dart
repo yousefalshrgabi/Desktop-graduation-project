@@ -17,7 +17,10 @@ class XlsxTemplateHelper {
   ) async {
     final templateBytes = await rootBundle.load(assetPath);
     final archive = ZipDecoder().decodeBytes(
-      templateBytes.buffer.asUint8List(),
+      templateBytes.buffer.asUint8List(
+        templateBytes.offsetInBytes,
+        templateBytes.lengthInBytes,
+      ),
     );
 
     final sheetFile = archive.files.firstWhere(

@@ -12,10 +12,8 @@ import 'package:academic_affairs_management/features/desktop_pages/requests_scre
 import 'package:academic_affairs_management/features/desktop_pages/programs_screen/programs_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/subjects_screen/subjects_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/screens/study_plan_list_screen.dart';
-import 'package:academic_affairs_management/features/course_study_plan/screens/mobile_course_progress_tracking_screen.dart';
-import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/course_need_requests_screen.dart';
-import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/college_workload_requests_screen.dart';
-import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/overtime_submissions_screen.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/course_assignment_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/workload_report_view.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/widgets/change_password_dialog.dart';
 
@@ -114,10 +112,17 @@ class _MainShellState extends State<MainShell>
                           !AppSession().isAdminOrDeanship,
                     ),
                     RequestsView(key: ValueKey('requests_$_selectedIndex')),
-                    MobileCourseProgressTrackingScreen(key: ValueKey('tracking_$_selectedIndex')),
-                    CourseNeedRequestsScreen(key: ValueKey('need_requests_$_selectedIndex')),
-                    CollegeWorkloadRequestsScreen(key: ValueKey('workload_requests_$_selectedIndex')),
-                    OvertimeSubmissionsScreen(key: ValueKey('overtime_$_selectedIndex')),
+                    CourseAssignmentView(
+                      key: ValueKey('assign_$_selectedIndex'),
+                      initialCollege: AppSession().userCollege.isNotEmpty
+                          ? AppSession().userCollege
+                          : 'كلية الحاسبات',
+                      canEdit: AppSession().isAdminOrDeanship ||
+                          AppSession().isViceDean,
+                      lockCollege: AppSession().isViceDean &&
+                          !AppSession().isAdminOrDeanship,
+                    ),
+                    WorkloadReportView(key: ValueKey('workload_$_selectedIndex')),
                   ],
                 ),
                 // Toggle button
@@ -184,12 +189,11 @@ class _MainShellState extends State<MainShell>
                 _buildSidebarItem(4, 'المستخدمين', Icons.manage_accounts_outlined),
                 _buildSidebarItem(5, 'الخطط الدراسية', Icons.schema_outlined),
                 _buildSidebarItem(6, 'الطلبات', Icons.request_page_outlined),
-                _buildSidebarItem(7, 'إنجاز المقررات', Icons.query_stats),
-                _buildSidebarItem(8, 'طلبات الاحتياج', Icons.forward_to_inbox),
-                if (AppSession().isAdminOrDeanship || AppSession().isDean || AppSession().isViceDean) ...[
-                  _buildSidebarItem(9, 'اعتماد الأنصبة', Icons.assignment_turned_in_outlined),
-                  _buildSidebarItem(10, 'الساعات الزائدة والموازية', Icons.access_time_outlined),
-                ]
+                // إخفاء الميزة من الديسكتوب للنيابة الأكاديمية/العامة حسب طلبك
+                if (!AppSession().isViceDean && !AppSession().userRole.contains('Public Prosecution')) ...[
+                  _buildSidebarItem(7, 'ربط المقررات', Icons.assignment_ind_outlined),
+                  _buildSidebarItem(8, 'نصاب المدرسين', Icons.analytics_outlined),
+                ],
               ],
             ),
           ),
@@ -346,35 +350,42 @@ class _MainShellState extends State<MainShell>
               },
             ),
             IconButton(
-              icon: const Icon(Icons.logout, color: Colors.red),
-              tooltip: 'تسجيل الخروج',
+              icon: const Icon(Icons.exit_to_app, color: Colors.orange, size: 20),
+              tooltip: 'تسجيل خروج مباشر (بدون مزامنة)',
               onPressed: () async {
-                final int? choice = await showDialog<int>(
+                final confirm = await showDialog<bool>(
                   context: context,
-                  builder: (context) => AlertDialog(
-                    title: const Text('تسجيل الخروج'),
-                    content: const Text('هل ترغب في مزامنة بياناتك مع السحابة قبل الخروج لضمان عدم فقدان أي تعديلات، أم ترغب في الخروج السريع (بدون مزامنة)؟'),
+                  builder: (ctx) => AlertDialog(
+                    title: const Row(
+                      children: [
+                        Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                        SizedBox(width: 8),
+                        Text('تسجيل خروج مباشر'),
+                      ],
+                    ),
+                    content: const Text(
+                      'هل أنت متأكد من تسجيل الخروج المباشر؟ لن يتم مزامنة تعديلاتك المحلية مع السحابة وقد تفقد البيانات غير المرفوعة.'
+                    ),
                     actions: [
                       TextButton(
-                        onPressed: () => Navigator.pop(context, 0),
+                        onPressed: () => Navigator.pop(ctx, false),
                         child: const Text('إلغاء'),
                       ),
-                      TextButton(
-                        onPressed: () => Navigator.pop(context, 2),
-                        child: const Text('خروج بدون مزامنة', style: TextStyle(color: Colors.red)),
-                      ),
                       ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: DesktopColors.primary, foregroundColor: Colors.white),
-                        onPressed: () => Navigator.pop(context, 1),
-                        child: const Text('مزامنة ثم خروج'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.orange,
+                          foregroundColor: Colors.white,
+                        ),
+                        onPressed: () => Navigator.pop(ctx, true),
+                        child: const Text('خروج مباشر (بدون مزامنة)'),
                       ),
                     ],
                   ),
                 );
 
-                if (choice == null || choice == 0) return;
+                if (confirm != true) return;
 
-                final bool skipSync = (choice == 2);
+                if (!context.mounted) return;
 
                 // 1. إظهار مؤشر التحميل
                 showDialog(
@@ -384,8 +395,45 @@ class _MainShellState extends State<MainShell>
                       const Center(child: CircularProgressIndicator()),
                 );
 
+                // 2. استدعاء دالة تسجيل الخروج مباشر (sync: false)
+                bool success = await _loginViewModel.logout(sync: false);
+
+                // 3. إغلاق مؤشر التحميل بأمان
+                if (context.mounted) {
+                  Navigator.pop(context);
+                }
+
+                if (success) {
+                  if (context.mounted) {
+                    MyApp.restartApp(context, loggedIn: false);
+                  }
+                } else {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text('حدث خطأ غير متوقع: ${_loginViewModel.errorMessage}'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                }
+              },
+            ),
+            IconButton(
+              icon: const Icon(Icons.logout, color: Colors.red),
+              tooltip: 'تسجيل الخروج',
+              onPressed: () async {
+                // 1. إظهار مؤشر التحميل
+                showDialog(
+                  context: context,
+                  barrierDismissible: false,
+                  builder: (context) =>
+                      const Center(child: CircularProgressIndicator()),
+                );
+
                 // 2. استدعاء دالة تسجيل الخروج وانتظار النتيجة (true أو false)
-                bool success = await _loginViewModel.logout(skipSync: skipSync);
+                // لاحظ أننا لم نعد نمرر context للدالة
+                bool success = await _loginViewModel.logout();
 
                 // 3. إغلاق مؤشر التحميل بأمان (قبل أي توجيه آخر)
                 if (context.mounted) {
@@ -399,84 +447,28 @@ class _MainShellState extends State<MainShell>
                     MyApp.restartApp(context, loggedIn: false);
                   }
                 } else {
-                  if (_loginViewModel.errorMessage == 'فشل المزامنة') {
-                    // نظهر رسالة تحذيرية للمستخدم
-                    if (context.mounted) {
-                      showDialog(
-                        context: context,
-                        builder: (dialogContext) => AlertDialog(
-                          title: const Row(
-                            children: [
-                              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
-                              SizedBox(width: 8),
-                              Text('تحذير: فشل المزامنة'),
-                            ],
-                          ),
-                          content: const Text(
-                            'تعذر رفع تعديلاتك المحلية للسحابة بسبب مشكلة في الاتصال بالإنترنت.\n\n'
-                            'إذا قمت بفرض الخروج الآن، ستفقد أي بيانات أضفتها أو عدلتها ولم يتم مزامنتها بعد.\n'
-                            'هل أنت متأكد من رغبتك في إجبار الخروج ومسح البيانات المحلية؟'
-                          ),
-                          actions: [
-                            TextButton(
-                              onPressed: () => Navigator.pop(dialogContext),
-                              child: const Text('إلغاء (البقاء للحفاظ على البيانات)'),
-                            ),
-                            ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                              onPressed: () async {
-                                Navigator.pop(dialogContext); // إغلاق الحوار
-                                
-                                // إظهار مؤشر التحميل مرة أخرى
-                                showDialog(
-                                  context: context,
-                                  barrierDismissible: false,
-                                  builder: (context) => const Center(child: CircularProgressIndicator()),
-                                );
-                                
-                                bool forceSuccess = await _loginViewModel.logout(forceLogout: true);
-                                
-                                if (context.mounted) {
-                                  Navigator.pop(context); // إغلاق المؤشر
-                                  if (forceSuccess) {
-                                    MyApp.restartApp(context, loggedIn: false);
-                                  } else {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('حدث خطأ غير متوقع: ${_loginViewModel.errorMessage}')),
-                                    );
-                                  }
-                                }
-                              },
-                              child: const Text('إجبار الخروج (سأفقد التعديلات)'),
+                  // إذا فشل (بسبب انقطاع النت)، نظهر رسالة الخطأ
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Row(
+                          children: [
+                            const Icon(Icons.wifi_off, color: Colors.white),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Text(
+                                _loginViewModel.errorMessage,
+                                style: const TextStyle(
+                                    fontSize: 14, fontWeight: FontWeight.bold),
+                              ),
                             ),
                           ],
                         ),
-                      );
-                    }
-                  } else {
-                    // إذا فشل (لسبب آخر)، نظهر رسالة الخطأ
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Row(
-                            children: [
-                              const Icon(Icons.error_outline, color: Colors.white),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  _loginViewModel.errorMessage,
-                                  style: const TextStyle(
-                                      fontSize: 14, fontWeight: FontWeight.bold),
-                                ),
-                              ),
-                            ],
-                          ),
-                          backgroundColor: Colors.red[700],
-                          behavior: SnackBarBehavior.floating,
-                          duration: const Duration(seconds: 5),
-                        ),
-                      );
-                    }
+                        backgroundColor: Colors.red[700],
+                        behavior: SnackBarBehavior.floating,
+                        duration: const Duration(seconds: 5),
+                      ),
+                    );
                   }
                 }
               },
