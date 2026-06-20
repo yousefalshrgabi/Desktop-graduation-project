@@ -342,82 +342,152 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
           ..._newGroups.asMap().entries.map((entry) {
             final index = entry.key;
             final group = entry.value;
+            final bool isMobile = MediaQuery.of(context).size.width < 750;
             return Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Text('مجموعة رقم (${index + 1})'),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButtonFormField<int>(
-                      value: group['studentCount'] as int,
-                      decoration: const InputDecoration(
-                        labelText: 'عدد الطلاب',
-                        border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      items: List.generate(4, (i) => i + 1).map((count) {
-                        return DropdownMenuItem(
-                          value: count,
-                          child: Text('$count طلاب'),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          _updateGroupStudentCount(index, val);
-                        }
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: DropdownButtonFormField<String>(
-                      value: (group['scheduleType'] ?? 'عام').toString(),
-                      decoration: const InputDecoration(
-                        labelText: 'النوع',
-                        border: OutlineInputBorder(),
-                        contentPadding:
-                            EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      ),
-                      items: const [
-                        DropdownMenuItem(
-                          value: 'عام',
-                          child: Text('عام'),
+              child: isMobile
+                  ? Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(8.0),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text('مجموعة رقم (${index + 1})', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                IconButton(
+                                  icon: const Icon(Icons.remove_circle, color: Colors.red),
+                                  onPressed: () => _removeGroup(index),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            DropdownButtonFormField<int>(
+                              value: group['studentCount'] as int,
+                              decoration: const InputDecoration(
+                                labelText: 'عدد الطلاب',
+                                border: OutlineInputBorder(),
+                                contentPadding:
+                                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                              items: List.generate(4, (i) => i + 1).map((count) {
+                                return DropdownMenuItem(
+                                  value: count,
+                                  child: Text('$count طلاب'),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  _updateGroupStudentCount(index, val);
+                                }
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            DropdownButtonFormField<String>(
+                              value: (group['scheduleType'] ?? 'عام').toString(),
+                              decoration: const InputDecoration(
+                                labelText: 'النوع',
+                                border: OutlineInputBorder(),
+                                contentPadding:
+                                    EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'عام',
+                                  child: Text('عام'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'موازي',
+                                  child: Text('موازي'),
+                                ),
+                              ],
+                              onChanged: (val) {
+                                if (val != null) {
+                                  _updateGroupScheduleType(index, val);
+                                }
+                              },
+                            ),
+                          ],
                         ),
-                        DropdownMenuItem(
-                          value: 'موازي',
-                          child: Text('موازي'),
+                      ),
+                    )
+                  : Row(
+                      children: [
+                        Expanded(
+                          flex: 2,
+                          child: Text('مجموعة رقم (${index + 1})'),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<int>(
+                            value: group['studentCount'] as int,
+                            decoration: const InputDecoration(
+                              labelText: 'عدد الطلاب',
+                              border: OutlineInputBorder(),
+                              contentPadding:
+                                  EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            items: List.generate(4, (i) => i + 1).map((count) {
+                              return DropdownMenuItem(
+                                value: count,
+                                child: Text('$count طلاب'),
+                              );
+                            }).toList(),
+                            onChanged: (val) {
+                              if (val != null) {
+                                _updateGroupStudentCount(index, val);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: DropdownButtonFormField<String>(
+                            value: (group['scheduleType'] ?? 'عام').toString(),
+                            decoration: const InputDecoration(
+                              labelText: 'النوع',
+                              border: OutlineInputBorder(),
+                              contentPadding:
+                                  EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: 'عام',
+                                child: Text('عام'),
+                              ),
+                              DropdownMenuItem(
+                                value: 'موازي',
+                                child: Text('موازي'),
+                              ),
+                            ],
+                            onChanged: (val) {
+                              if (val != null) {
+                                _updateGroupScheduleType(index, val);
+                              }
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          icon: const Icon(Icons.remove_circle, color: Colors.red),
+                          onPressed: () => _removeGroup(index),
                         ),
                       ],
-                      onChanged: (val) {
-                        if (val != null) {
-                          _updateGroupScheduleType(index, val);
-                        }
-                      },
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    icon: const Icon(Icons.remove_circle, color: Colors.red),
-                    onPressed: () => _removeGroup(index),
-                  ),
-                ],
-              ),
             );
           }),
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               OutlinedButton.icon(
                 onPressed: _addNewGroup,
                 icon: const Icon(Icons.add),
                 label: const Text('إضافة مجموعة'),
               ),
-              const SizedBox(width: 8),
               FilledButton.icon(
                 onPressed: _saveGraduationGroups,
                 icon: const Icon(Icons.save),
@@ -708,147 +778,184 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
 
           final filtered = _filteredData(_searchQuery, all);
 
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
+          final bool isMobile = MediaQuery.of(context).size.width < 750;
+
+          Widget buildDropdown() {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text(
+                  'اختر المعلم',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Row(
                   children: [
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const Text(
-                            'اختر المعلم',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                          const SizedBox(height: 8),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: DropdownButtonFormField<String>(
-                                  value: _searchQuery != null &&
-                                          sortedOptions.contains(_searchQuery)
-                                      ? _searchQuery
-                                      : null,
-                                  decoration: const InputDecoration(
-                                    hintText: 'اختر معلماً من القائمة...',
-                                    border: OutlineInputBorder(),
-                                    contentPadding: EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 12),
-                                  ),
-                                  items: sortedOptions.map((t) {
-                                    final isUnmapped =
-                                        _unmappedNames.contains(t);
-                                    return DropdownMenuItem(
-                                      value: t,
-                                      child: Text(
-                                        t + (isUnmapped ? ' (غير مربوط)' : ''),
-                                        style: TextStyle(
-                                          color: isUnmapped
-                                              ? Colors.redAccent
-                                              : null,
-                                        ),
-                                      ),
-                                    );
-                                  }).toList(),
-                                  onChanged: (val) {
-                                    setState(() {
-                                      _searchQuery = val;
-                                      _newGroups = [];
-                                    });
-                                    if (val != null && val.isNotEmpty) {
-                                      _loadGraduationGroups(val);
-                                    }
-                                  },
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 8,
-                          alignment: WrapAlignment.end,
-                          children: [
-                            FilledButton.tonalIcon(
-                              onPressed:
-                                  _isExportingOvertime || _searchQuery == null
-                                      ? null
-                                      : () => _exportOvertimeForm(all),
-                              icon: _isExportingOvertime
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    )
-                                  : const Icon(Icons.table_chart_outlined,
-                                      size: 20),
-                              label: const Text('الساعات الزائدة'),
-                            ),
-                            FilledButton.tonalIcon(
-                              onPressed: _isExportingParallelHours ||
-                                      _searchQuery == null
-                                  ? null
-                                  : () => _exportParallelHoursForm(all),
-                              icon: _isExportingParallelHours
-                                  ? const SizedBox(
-                                      width: 18,
-                                      height: 18,
-                                      child: CircularProgressIndicator(
-                                          strokeWidth: 2),
-                                    )
-                                  : const Icon(Icons.table_rows_outlined,
-                                      size: 20),
-                              label: const Text('الساعات الموازية'),
-                            ),
-                            IconButton.filled(
-                              onPressed: _isExporting || _searchQuery == null
-                                  ? null
-                                  : () => _exportSchedule(all),
-                              icon: _isExporting
-                                  ? const SizedBox(
-                                      width: 20,
-                                      height: 20,
-                                      child: CircularProgressIndicator(
-                                          color: Colors.white, strokeWidth: 2))
-                                  : const Icon(Icons.download),
-                              tooltip: 'تصدير كملف إكسل',
-                              padding: const EdgeInsets.all(12),
-                            ),
-                          ],
+                      child: DropdownButtonFormField<String>(
+                        value: _searchQuery != null &&
+                                sortedOptions.contains(_searchQuery)
+                            ? _searchQuery
+                            : null,
+                        decoration: const InputDecoration(
+                          hintText: 'اختر معلماً من القائمة...',
+                          border: OutlineInputBorder(),
+                          contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16, vertical: 12),
                         ),
-                      ],
+                        items: sortedOptions.map((t) {
+                          final isUnmapped =
+                              _unmappedNames.contains(t);
+                          return DropdownMenuItem(
+                            value: t,
+                            child: Text(
+                              t + (isUnmapped ? ' (غير مربوط)' : ''),
+                              style: TextStyle(
+                                color: isUnmapped
+                                    ? Colors.redAccent
+                                    : null,
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          setState(() {
+                            _searchQuery = val;
+                            _newGroups = [];
+                          });
+                          if (val != null && val.isNotEmpty) {
+                            _loadGraduationGroups(val);
+                          }
+                        },
+                      ),
                     ),
                   ],
                 ),
-              ),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
-                  child: TimetableDataTable(
-                    entries: filtered,
-                    showTeachers: false,
-                    showStudentSets: true,
-                    showRoom: true,
-                  ),
+              ],
+            );
+          }
+
+          Widget buildButtons() {
+            return Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              alignment: isMobile ? WrapAlignment.start : WrapAlignment.end,
+              children: [
+                FilledButton.tonalIcon(
+                  onPressed:
+                      _isExportingOvertime || _searchQuery == null
+                          ? null
+                          : () => _exportOvertimeForm(all),
+                  icon: _isExportingOvertime
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2),
+                        )
+                      : const Icon(Icons.table_chart_outlined,
+                          size: 20),
+                  label: const Text('الساعات الزائدة'),
                 ),
-              ),
-              if ((AppSession().isViceDean || AppSession().isAdminOrDeanship) &&
-                  _searchQuery != null &&
-                  _searchQuery!.isNotEmpty)
-                _buildGraduationProjectSection(),
-            ],
+                FilledButton.tonalIcon(
+                  onPressed: _isExportingParallelHours ||
+                          _searchQuery == null
+                      ? null
+                      : () => _exportParallelHoursForm(all),
+                  icon: _isExportingParallelHours
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2),
+                        )
+                      : const Icon(Icons.table_rows_outlined,
+                          size: 20),
+                  label: const Text('الساعات الموازية'),
+                ),
+                IconButton.filled(
+                  onPressed: _isExporting || _searchQuery == null
+                      ? null
+                      : () => _exportSchedule(all),
+                  icon: _isExporting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2))
+                      : const Icon(Icons.download),
+                  tooltip: 'تصدير كملف إكسل',
+                  padding: const EdgeInsets.all(12),
+                ),
+              ],
+            );
+          }
+
+          final Widget headerPadding = Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+            child: isMobile
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      buildDropdown(),
+                      const SizedBox(height: 12),
+                      buildButtons(),
+                    ],
+                  )
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Expanded(
+                        child: buildDropdown(),
+                      ),
+                      const SizedBox(width: 12),
+                      buildButtons(),
+                    ],
+                  ),
           );
+
+          final Widget tableWidget = Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: TimetableDataTable(
+              entries: filtered,
+              showTeachers: false,
+              showStudentSets: true,
+              showRoom: true,
+            ),
+          );
+
+          final Widget? gradSection = ((AppSession().isViceDean || AppSession().isAdminOrDeanship) &&
+              _searchQuery != null &&
+              _searchQuery!.isNotEmpty)
+              ? _buildGraduationProjectSection()
+              : null;
+
+          if (isMobile) {
+            return SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  headerPadding,
+                  SizedBox(
+                    height: 320,
+                    child: tableWidget,
+                  ),
+                  if (gradSection != null) gradSection,
+                ],
+              ),
+            );
+          } else {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                headerPadding,
+                Expanded(
+                  child: tableWidget,
+                ),
+                if (gradSection != null) gradSection,
+              ],
+            );
+          }
         },
       ),
     );

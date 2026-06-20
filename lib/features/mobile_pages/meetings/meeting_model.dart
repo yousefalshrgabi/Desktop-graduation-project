@@ -66,6 +66,8 @@ class MeetingModel {
   final String college;
   final DateTime createdAt;
   final String? rejectReason;
+  final String? previousMinutesUrl;
+  final String? previousMinutesName;
 
   MeetingModel({
     required this.id,
@@ -83,6 +85,8 @@ class MeetingModel {
     required this.college,
     required this.createdAt,
     this.rejectReason,
+    this.previousMinutesUrl,
+    this.previousMinutesName,
   });
 
   Map<String, dynamic> toMap() {
@@ -102,6 +106,8 @@ class MeetingModel {
       'college': college,
       'createdAt': createdAt.toIso8601String(),
       'rejectReason': rejectReason,
+      'previousMinutesUrl': previousMinutesUrl,
+      'previousMinutesName': previousMinutesName,
     };
   }
 
@@ -158,6 +164,8 @@ class MeetingModel {
       college: map['college'] ?? '',
       createdAt: _parseDateTime(map['createdAt']),
       rejectReason: map['rejectReason'],
+      previousMinutesUrl: map['previousMinutesUrl'],
+      previousMinutesName: map['previousMinutesName'],
     );
   }
 
@@ -177,6 +185,8 @@ class MeetingModel {
     String? college,
     DateTime? createdAt,
     String? rejectReason,
+    String? previousMinutesUrl,
+    String? previousMinutesName,
   }) {
     return MeetingModel(
       id: id ?? this.id,
@@ -194,6 +204,8 @@ class MeetingModel {
       college: college ?? this.college,
       createdAt: createdAt ?? this.createdAt,
       rejectReason: rejectReason ?? this.rejectReason,
+      previousMinutesUrl: previousMinutesUrl ?? this.previousMinutesUrl,
+      previousMinutesName: previousMinutesName ?? this.previousMinutesName,
     );
   }
 }

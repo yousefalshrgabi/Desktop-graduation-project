@@ -7,6 +7,7 @@ import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/widgets/searchable_user_dropdown.dart';
 import 'meetings_viewmodel.dart';
 
+import 'package:file_picker/file_picker.dart';
 import 'package:academic_affairs_management/features/mobile_pages/meetings/meeting_model.dart';
 
 class ScheduleMeetingView extends StatefulWidget {
@@ -24,35 +25,53 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
   final _dateController = TextEditingController();
   final _timeController = TextEditingController();
   final _roomController = TextEditingController(); // حقل تحديد قاعة الاجتماع
-  
+
   List<TextEditingController> _agendaControllers = [TextEditingController()];
   List<TextEditingController> _attendeeControllers = [TextEditingController()];
   List<String?> _selectedAttendeeIds = [null];
   List<Map<String, dynamic>> _facultyMembers = [];
 
+  PlatformFile? _previousMinutesFile;
+  String? _existingPreviousMinutesUrl;
+  String? _existingPreviousMinutesName;
+  bool _clearPreviousMinutes = false;
+
+  String _normalizeArabic(String input) {
+    String output = input
+        .replaceAll('أ', 'ا')
+        .replaceAll('إ', 'ا')
+        .replaceAll('آ', 'ا')
+        .replaceAll('ة', 'ه')
+        .replaceAll('ى', 'ي');
+    output = output.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return output;
+  }
+
   @override
   void initState() {
     super.initState();
-    
+
     // تهيئة البيانات في حال كنا في وضع التعديل
     if (widget.meeting != null) {
       _titleController.text = widget.meeting!.title;
       _dateController.text = widget.meeting!.date;
       _timeController.text = widget.meeting!.time;
       _roomController.text = widget.meeting!.room;
-      
+      _existingPreviousMinutesUrl = widget.meeting!.previousMinutesUrl;
+      _existingPreviousMinutesName = widget.meeting!.previousMinutesName;
+
       _agendaControllers = widget.meeting!.agenda
           .map((item) => TextEditingController(text: item))
           .toList();
       if (_agendaControllers.isEmpty) {
         _agendaControllers.add(TextEditingController());
       }
-      
+
       _attendeeControllers = widget.meeting!.attendees
           .map((item) => TextEditingController(text: item))
           .toList();
       _selectedAttendeeIds = List<String?>.from(widget.meeting!.attendeeIds);
-      
+
       // التأكد من تطابق حجم القائمتين للحاضرين
       while (_selectedAttendeeIds.length < _attendeeControllers.length) {
         _selectedAttendeeIds.add(null);
@@ -62,14 +81,14 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
         _selectedAttendeeIds.add(null);
       }
     }
-    
+
     _loadFacultyMembers();
   }
 
   Future<void> _loadFacultyMembers() async {
     final List<Map<String, dynamic>> temp = [];
     final college = AppSession().userCollege;
-    
+
     // 1. محاولة جلب الأعضاء من قاعدة البيانات المحلية SQLite
     try {
       final db = await DatabaseHelper.instance.database;
@@ -81,7 +100,9 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
       for (final u in localUsers) {
         final name = u['name']?.toString() ?? '';
         final id = u['id']?.toString() ?? '';
-        if (name.isNotEmpty && id.isNotEmpty && !temp.any((e) => e['name'] == name)) {
+        if (name.isNotEmpty &&
+            id.isNotEmpty &&
+            !temp.any((e) => e['name'] == name)) {
           temp.add({'id': id, 'name': name});
         }
       }
@@ -96,7 +117,7 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
           .where('faculty', isEqualTo: college)
           .get()
           .timeout(const Duration(seconds: 4));
-      
+
       for (final doc in querySnapshot.docs) {
         final data = doc.data();
         final name = data['name']?.toString() ?? '';
@@ -112,14 +133,16 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
     if (mounted) {
       setState(() {
         _facultyMembers = temp;
-        
+
         // ربط المعرفات للحاضرين بناءً على أسمائهم عند انتهاء التحميل في وضع التعديل
         if (widget.meeting != null) {
           for (int i = 0; i < _attendeeControllers.length; i++) {
             if (_selectedAttendeeIds[i] == null) {
               final name = _attendeeControllers[i].text.trim();
               final match = _facultyMembers.firstWhere(
-                (m) => m['name'].toString().trim().toLowerCase() == name.toLowerCase(),
+                (m) =>
+                    m['name'].toString().trim().toLowerCase() ==
+                    name.toLowerCase(),
                 orElse: () => <String, dynamic>{},
               );
               if (match.isNotEmpty && match['id'] != null) {
@@ -156,7 +179,8 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
     );
     if (picked != null) {
       setState(() {
-        _dateController.text = "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
+        _dateController.text =
+            "${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}";
       });
     }
   }
@@ -207,6 +231,27 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
     }
   }
 
+  Future<void> _pickPreviousMinutesFile() async {
+    final result = await FilePicker.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['docx', 'doc'],
+    );
+
+    if (result != null && result.files.isNotEmpty) {
+      setState(() {
+        _previousMinutesFile = result.files.first;
+        _clearPreviousMinutes = false;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+              content: Text(
+                  'تم اختيار ملف المحضر السابق: ${_previousMinutesFile!.name}')),
+        );
+      }
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
 
@@ -222,7 +267,8 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
 
     if (agenda.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('يرجى إضافة بند واحد على الأقل لجدول الأعمال.')),
+        const SnackBar(
+            content: Text('يرجى إضافة بند واحد على الأقل لجدول الأعمال.')),
       );
       return;
     }
@@ -236,6 +282,9 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
 
     // Collect attendee IDs for notifications
     final attendeeIds = <String>[];
+    final db = await DatabaseHelper.instance.database;
+    final List<Map<String, dynamic>> allUsers = await db.query('users');
+
     for (int i = 0; i < _attendeeControllers.length; i++) {
       final name = _attendeeControllers[i].text.trim();
       if (name.isNotEmpty) {
@@ -243,8 +292,13 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
         if (id != null) {
           attendeeIds.add(id);
         } else {
-          final match = _facultyMembers.firstWhere(
-            (m) => m['name'].toString().trim().toLowerCase() == name.toLowerCase(),
+          final normalizedTypeName = _normalizeArabic(name);
+          final match = allUsers.firstWhere(
+            (u) {
+              final normMemberName =
+                  _normalizeArabic(u['name']?.toString() ?? '');
+              return normMemberName == normalizedTypeName;
+            },
             orElse: () => <String, dynamic>{},
           );
           if (match.isNotEmpty && match['id'] != null) {
@@ -254,7 +308,8 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
       }
     }
 
-    final meetingsViewModel = Provider.of<MeetingsViewModel>(context, listen: false);
+    final meetingsViewModel =
+        Provider.of<MeetingsViewModel>(context, listen: false);
     final success = widget.meeting != null
         ? await meetingsViewModel.updateMeeting(
             meetingId: widget.meeting!.id,
@@ -265,6 +320,10 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
             agenda: agenda,
             attendees: attendees,
             attendeeIds: attendeeIds,
+            previousMinutesFile: _previousMinutesFile,
+            existingPreviousMinutesUrl: _existingPreviousMinutesUrl,
+            existingPreviousMinutesName: _existingPreviousMinutesName,
+            clearPreviousMinutes: _clearPreviousMinutes,
           )
         : await meetingsViewModel.scheduleMeeting(
             title: _titleController.text.trim(),
@@ -274,13 +333,16 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
             agenda: agenda,
             attendees: attendees,
             attendeeIds: attendeeIds,
+            previousMinutesFile: _previousMinutesFile,
           );
 
     if (success && mounted) {
       Navigator.pop(context, true);
     } else if (mounted && meetingsViewModel.errorMessage != null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(meetingsViewModel.errorMessage!), backgroundColor: Colors.red),
+        SnackBar(
+            content: Text(meetingsViewModel.errorMessage!),
+            backgroundColor: Colors.red),
       );
     }
   }
@@ -292,8 +354,11 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
       child: Scaffold(
         appBar: AppBar(
           title: Text(
-            widget.meeting != null ? 'تعديل تفاصيل الاجتماع' : 'جدولة اجتماع جديد',
-            style: const TextStyle(fontFamily: 'Cairo', fontWeight: FontWeight.bold),
+            widget.meeting != null
+                ? 'تعديل تفاصيل الاجتماع'
+                : 'جدولة اجتماع جديد',
+            style: const TextStyle(
+                fontFamily: 'Cairo', fontWeight: FontWeight.bold),
           ),
           centerTitle: true,
         ),
@@ -306,16 +371,24 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Title Section
-                  const Text('عنوان الاجتماع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                  const Text('عنوان الاجتماع',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          fontFamily: 'Cairo')),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _titleController,
                     validator: (v) => v!.isEmpty ? 'هذا الحقل مطلوب' : null,
                     decoration: InputDecoration(
-                      hintText: 'مثال: الاجتماع الدوري الأول للفصل الدراسي الثاني',
-                      hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      hintText:
+                          'مثال: الاجتماع الدوري الأول للفصل الدراسي الثاني',
+                      hintStyle:
+                          const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -327,7 +400,11 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('التاريخ', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                            const Text('التاريخ',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    fontFamily: 'Cairo')),
                             const SizedBox(height: 8),
                             TextFormField(
                               controller: _dateController,
@@ -336,10 +413,13 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                               onTap: _selectDate,
                               decoration: InputDecoration(
                                 hintText: 'اختر التاريخ',
-                                hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                                hintStyle: const TextStyle(
+                                    fontFamily: 'Cairo', fontSize: 13),
                                 prefixIcon: const Icon(Icons.calendar_month),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 12),
                               ),
                             ),
                           ],
@@ -350,7 +430,11 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text('الوقت', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                            const Text('الوقت',
+                                style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    fontFamily: 'Cairo')),
                             const SizedBox(height: 8),
                             TextFormField(
                               controller: _timeController,
@@ -359,10 +443,13 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                               onTap: _selectTime,
                               decoration: InputDecoration(
                                 hintText: 'اختر الوقت',
-                                hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                                hintStyle: const TextStyle(
+                                    fontFamily: 'Cairo', fontSize: 13),
                                 prefixIcon: const Icon(Icons.access_time),
-                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                border: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                                contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 12),
                               ),
                             ),
                           ],
@@ -373,17 +460,25 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                   const SizedBox(height: 20),
 
                   // حقل تحديد قاعة الاجتماع
-                  const Text('قاعة الاجتماع', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo')),
+                  const Text('قاعة الاجتماع',
+                      style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          fontFamily: 'Cairo')),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _roomController,
                     validator: (v) => v!.isEmpty ? 'هذا الحقل مطلوب' : null,
                     decoration: InputDecoration(
-                      hintText: 'مثال: قاعة مجلس الكلية، قاعة السمينار، مكتب رئيس القسم',
-                      hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
+                      hintText:
+                          'مثال: قاعة مجلس الكلية، قاعة السمينار، مكتب رئيس القسم',
+                      hintStyle:
+                          const TextStyle(fontFamily: 'Cairo', fontSize: 13),
                       prefixIcon: const Icon(Icons.room),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 12),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -394,13 +489,18 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                       const Expanded(
                         child: Text(
                           'جدول الأعمال (النقاط للمناقشة)',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo'),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              fontFamily: 'Cairo'),
                         ),
                       ),
                       TextButton.icon(
                         onPressed: _addAgendaField,
                         icon: const Icon(Icons.add, size: 16),
-                        label: const Text('إضافة بند', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                        label: const Text('إضافة بند',
+                            style:
+                                TextStyle(fontFamily: 'Cairo', fontSize: 12)),
                       ),
                     ],
                   ),
@@ -417,18 +517,24 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                             Expanded(
                               child: TextFormField(
                                 controller: _agendaControllers[idx],
-                                validator: (v) => idx == 0 && v!.isEmpty ? 'يجب إدخال البند الأول على الأقل' : null,
+                                validator: (v) => idx == 0 && v!.isEmpty
+                                    ? 'يجب إدخال البند الأول على الأقل'
+                                    : null,
                                 decoration: InputDecoration(
                                   hintText: 'البند ${idx + 1}',
-                                  hintStyle: const TextStyle(fontFamily: 'Cairo', fontSize: 13),
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                  hintStyle: const TextStyle(
+                                      fontFamily: 'Cairo', fontSize: 13),
+                                  border: OutlineInputBorder(
+                                      borderRadius: BorderRadius.circular(8)),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                      horizontal: 12, vertical: 10),
                                 ),
                               ),
                             ),
                             if (_agendaControllers.length > 1)
                               IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () => _removeAgendaField(idx),
                               ),
                           ],
@@ -444,13 +550,18 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                       const Expanded(
                         child: Text(
                           'أسماء الحاضرين (أعضاء مجلس القسم)',
-                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'Cairo'),
+                          style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 14,
+                              fontFamily: 'Cairo'),
                         ),
                       ),
                       TextButton.icon(
                         onPressed: _addAttendeeField,
                         icon: const Icon(Icons.add, size: 16),
-                        label: const Text('إضافة حاضر', style: TextStyle(fontFamily: 'Cairo', fontSize: 12)),
+                        label: const Text('إضافة حاضر',
+                            style:
+                                TextStyle(fontFamily: 'Cairo', fontSize: 12)),
                       ),
                     ],
                   ),
@@ -467,6 +578,7 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                             Expanded(
                               child: SearchableUserDropdown(
                                 value: _selectedAttendeeIds[idx],
+                                initialName: _attendeeControllers[idx].text,
                                 hint: 'اختر اسم العضو ${idx + 1}',
                                 items: _facultyMembers,
                                 onChanged: (val) {
@@ -474,16 +586,19 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                                     _selectedAttendeeIds[idx] = val;
                                     final match = _facultyMembers.firstWhere(
                                       (m) => m['id'] == val,
-                                      orElse: () => <String, dynamic>{'name': ''},
+                                      orElse: () =>
+                                          <String, dynamic>{'name': ''},
                                     );
-                                    _attendeeControllers[idx].text = match['name'] ?? '';
+                                    _attendeeControllers[idx].text =
+                                        match['name'] ?? '';
                                   });
                                 },
                               ),
                             ),
                             if (_attendeeControllers.length > 1)
                               IconButton(
-                                icon: const Icon(Icons.delete, color: Colors.red),
+                                icon:
+                                    const Icon(Icons.delete, color: Colors.red),
                                 onPressed: () => _removeAttendeeField(idx),
                               ),
                           ],
@@ -491,6 +606,107 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                       );
                     },
                   ),
+                  const SizedBox(height: 20),
+
+                  // Previous Minutes File Section
+                  const Text(
+                    'محضر الاجتماع السابق (اختياري)',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        fontFamily: 'Cairo'),
+                  ),
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey[300]!),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (_previousMinutesFile != null) ...[
+                          Row(
+                            children: [
+                              const Icon(Icons.description,
+                                  color: Colors.green),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _previousMinutesFile!.name,
+                                  style: const TextStyle(
+                                      fontFamily: 'Cairo',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.close, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    _previousMinutesFile = null;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ] else if (_existingPreviousMinutesUrl != null &&
+                            !_clearPreviousMinutes) ...[
+                          Row(
+                            children: [
+                              const Icon(Icons.description,
+                                  color: DesktopColors.primary),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  _existingPreviousMinutesName ??
+                                      'محضر الاجتماع السابق.docx',
+                                  style: const TextStyle(
+                                      fontFamily: 'Cairo',
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              IconButton(
+                                icon:
+                                    const Icon(Icons.close, color: Colors.red),
+                                onPressed: () {
+                                  setState(() {
+                                    _clearPreviousMinutes = true;
+                                  });
+                                },
+                              ),
+                            ],
+                          ),
+                        ] else ...[
+                          Center(
+                            child: OutlinedButton.icon(
+                              onPressed: _pickPreviousMinutesFile,
+                              icon: const Icon(Icons.upload_file),
+                              label: const Text('اختيار ملف Word للمحضر السابق',
+                                  style: TextStyle(fontFamily: 'Cairo')),
+                              style: OutlinedButton.styleFrom(
+                                side: const BorderSide(
+                                    color: DesktopColors.primary),
+                                foregroundColor: DesktopColors.primary,
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+
                   const SizedBox(height: 32),
 
                   // Submit Buttons
@@ -502,9 +718,14 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                           style: OutlinedButton.styleFrom(
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             side: const BorderSide(color: Colors.grey),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8)),
                           ),
-                          child: const Text('إلغاء', style: TextStyle(color: Colors.black54, fontFamily: 'Cairo', fontWeight: FontWeight.bold)),
+                          child: const Text('إلغاء',
+                              style: TextStyle(
+                                  color: Colors.black54,
+                                  fontFamily: 'Cairo',
+                                  fontWeight: FontWeight.bold)),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -516,18 +737,25 @@ class _ScheduleMeetingViewState extends State<ScheduleMeetingView> {
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: DesktopColors.primary,
                                 foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(vertical: 14),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(8)),
                               ),
                               child: vm.isSaving
                                   ? const SizedBox(
                                       width: 20,
                                       height: 20,
-                                      child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                                      child: CircularProgressIndicator(
+                                          color: Colors.white, strokeWidth: 2),
                                     )
                                   : Text(
-                                      widget.meeting != null ? 'حفظ التعديلات' : 'جدولة الاجتماع',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontFamily: 'Cairo'),
+                                      widget.meeting != null
+                                          ? 'حفظ التعديلات'
+                                          : 'جدولة الاجتماع',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontFamily: 'Cairo'),
                                     ),
                             );
                           },
