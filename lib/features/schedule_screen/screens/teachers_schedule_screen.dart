@@ -4,12 +4,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../core/services/app_session.dart';
 import '../../desktop_pages/workload_management/models/graduation_project_group.dart';
-import '../../desktop_pages/workload_management/services/graduation_project_firestore_service.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/services/graduation_project_local_service.dart';
 import '../../desktop_pages/workload_management/services/overtime_hours_excel_export_service.dart';
 import '../../desktop_pages/workload_management/services/college_overtime_submission_service.dart';
 import '../models/timetable_entry.dart';
 import '../services/timetable_firestore_service.dart';
 import '../services/excel_export_service.dart';
+import '../services/teacher_word_export_service.dart';
 import '../services/teacher_alias_service.dart';
 import '../models/teacher_alias.dart';
 import '../../desktop_pages/workload_management/models/faculty_option.dart';
@@ -29,8 +30,8 @@ class TeachersScheduleScreen extends StatefulWidget {
 
 class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
   final TimetableFirestoreService _firestore = TimetableFirestoreService();
-  final GraduationProjectFirestoreService _gradProjectService =
-      GraduationProjectFirestoreService();
+  final GraduationProjectLocalService _gradProjectService =
+      GraduationProjectLocalService();
   final FacultyFirestoreService _facultyService = FacultyFirestoreService();
   final TeacherAliasService _aliasService = TeacherAliasService();
 
@@ -42,6 +43,7 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
 
   String? _searchQuery;
   bool _isExporting = false;
+  bool _isExportingWord = false;
   bool _isExportingOvertime = false;
   bool _isExportingParallelHours = false;
   List<GraduationProjectGroup> _graduationGroups = [];
@@ -577,6 +579,44 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
     }
   }
 
+  Future<void> _exportToWordDraft(List<TimetableEntry> all) async {
+    if (_searchQuery == null || _searchQuery!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('الرجاء اختيار المعلم أولاً')));
+      return;
+    }
+
+    setState(() => _isExportingWord = true);
+
+    try {
+      final filtered = _filteredData(_searchQuery, all);
+      if (filtered.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('لا توجد بيانات لهذا المعلم')));
+        }
+        return;
+      }
+
+      await TeacherWordExportService().exportTeacherSchedule(
+        teacherName: _searchQuery!,
+        entries: all,
+      );
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تم التصدير إلى مسودة Word بنجاح')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('حدث خطأ أثناء التصدير إلى المسودة: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isExportingWord = false);
+    }
+  }
+
   Future<void> _exportParallelHoursForm(List<TimetableEntry> all) async {
     if (_searchQuery == null || _searchQuery!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -841,6 +881,19 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
               runSpacing: 8,
               alignment: isMobile ? WrapAlignment.start : WrapAlignment.end,
               children: [
+                FilledButton.tonalIcon(
+                  onPressed: _isExportingWord || _searchQuery == null
+                      ? null
+                      : () => _exportToWordDraft(all),
+                  icon: _isExportingWord
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.description_outlined, size: 20),
+                  label: const Text('تصدير إلى المسودة'),
+                ),
                 FilledButton.tonalIcon(
                   onPressed:
                       _isExportingOvertime || _searchQuery == null

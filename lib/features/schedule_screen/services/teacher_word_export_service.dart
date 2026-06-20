@@ -6,7 +6,7 @@ import 'package:flutter/services.dart';
 
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/models/graduation_project_group.dart';
 import '../models/timetable_entry.dart';
-import 'package:academic_affairs_management/features/desktop_pages/workload_management/services/graduation_project_firestore_service.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/services/graduation_project_local_service.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/utils/app_file_saver.dart';
 import '../utils/fet_day_mapping.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/utils/level_labels.dart';
@@ -20,10 +20,10 @@ class TeacherWordExportService {
   static const _checkMark = '✓';
 
   TeacherWordExportService({
-    GraduationProjectFirestoreService? gradProject,
-  }) : _gradProject = gradProject ?? GraduationProjectFirestoreService();
+    GraduationProjectLocalService? gradProject,
+  }) : _gradProject = gradProject ?? GraduationProjectLocalService();
 
-  final GraduationProjectFirestoreService _gradProject;
+  final GraduationProjectLocalService _gradProject;
 
   /// Maps Arabic weekday to subject/room row indices in the main timetable table.
   static const Map<String, (int subjectRow, int roomRow)> _dayRows = {

@@ -13,7 +13,7 @@ import '../utils/app_file_saver.dart';
 import '../utils/xlsx_template_helper.dart';
 import 'faculty_firestore_service.dart';
 import 'semester_nasab_firestore_service.dart';
-import 'graduation_project_firestore_service.dart';
+import 'graduation_project_local_service.dart';
 
 /// Fills «كليشة الساعات الزائدة» from a teacher timetable + study plans.
 ///
@@ -43,16 +43,16 @@ class OvertimeHoursExcelExportService {
     StudyPlanFirestoreService? studyPlans,
     FacultyFirestoreService? faculty,
     SemesterNasabFirestoreService? nasab,
-    GraduationProjectFirestoreService? gradProject,
+    GraduationProjectLocalService? gradProject,
   })  : _studyPlans = studyPlans ?? StudyPlanFirestoreService(),
         _faculty = faculty ?? FacultyFirestoreService(),
         _nasab = nasab ?? SemesterNasabFirestoreService(),
-        _gradProject = gradProject ?? GraduationProjectFirestoreService();
+        _gradProject = gradProject ?? GraduationProjectLocalService();
 
   final StudyPlanFirestoreService _studyPlans;
   final FacultyFirestoreService _faculty;
   final SemesterNasabFirestoreService _nasab;
-  final GraduationProjectFirestoreService _gradProject;
+  final GraduationProjectLocalService _gradProject;
 
   Future<void> exportTeacherOvertimeForm({
     required String teacherName,

@@ -30,18 +30,22 @@ class CollegeWorkloadSubmission {
       'entries': entries.map((e) => e.toFirestoreMap()).toList(),
       'status': status,
       'rejectionReason': rejectionReason,
-      'createdAt': createdAt != null ? Timestamp.fromDate(createdAt!) : FieldValue.serverTimestamp(),
+      'createdAt': createdAt != null
+          ? Timestamp.fromDate(createdAt!)
+          : FieldValue.serverTimestamp(),
       'createdByUid': createdByUid,
     };
   }
 
-  factory CollegeWorkloadSubmission.fromMap(Map<String, dynamic> map, String docId) {
+  factory CollegeWorkloadSubmission.fromMap(
+      Map<String, dynamic> map, String docId) {
     return CollegeWorkloadSubmission(
       id: docId,
       collegeName: map['collegeName'] as String? ?? '',
       term: map['term'] as String? ?? '',
       entries: (map['entries'] as List<dynamic>? ?? [])
-          .map((e) => IncentiveEntry.fromFirestoreMap(e as Map<String, dynamic>))
+          .map(
+              (e) => IncentiveEntry.fromFirestoreMap(e as Map<String, dynamic>))
           .toList(),
       status: map['status'] as String? ?? 'pending_dean',
       rejectionReason: map['rejectionReason'] as String?,
@@ -52,7 +56,8 @@ class CollegeWorkloadSubmission {
 }
 
 class CollegeWorkloadSubmissionService {
-  final _collection = FirebaseFirestore.instance.collection('college_workload_submissions');
+  final _collection =
+      FirebaseFirestore.instance.collection('college_workload_submissions');
 
   Future<void> submitToDean({
     required String collegeName,
@@ -60,14 +65,14 @@ class CollegeWorkloadSubmissionService {
     required List<IncentiveEntry> entries,
   }) async {
     final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-    
+
     // أولاً: حذف أي طلبات سابقة معلقة (pending_dean) لنفس الكلية والفصل
     final existingPending = await _collection
         .where('collegeName', isEqualTo: collegeName)
         .where('term', isEqualTo: term)
         .where('status', isEqualTo: 'pending_dean')
         .get();
-        
+
     for (var doc in existingPending.docs) {
       await doc.reference.delete();
     }
@@ -112,7 +117,8 @@ class CollegeWorkloadSubmissionService {
     });
   }
 
-  Stream<List<CollegeWorkloadSubmission>> getSubmissionsByStatus(String status) {
+  Stream<List<CollegeWorkloadSubmission>> getSubmissionsByStatus(
+      String status) {
     return _collection
         .where('status', isEqualTo: status)
         .orderBy('createdAt', descending: true)
@@ -122,7 +128,8 @@ class CollegeWorkloadSubmissionService {
             .toList());
   }
 
-  Stream<List<CollegeWorkloadSubmission>> getSubmissionsByCollege(String college) {
+  Stream<List<CollegeWorkloadSubmission>> getSubmissionsByCollege(
+      String college) {
     return _collection
         .where('collegeName', isEqualTo: college)
         .orderBy('createdAt', descending: true)
@@ -133,10 +140,8 @@ class CollegeWorkloadSubmissionService {
   }
 
   Stream<List<CollegeWorkloadSubmission>> getAllSubmissions() {
-    return _collection
-        .orderBy('createdAt', descending: true)
-        .snapshots()
-        .map((snap) => snap.docs
+    return _collection.orderBy('createdAt', descending: true).snapshots().map(
+        (snap) => snap.docs
             .map((doc) => CollegeWorkloadSubmission.fromMap(doc.data(), doc.id))
             .toList());
   }
