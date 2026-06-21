@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/dashboard_stats_model.dart';
 import 'package:academic_affairs_management/features/desktop_pages/colleges_screen/college_model.dart';
 import 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_member_model.dart';
+import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/services/study_plan_firestore_service.dart';
 import 'package:sqflite/sqflite.dart';
 
 class DashboardViewModel extends ChangeNotifier {
@@ -45,7 +46,14 @@ class DashboardViewModel extends ChangeNotifier {
           await db.rawQuery('SELECT COUNT(*) as count FROM programs');
       final int totalPrograms = Sqflite.firstIntValue(programsCountResult) ?? 0;
 
-      final int totalStudyPlans = 0; // Local caching removed for study plans
+      int totalStudyPlans = 0;
+      try {
+        final studyPlanService = StudyPlanFirestoreService();
+        final plans = await studyPlanService.listPlans();
+        totalStudyPlans = plans.length;
+      } catch (e) {
+        debugPrint('[DASHBOARD DEBUG] Error fetching study plans: $e');
+      }
 
       // =======================================================
       // 2. جلب أحدث الكليات المضافة
@@ -112,6 +120,8 @@ class DashboardViewModel extends ChangeNotifier {
       final usersCount = await _firestore.collection('users').count().get();
       final programsCount =
           await _firestore.collection('programs').count().get();
+      final studyPlansCount =
+          await _firestore.collection('study_plans').count().get();
 
       final recentCollegesSnapshot = await _firestore
           .collection('colleges')
@@ -138,6 +148,7 @@ class DashboardViewModel extends ChangeNotifier {
         totalFacultyMembers: facultyCount.count ?? 0,
         totalUsers: usersCount.count ?? 0,
         totalPrograms: programsCount.count ?? 0,
+        totalStudyPlans: studyPlansCount.count ?? 0,
         recentColleges: recentColleges,
         recentFaculty: recentFaculty,
       );

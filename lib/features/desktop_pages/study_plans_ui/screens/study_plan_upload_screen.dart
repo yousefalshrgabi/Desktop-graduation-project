@@ -474,19 +474,19 @@ class _StudyPlanUploadScreenState extends State<StudyPlanUploadScreen> {
               label: const Text('اختيار ملف Excel وتحليله'),
             ),
             const SizedBox(height: 8),
-            OutlinedButton.icon(
-              onPressed:
-                  _isLoading || !widget.canEdit ? null : _importBundledCsPlans,
-              icon: const Icon(Icons.cloud_download_rounded),
-              label: const Text('استيراد خطط كلية الحاسبات (من assets)'),
-            ),
+            // OutlinedButton.icon(
+            //   onPressed:
+            //       _isLoading || !widget.canEdit ? null : _importBundledCsPlans,
+            //   icon: const Icon(Icons.cloud_download_rounded),
+            //   label: const Text('استيراد خطط كلية الحاسبات (من assets)'),
+            // ),
             if (preview != null) ...[
               const SizedBox(height: 16),
               FilledButton.tonalIcon(
                 onPressed:
                     _isLoading || !widget.canEdit ? null : _uploadPreview,
                 icon: const Icon(Icons.save_rounded),
-                label: const Text('حفظ الخطة (محلياً)'),
+                label: const Text('حفظ الخطة'),
               ),
               const SizedBox(height: 12),
               ...preview.semesters.map(

@@ -100,7 +100,7 @@ class _MyAppState extends State<MyApp> {
       key: _key,
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
-        title: 'نظام الإدارة الأكاديمية',
+        title: 'إدارة الشؤون الأكاديمية',
         theme: ThemeData(
           primarySwatch: Colors.blue,
           fontFamily: 'Cairo',

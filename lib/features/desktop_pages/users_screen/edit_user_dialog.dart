@@ -318,7 +318,8 @@ class _EditUserDialogState extends State<EditUserDialog> {
                       children: _roles.map((role) {
                         final isSelected = _selectedRoles.contains(role);
                         return FilterChip(
-                          label: Text(UsersViewModel.roleTranslations[role] ?? role),
+                          label: Text(
+                              UsersViewModel.roleTranslations[role] ?? role),
                           selected: isSelected,
                           onSelected: (selected) {
                             setState(() {
@@ -332,7 +333,9 @@ class _EditUserDialogState extends State<EditUserDialog> {
                         );
                       }).toList(),
                     ),
-                    if (_selectedRoles.where((r) => !_adminRoles.contains(r)).isEmpty &&
+                    if (_selectedRoles
+                            .where((r) => !_adminRoles.contains(r))
+                            .isEmpty &&
                         _selectedRoles.every((r) => _adminRoles.contains(r)))
                       const Padding(
                         padding: EdgeInsets.only(top: 8.0),
@@ -364,11 +367,16 @@ class _EditUserDialogState extends State<EditUserDialog> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.lock_outline, size: 13, color: Colors.orange.shade700),
+                                    Icon(Icons.lock_outline,
+                                        size: 13,
+                                        color: Colors.orange.shade700),
                                     const SizedBox(width: 5),
                                     Text(
                                       'أدوار إدارية (تُعيَّن تلقائياً - غير قابلة للتعديل يدوياً)',
-                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+                                      style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Colors.orange.shade800),
                                     ),
                                   ],
                                 ),
@@ -376,16 +384,28 @@ class _EditUserDialogState extends State<EditUserDialog> {
                                 Wrap(
                                   spacing: 6,
                                   runSpacing: 6,
-                                  children: lockedRoles.map((role) => Chip(
-                                    avatar: Icon(Icons.lock, size: 12, color: Colors.orange.shade700),
-                                    label: Text(
-                                      UsersViewModel.roleTranslations[role] ?? role,
-                                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
-                                    ),
-                                    backgroundColor: Colors.orange.shade100,
-                                    side: BorderSide(color: Colors.orange.shade300),
-                                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                                  )).toList(),
+                                  children: lockedRoles
+                                      .map((role) => Chip(
+                                            avatar: Icon(Icons.lock,
+                                                size: 12,
+                                                color: Colors.orange.shade700),
+                                            label: Text(
+                                              UsersViewModel
+                                                      .roleTranslations[role] ??
+                                                  role,
+                                              style: TextStyle(
+                                                  fontSize: 11,
+                                                  color:
+                                                      Colors.orange.shade800),
+                                            ),
+                                            backgroundColor:
+                                                Colors.orange.shade100,
+                                            side: BorderSide(
+                                                color: Colors.orange.shade300),
+                                            padding: const EdgeInsets.symmetric(
+                                                horizontal: 4),
+                                          ))
+                                      .toList(),
                                 ),
                               ],
                             ),
@@ -395,26 +415,26 @@ class _EditUserDialogState extends State<EditUserDialog> {
                     }),
                     const SizedBox(height: DesktopSpacing.md),
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('حالة الحساب'),
-                              _buildDynamicDropdown(
-                                hintText: 'اختر الحالة',
-                                value: _selectedStatus,
-                                items: _statuses,
-                                icon: Icons.toggle_on_outlined,
-                                onChanged: (val) =>
-                                    setState(() => _selectedStatus = val!),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    // Row(
+                    //   children: [
+                    //     Expanded(
+                    //       child: Column(
+                    //         crossAxisAlignment: CrossAxisAlignment.start,
+                    //         children: [
+                    //           _buildLabel('حالة الحساب'),
+                    //           _buildDynamicDropdown(
+                    //             hintText: 'اختر الحالة',
+                    //             value: _selectedStatus,
+                    //             items: _statuses,
+                    //             icon: Icons.toggle_on_outlined,
+                    //             onChanged: (val) =>
+                    //                 setState(() => _selectedStatus = val!),
+                    //           ),
+                    //         ],
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
 
                     const SizedBox(height: DesktopSpacing.lg),
                     Row(

@@ -171,9 +171,8 @@ class _CourseAssignmentViewState extends State<CourseAssignmentView> {
   }
 
   List<FacultyOption> _poolFor(CourseCoverageScope scope) {
-    final source = widget.restrictFacultyToCollege
-        ? _collegeFaculty
-        : _universityFaculty;
+    final source =
+        widget.restrictFacultyToCollege ? _collegeFaculty : _universityFaculty;
     return _dedupeFaculty(source);
   }
 
@@ -1016,16 +1015,16 @@ class _Header extends StatelessWidget {
                   icon: const Icon(Icons.refresh_rounded),
                   label: const Text('إعادة تحميل'),
                 ),
-                FilledButton.tonalIcon(
-                  onPressed: loading || importing || !canEdit ? null : onImport,
-                  icon: importing
-                      ? const SizedBox.square(
-                          dimension: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Icon(Icons.upload_file_rounded),
-                  label: const Text('استيراد من Excel'),
-                ),
+                // FilledButton.tonalIcon(
+                //   onPressed: loading || importing || !canEdit ? null : onImport,
+                //   icon: importing
+                //       ? const SizedBox.square(
+                //           dimension: 18,
+                //           child: CircularProgressIndicator(strokeWidth: 2),
+                //         )
+                //       : const Icon(Icons.upload_file_rounded),
+                //   label: const Text('استيراد من Excel'),
+                // ),
                 FilledButton.tonalIcon(
                   onPressed: loading ? null : onActivities,
                   icon: const Icon(Icons.event_note_rounded),

@@ -115,11 +115,16 @@ class _MainShellState extends State<MainShell>
                           !AppSession().isAdminOrDeanship,
                     ),
                     RequestsView(key: ValueKey('requests_$_selectedIndex')),
-                    MobileCourseProgressTrackingScreen(key: ValueKey('tracking_$_selectedIndex')),
-                    CourseNeedRequestsScreen(key: ValueKey('need_requests_$_selectedIndex')),
-                    CollegeWorkloadRequestsScreen(key: ValueKey('workload_requests_$_selectedIndex')),
-                    OvertimeSubmissionsScreen(key: ValueKey('overtime_$_selectedIndex')),
-                    CollegesMeetingsView(key: ValueKey('meetings_$_selectedIndex')),
+                    MobileCourseProgressTrackingScreen(
+                        key: ValueKey('tracking_$_selectedIndex')),
+                    CourseNeedRequestsScreen(
+                        key: ValueKey('need_requests_$_selectedIndex')),
+                    CollegeWorkloadRequestsScreen(
+                        key: ValueKey('workload_requests_$_selectedIndex')),
+                    OvertimeSubmissionsScreen(
+                        key: ValueKey('overtime_$_selectedIndex')),
+                    CollegesMeetingsView(
+                        key: ValueKey('meetings_$_selectedIndex')),
                   ],
                 ),
                 // Toggle button
@@ -183,14 +188,19 @@ class _MainShellState extends State<MainShell>
                 _buildSidebarItem(1, 'إدارة الكليات', Icons.business_outlined),
                 _buildSidebarItem(2, 'الأقسام', Icons.account_tree_outlined),
                 _buildSidebarItem(3, 'هيئة التدريس', Icons.people_outline),
-                _buildSidebarItem(4, 'المستخدمين', Icons.manage_accounts_outlined),
+                _buildSidebarItem(
+                    4, 'المستخدمين', Icons.manage_accounts_outlined),
                 _buildSidebarItem(5, 'الخطط الدراسية', Icons.schema_outlined),
                 _buildSidebarItem(6, 'الطلبات', Icons.request_page_outlined),
                 _buildSidebarItem(7, 'إنجاز المقررات', Icons.query_stats),
                 _buildSidebarItem(8, 'طلبات الاحتياج', Icons.forward_to_inbox),
-                if (AppSession().isAdminOrDeanship || AppSession().isDean || AppSession().isViceDean) ...[
-                  _buildSidebarItem(9, 'اعتمادات النِصاب', Icons.assignment_turned_in_outlined),
-                  _buildSidebarItem(10, 'التكليفات والإضافي', Icons.access_time_outlined),
+                if (AppSession().isAdminOrDeanship ||
+                    AppSession().isDean ||
+                    AppSession().isViceDean) ...[
+                  _buildSidebarItem(9, 'اعتمادات النِصاب',
+                      Icons.assignment_turned_in_outlined),
+                  _buildSidebarItem(10, 'الساعات الزائدة والموازية',
+                      Icons.access_time_outlined),
                 ],
                 if (AppSession().isAdminOrDeanship) ...[
                   _buildSidebarItem(11, 'محاضر الكليات', Icons.meeting_room),
@@ -293,9 +303,13 @@ class _MainShellState extends State<MainShell>
 
   Widget _buildSidebarFooter() {
     final session = AppSession();
-    final String initial = session.userName.isNotEmpty ? session.userName.trim().substring(0, 1) : 'أ';
-    final String displayName = session.userName.isNotEmpty ? session.userName : 'المدير العام';
-    final String displayEmail = session.userEmail.isNotEmpty ? session.userEmail : 'admin@univ.edu';
+    final String initial = session.userName.isNotEmpty
+        ? session.userName.trim().substring(0, 1)
+        : 'أ';
+    final String displayName =
+        session.userName.isNotEmpty ? session.userName : 'المدير العام';
+    final String displayEmail =
+        session.userEmail.isNotEmpty ? session.userEmail : 'admin@univ.edu';
 
     return Padding(
       padding: const EdgeInsets.all(DesktopSpacing.md),
@@ -319,7 +333,8 @@ class _MainShellState extends State<MainShell>
                 children: [
                   Text(
                     displayName,
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 13),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -333,7 +348,8 @@ class _MainShellState extends State<MainShell>
               ),
             ),
             IconButton(
-              icon: const Icon(Icons.vpn_key_outlined, color: DesktopColors.primary, size: 20),
+              icon: const Icon(Icons.vpn_key_outlined,
+                  color: DesktopColors.primary, size: 20),
               tooltip: 'تغيير كلمة المرور',
               onPressed: () async {
                 final success = await showDialog<bool>(
@@ -358,7 +374,8 @@ class _MainShellState extends State<MainShell>
                   context: context,
                   builder: (context) => AlertDialog(
                     title: const Text('تسجيل الخروج'),
-                    content: const Text('هل ترغب في مزامنة بياناتك مع السحابة قبل الخروج لضمان عدم فقدان أي تعديلات، أم ترغب في الخروج السريع (بدون مزامنة)؟'),
+                    content: const Text(
+                        'هل ترغب في مزامنة بياناتك مع السحابة قبل الخروج لضمان عدم فقدان أي تعديلات، أم ترغب في الخروج السريع (بدون مزامنة)؟'),
                     actions: [
                       TextButton(
                         onPressed: () => Navigator.pop(context, 0),
@@ -366,10 +383,13 @@ class _MainShellState extends State<MainShell>
                       ),
                       TextButton(
                         onPressed: () => Navigator.pop(context, 2),
-                        child: const Text('خروج بدون مزامنة', style: TextStyle(color: Colors.red)),
+                        child: const Text('خروج بدون مزامنة',
+                            style: TextStyle(color: Colors.red)),
                       ),
                       ElevatedButton(
-                        style: ElevatedButton.styleFrom(backgroundColor: DesktopColors.primary, foregroundColor: Colors.white),
+                        style: ElevatedButton.styleFrom(
+                            backgroundColor: DesktopColors.primary,
+                            foregroundColor: Colors.white),
                         onPressed: () => Navigator.pop(context, 1),
                         child: const Text('مزامنة ثم خروج'),
                       ),
@@ -412,47 +432,55 @@ class _MainShellState extends State<MainShell>
                         builder: (dialogContext) => AlertDialog(
                           title: const Row(
                             children: [
-                              Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+                              Icon(Icons.warning_amber_rounded,
+                                  color: Colors.orange, size: 28),
                               SizedBox(width: 8),
                               Text('تحذير: فشل المزامنة'),
                             ],
                           ),
                           content: const Text(
-                            'تعذر رفع تعديلاتك المحلية للسحابة بسبب مشكلة في الاتصال بالإنترنت.\n\n'
-                            'إذا قمت بفرض الخروج الآن، ستفقد أي بيانات أضفتها أو عدلتها ولم يتم مزامنتها بعد.\n'
-                            'هل أنت متأكد من رغبتك في إجبار الخروج ومسح البيانات المحلية؟'
-                          ),
+                              'تعذر رفع تعديلاتك المحلية للسحابة بسبب مشكلة في الاتصال بالإنترنت.\n\n'
+                              'إذا قمت بفرض الخروج الآن، ستفقد أي بيانات أضفتها أو عدلتها ولم يتم مزامنتها بعد.\n'
+                              'هل أنت متأكد من رغبتك في إجبار الخروج ومسح البيانات المحلية؟'),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(dialogContext),
-                              child: const Text('إلغاء (البقاء للحفاظ على البيانات)'),
+                              child: const Text(
+                                  'إلغاء (البقاء للحفاظ على البيانات)'),
                             ),
                             ElevatedButton(
-                              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                              style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.red,
+                                  foregroundColor: Colors.white),
                               onPressed: () async {
                                 Navigator.pop(dialogContext); // إغلاق الحوار
-                                
+
                                 // إظهار مؤشر التحميل مرة أخرى
                                 showDialog(
                                   context: context,
                                   barrierDismissible: false,
-                                  builder: (context) => const Center(child: CircularProgressIndicator()),
+                                  builder: (context) => const Center(
+                                      child: CircularProgressIndicator()),
                                 );
-                                
-                                bool forceSuccess = await _loginViewModel.logout(forceLogout: true);
-                                
+
+                                bool forceSuccess = await _loginViewModel
+                                    .logout(forceLogout: true);
+
                                 if (context.mounted) {
                                   Navigator.pop(context); // إغلاق المؤشر
                                   if (forceSuccess) {
                                     MyApp.restartApp(context, loggedIn: false);
                                   } else {
                                     ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(content: Text('حدث خطأ غير متوقع: ${_loginViewModel.errorMessage}')),
+                                      SnackBar(
+                                          content: Text(
+                                              'حدث خطأ غير متوقع: ${_loginViewModel.errorMessage}')),
                                     );
                                   }
                                 }
                               },
-                              child: const Text('إجبار الخروج (سأفقد التعديلات)'),
+                              child:
+                                  const Text('إجبار الخروج (سأفقد التعديلات)'),
                             ),
                           ],
                         ),
@@ -465,13 +493,15 @@ class _MainShellState extends State<MainShell>
                         SnackBar(
                           content: Row(
                             children: [
-                              const Icon(Icons.error_outline, color: Colors.white),
+                              const Icon(Icons.error_outline,
+                                  color: Colors.white),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: Text(
                                   _loginViewModel.errorMessage,
                                   style: const TextStyle(
-                                      fontSize: 14, fontWeight: FontWeight.bold),
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ],

@@ -335,26 +335,26 @@ class _AddUserDialogState extends State<AddUserDialog> {
                       ),
                     const SizedBox(height: DesktopSpacing.md),
 
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              _buildLabel('حالة الحساب'),
-                              _buildDynamicDropdown(
-                                hintText: 'اختر الحالة',
-                                value: _selectedStatus,
-                                items: _statuses,
-                                icon: Icons.toggle_on_outlined,
-                                onChanged: (val) =>
-                                    setState(() => _selectedStatus = val!),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                    // Row(
+                    //   children: [
+                    //     Expanded(
+                    //       child: Column(
+                    //         crossAxisAlignment: CrossAxisAlignment.start,
+                    //         children: [
+                    //           _buildLabel('حالة الحساب'),
+                    //           _buildDynamicDropdown(
+                    //             hintText: 'اختر الحالة',
+                    //             value: _selectedStatus,
+                    //             items: _statuses,
+                    //             icon: Icons.toggle_on_outlined,
+                    //             onChanged: (val) =>
+                    //                 setState(() => _selectedStatus = val!),
+                    //           ),
+                    //         ],
+                    //       ),
+                    //     ),
+                    //   ],
+                    // ),
 
                     const SizedBox(height: DesktopSpacing.lg),
 

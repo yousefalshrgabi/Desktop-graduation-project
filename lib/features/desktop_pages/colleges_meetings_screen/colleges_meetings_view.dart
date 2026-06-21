@@ -376,8 +376,7 @@ class _CollegesMeetingsViewState extends State<CollegesMeetingsView> {
                         ),
                         onPressed: () => _openDocument(meeting.documentUrl),
                         icon: const Icon(Icons.download_for_offline),
-                        label:
-                            const Text('تحميل المحضر المرفوع (.docx / .pdf)'),
+                        label: const Text('تحميل المحضر المرفوع (.docx)'),
                       ),
                     const SizedBox(width: DesktopSpacing.sm),
                     TextButton(

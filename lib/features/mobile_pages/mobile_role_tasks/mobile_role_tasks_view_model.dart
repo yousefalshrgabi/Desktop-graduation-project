@@ -6,6 +6,8 @@ import 'package:academic_affairs_management/features/desktop_pages/study_plans_u
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/course_assignment_view.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
+import 'package:academic_affairs_management/features/course_study_plan/screens/mobile_course_progress_tracking_screen.dart';
+import 'package:academic_affairs_management/features/course_study_plan/screens/mobile_study_plan_template_settings_screen.dart';
 
 class TaskItem {
   final String title;
@@ -88,13 +90,6 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
     } else if (isViceDean) {
       return [
         TaskItem(
-          title: 'الطلبات والاحتياج الأكاديمي',
-          subtitle: 'مراجعة الطلبات ورفع الأنصبة والاحتياج للعميد',
-          icon: Icons.request_page_outlined,
-          color: const Color(0xFF3B5BDB),
-          onTap: () => onTabChange?.call(2), // التوجيه لتبويب الطلبات
-        ),
-        TaskItem(
           title: 'الإشراف على الخطط الدراسية',
           subtitle: 'متابعة جودة البرامج والمقررات الدراسية',
           icon: Icons.school_outlined,
@@ -152,16 +147,25 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           color: const Color(0xFFE03131),
           onTap: () => onNavigate?.call(const CollegeFacultyScreen()),
         ),
+        TaskItem(
+          title: 'متابعة الخطط',
+          subtitle: 'متابعة وتتبع نسبة إنجاز الخطط الدراسية للمقررات',
+          icon: Icons.analytics_outlined,
+          color: const Color(0xFFF03E3E),
+          onTap: () =>
+              onNavigate?.call(const MobileCourseProgressTrackingScreen()),
+        ),
+        TaskItem(
+          title: 'إعداد كليشة الخطط',
+          subtitle: 'ضبط إعدادات وبيانات كليشة الخطط الدراسية للكلية',
+          icon: Icons.settings_applications_outlined,
+          color: const Color(0xFF4C6EF5),
+          onTap: () =>
+              onNavigate?.call(const MobileStudyPlanTemplateSettingsScreen()),
+        ),
       ];
     } else if (isDeptHead) {
       return [
-        TaskItem(
-          title: 'الطلبات',
-          subtitle: 'رفع ومراجعة طلبات أعضاء القسم',
-          icon: Icons.request_page_outlined,
-          color: const Color(0xFF3B5BDB),
-          onTap: () => onTabChange?.call(2), // التوجيه لتبويب الطلبات
-        ),
         TaskItem(
           title: 'جدول القسم',
           subtitle: 'تنظيم ومتابعة الجداول الدراسية للقسم',
@@ -209,6 +213,14 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
               ),
             );
           },
+        ),
+        TaskItem(
+          title: 'متابعة الخطط',
+          subtitle: 'متابعة وتتبع نسبة إنجاز الخطط الدراسية للمقررات بالقسم',
+          icon: Icons.analytics_outlined,
+          color: const Color(0xFFF03E3E),
+          onTap: () =>
+              onNavigate?.call(const MobileCourseProgressTrackingScreen()),
         ),
       ];
     }

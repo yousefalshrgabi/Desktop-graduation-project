@@ -3,6 +3,7 @@ import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/dashboard_view_model.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
 
 class DashboardView extends StatefulWidget {
   /// Callback to navigate to a page in MainShell (0=dashboard,1=colleges,2=faculty,3=users)
@@ -17,62 +18,102 @@ class DashboardView extends StatefulWidget {
 class _DashboardViewState extends State<DashboardView> {
   final DashboardViewModel _viewModel = DashboardViewModel();
 
-  // Quick-access module definitions
-  static const _modules = [
-    _ModuleCard(
-      index: 1,
-      label: 'إدارة الكليات',
-      subtitle: 'إضافة، تعديل وحذف بيانات الكليات',
-      icon: Icons.business_rounded,
-      gradient: [Color(0xFF0123C9), Color(0xFF4F6FFF)],
-    ),
-    _ModuleCard(
-      index: 2,
-      label: 'الأقسام',
-      subtitle: 'إدارة الأقسام الأكاديمية وربطها بالكليات',
-      icon: Icons.account_tree_rounded,
-      gradient: [Color(0xFF6A1B9A), Color(0xFFAB47BC)],
-    ),
-    _ModuleCard(
-      index: 3,
-      label: 'هيئة التدريس',
-      subtitle: 'إدارة أعضاء هيئة التدريس وبياناتهم',
-      icon: Icons.people_alt_rounded,
-      gradient: [Color(0xFF00897B), Color(0xFF4DB6AC)],
-    ),
-    _ModuleCard(
-      index: 4,
-      label: 'المستخدمين',
-      subtitle: 'إدارة حسابات وصلاحيات المستخدمين',
-      icon: Icons.manage_accounts_rounded,
-      gradient: [Color(0xFFE65100), Color(0xFFFF8F00)],
-    ),
-    /*
-    _ModuleCard(
-      index: 5,
-      label: 'البرامج الأكاديمية',
-      subtitle: 'إدارة البرامج وتخصيص المسارات',
-      icon: Icons.school_rounded,
-      gradient: [Color(0xFFC2185B), Color(0xFFE91E63)],
-    ),
-    */
-    /*
-    _ModuleCard(
-      index: 6,
-      label: 'المقررات',
-      subtitle: 'إدارة المقررات الدراسية',
-      icon: Icons.menu_book_rounded,
-      gradient: [Color(0xFF512DA8), Color(0xFF673AB7)],
-    ),
-    */
-    _ModuleCard(
-      index: 5,
-      label: 'الخطط الدراسية',
-      subtitle: 'إدارة ومزامنة خطط المقررات بملفات CSV',
-      icon: Icons.schema_outlined,
-      gradient: [Color(0xFF00796B), Color(0xFF26A69A)],
-    ),
-  ];
+  // Quick-access module definitions matching sidebar elements
+  List<_ModuleCard> get _modules {
+    final list = [
+      const _ModuleCard(
+        index: 1,
+        label: 'إدارة الكليات',
+        subtitle: 'إضافة، تعديل وحذف بيانات الكليات',
+        icon: Icons.business_rounded,
+        gradient: [Color(0xFF0123C9), Color(0xFF4F6FFF)],
+      ),
+      const _ModuleCard(
+        index: 2,
+        label: 'الأقسام',
+        subtitle: 'إدارة الأقسام الأكاديمية وربطها بالكليات',
+        icon: Icons.account_tree_rounded,
+        gradient: [Color(0xFF6A1B9A), Color(0xFFAB47BC)],
+      ),
+      const _ModuleCard(
+        index: 3,
+        label: 'هيئة التدريس',
+        subtitle: 'إدارة أعضاء هيئة التدريس وبياناتهم',
+        icon: Icons.people_alt_rounded,
+        gradient: [Color(0xFF00897B), Color(0xFF4DB6AC)],
+      ),
+      const _ModuleCard(
+        index: 4,
+        label: 'المستخدمين',
+        subtitle: 'إدارة حسابات وصلاحيات المستخدمين',
+        icon: Icons.manage_accounts_rounded,
+        gradient: [Color(0xFFE65100), Color(0xFFFF8F00)],
+      ),
+      const _ModuleCard(
+        index: 5,
+        label: 'الخطط الدراسية',
+        subtitle: 'إدارة ومزامنة خطط المقررات بملفات CSV',
+        icon: Icons.schema_outlined,
+        gradient: [Color(0xFF00796B), Color(0xFF26A69A)],
+      ),
+      const _ModuleCard(
+        index: 6,
+        label: 'الطلبات',
+        subtitle: 'مراجعة طلبات النقل والندب وغيرها',
+        icon: Icons.request_page_outlined,
+        gradient: [Color(0xFFD32F2F), Color(0xFFEF5350)],
+      ),
+      const _ModuleCard(
+        index: 7,
+        label: 'إنجاز المقررات',
+        subtitle: 'متابعة وتتبع نسبة إنجاز المقررات الدراسية',
+        icon: Icons.query_stats,
+        gradient: [Color(0xFF1976D2), Color(0xFF42A5F5)],
+      ),
+      const _ModuleCard(
+        index: 8,
+        label: 'طلبات الاحتياج',
+        subtitle: 'تقديم ومتابعة طلبات الاحتياج من الكليات',
+        icon: Icons.forward_to_inbox,
+        gradient: [Color(0xFF388E3C), Color(0xFF66BB6A)],
+      ),
+    ];
+
+    if (AppSession().isAdminOrDeanship ||
+        AppSession().isDean ||
+        AppSession().isViceDean) {
+      list.addAll([
+        const _ModuleCard(
+          index: 9,
+          label: 'اعتمادات النِصاب',
+          subtitle: 'مراجعة واعتماد أنصبة الهيئة التدريسية',
+          icon: Icons.assignment_turned_in_outlined,
+          gradient: [Color(0xFFF57C00), Color(0xFFFFB74D)],
+        ),
+        const _ModuleCard(
+          index: 10,
+          label: 'الساعات الزائدة والموازية',
+          subtitle: 'احتساب الساعات الإضافية والموازية للمدرسين',
+          icon: Icons.access_time_outlined,
+          gradient: [Color(0xFF455A64), Color(0xFF78909C)],
+        ),
+      ]);
+    }
+
+    if (AppSession().isAdminOrDeanship) {
+      list.add(
+        const _ModuleCard(
+          index: 11,
+          label: 'محاضر الكليات',
+          subtitle: 'إدارة وتوثيق محاضر اجتماعات مجلس الكليات',
+          icon: Icons.meeting_room,
+          gradient: [Color(0xFF5D4037), Color(0xFF8D6E63)],
+        ),
+      );
+    }
+
+    return list;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -143,7 +184,7 @@ class _DashboardViewState extends State<DashboardView> {
   Widget _buildStatsRow() {
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 5 بطاقات: 4 في الصف الأول وواحدة في الثاني (أو تلقائياً حسب المساحة)
+        // 4 بطاقات في الصف الأول
         int crossAxisCount = 4;
         double spacing = DesktopSpacing.md;
         double itemWidth =
@@ -180,15 +221,6 @@ class _DashboardViewState extends State<DashboardView> {
                 value: _viewModel.stats.totalUsers.toString(),
                 icon: Icons.manage_accounts_rounded,
                 color: const Color(0xFFE65100),
-              ),
-            ),
-            SizedBox(
-              width: itemWidth,
-              child: _buildStatCard(
-                title: 'البرامج الأكاديمية',
-                value: _viewModel.stats.totalPrograms.toString(),
-                icon: Icons.school_rounded,
-                color: const Color(0xFFC2185B),
               ),
             ),
             SizedBox(
@@ -352,19 +384,19 @@ class _DashboardViewState extends State<DashboardView> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.all(28),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      width: 56,
-                      height: 56,
+                      width: 48,
+                      height: 48,
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.2),
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(12),
                       ),
-                      child: Icon(module.icon, color: Colors.white, size: 30),
+                      child: Icon(module.icon, color: Colors.white, size: 24),
                     ),
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -376,15 +408,19 @@ class _DashboardViewState extends State<DashboardView> {
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 6),
+                        const SizedBox(height: 4),
                         Text(
                           module.subtitle,
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
                             fontSize: 12,
-                            height: 1.4,
+                            height: 1.3,
                           ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ],
                     ),

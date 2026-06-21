@@ -1,4 +1,4 @@
-#include <flutter/dart_project.h>
+﻿#include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
@@ -27,7 +27,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   FlutterWindow window(project);
   Win32Window::Point origin(10, 10);
   Win32Window::Size size(1280, 720);
-  if (!window.Create(L"academic_affairs_management", origin, size)) {
+  if (!window.Create(L"\u0625\u062f\u0627\u0631\u0629 \u0627\u0644\u0634\u0624\u0648\u0646 \u0627\u0644\u0623\u0643\u0627\u062f\u064a\u0645\u064a\u0629", origin, size)) {
     return EXIT_FAILURE;
   }
   window.SetQuitOnClose(true);
