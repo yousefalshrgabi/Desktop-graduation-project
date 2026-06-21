@@ -17,6 +17,7 @@ class SharedDesktopAppBar extends StatelessWidget implements PreferredSizeWidget
     return AppBar(
       title: Row(
         children: [
+          const SizedBox(width: 48), // مسافة محجوزة لزر القائمة الجانبية لتفادي التداخل
           const Icon(Icons.school, color: DesktopColors.primary),
           const SizedBox(width: DesktopSpacing.xs),
           Text(

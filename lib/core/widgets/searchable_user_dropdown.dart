@@ -7,6 +7,7 @@ class SearchableUserDropdown extends StatelessWidget {
   final String hint;
   final List<Map<String, dynamic>> items;
   final void Function(String?) onChanged;
+  final String? defaultName;
 
   const SearchableUserDropdown({
     super.key,
@@ -15,6 +16,7 @@ class SearchableUserDropdown extends StatelessWidget {
     required this.hint,
     required this.items,
     required this.onChanged,
+    this.defaultName,
   });
 
   @override
@@ -22,7 +24,7 @@ class SearchableUserDropdown extends StatelessWidget {
     // التحقق من القيمة الحالية
     final Map<String, dynamic> initialUser = items.cast<Map<String, dynamic>>().firstWhere(
       (u) => u['id'] == value,
-      orElse: () => <String, dynamic>{'name': '', 'id': null},
+      orElse: () => <String, dynamic>{'name': defaultName ?? '', 'id': null},
     );
 
     return LayoutBuilder(
@@ -30,7 +32,7 @@ class SearchableUserDropdown extends StatelessWidget {
         return Autocomplete<Map<String, dynamic>>(
           optionsBuilder: (TextEditingValue textEditingValue) {
             final allItems = [
-              {'id': null, 'name': 'لا يوجد (غير محدد)'},
+              {'id': null, 'name': defaultName ?? 'لا يوجد (غير محدد)'},
               ...items,
             ];
             if (textEditingValue.text.isEmpty) {

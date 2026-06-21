@@ -14,6 +14,7 @@ import 'package:academic_affairs_management/features/desktop_pages/subjects_scre
 import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/screens/study_plan_list_screen.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/course_assignment_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/workload_report_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/colleges_meetings_screen/colleges_meetings_view.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/widgets/change_password_dialog.dart';
 
@@ -123,6 +124,7 @@ class _MainShellState extends State<MainShell>
                           !AppSession().isAdminOrDeanship,
                     ),
                     WorkloadReportView(key: ValueKey('workload_$_selectedIndex')),
+                    CollegesMeetingsView(key: ValueKey('meetings_$_selectedIndex')),
                   ],
                 ),
                 // Toggle button
@@ -194,6 +196,7 @@ class _MainShellState extends State<MainShell>
                   _buildSidebarItem(7, 'ربط المقررات', Icons.assignment_ind_outlined),
                   _buildSidebarItem(8, 'نصاب المدرسين', Icons.analytics_outlined),
                 ],
+                _buildSidebarItem(9, 'محاضر الاجتماعات', Icons.meeting_room_outlined),
               ],
             ),
           ),

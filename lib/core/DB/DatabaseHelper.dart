@@ -211,7 +211,7 @@ class DatabaseHelper {
       }
 
       // إنشاء الـ Triggers للتحديث التلقائي لـ updated_at
-      await _createUpdateTimestampTriggers(db);
+      await _createUpdateTimestampTriggers(db, tables: tables);
       debugPrint('[SQLITE DEBUG] ✅ تم إضافة updated_at والـ Triggers (v15)');
     }
 
@@ -528,27 +528,31 @@ class DatabaseHelper {
   }
 
   /// ينشئ Triggers في SQLite تضبط updated_at تلقائياً عند أي INSERT أو UPDATE
-  Future<void> _createUpdateTimestampTriggers(Database db) async {
-    final tables = ['users', 'colleges', 'departments', 'faculty_members', 'graduation_projects'];
-    for (final table in tables) {
-      // Trigger عند الإدخال
-      await db.execute('''
-        CREATE TRIGGER IF NOT EXISTS ${table}_set_updated_at_insert
-        AFTER INSERT ON $table
-        FOR EACH ROW
-        BEGIN
-          UPDATE $table SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
-        END;
-      ''');
-      // Trigger عند التعديل (أي عمود)
-      await db.execute('''
-        CREATE TRIGGER IF NOT EXISTS ${table}_set_updated_at_update
-        AFTER UPDATE ON $table
-        FOR EACH ROW
-        BEGIN
-          UPDATE $table SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
-        END;
-      ''');
+  Future<void> _createUpdateTimestampTriggers(Database db, {List<String>? tables}) async {
+    final list = tables ?? ['users', 'colleges', 'departments', 'faculty_members', 'graduation_projects'];
+    for (final table in list) {
+      try {
+        // Trigger عند الإدخال
+        await db.execute('''
+          CREATE TRIGGER IF NOT EXISTS ${table}_set_updated_at_insert
+          AFTER INSERT ON $table
+          FOR EACH ROW
+          BEGIN
+            UPDATE $table SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
+          END;
+        ''');
+        // Trigger عند التعديل (أي عمود)
+        await db.execute('''
+          CREATE TRIGGER IF NOT EXISTS ${table}_set_updated_at_update
+          AFTER UPDATE ON $table
+          FOR EACH ROW
+          BEGIN
+            UPDATE $table SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
+          END;
+        ''');
+      } catch (e) {
+        debugPrint('[SQLITE DEBUG] ⚠️ خطأ في إنشاء Triggers لجدول $table: $e');
+      }
     }
     debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جميع الـ Triggers للتحديث التلقائي.');
   }

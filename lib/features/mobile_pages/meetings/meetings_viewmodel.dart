@@ -9,12 +9,17 @@ import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/services/docx_export_service.dart';
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'meeting_model.dart';
+
 
 class MeetingsViewModel extends ChangeNotifier {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final FirebaseStorage _storage = FirebaseStorage.instance;
   final AppSession _session = AppSession();
+  final String? forceRole;
+
+  MeetingsViewModel({this.forceRole});
 
   List<MeetingModel> _meetings = [];
   bool _isLoading = false;
@@ -26,23 +31,52 @@ class MeetingsViewModel extends ChangeNotifier {
   bool get isSaving => _isSaving;
   String? get errorMessage => _errorMessage;
 
+  bool _isCollegeMatch(String c1, String c2) {
+    String clean(String s) {
+      return s
+          .trim()
+          .toLowerCase()
+          .replaceAll(' ', '')
+          .replaceAll('كلية', '')
+          .replaceAll('ال', '')
+          .replaceAll('أ', 'ا')
+          .replaceAll('إ', 'ا')
+          .replaceAll('آ', 'ا')
+          .replaceAll('ة', 'ه');
+    }
+    final clean1 = clean(c1);
+    final clean2 = clean(c2);
+    if (clean1.isEmpty || clean2.isEmpty) return false;
+    return clean1.contains(clean2) || clean2.contains(clean1);
+  }
+
   // تصفية الاجتماعات بناءً على الدور والقسم
   List<MeetingModel> get filteredMeetings {
     final deptId = _session.userDepartment;
     final college = _session.userCollege;
 
-    if (_session.isDeptHead) {
+    final bool actAsDeptHead = forceRole != null
+        ? (forceRole == 'dept_head' || forceRole == 'رئيس قسم')
+        : _session.isDeptHead;
+    final bool actAsViceDean = forceRole != null
+        ? (forceRole == 'vice_dean' || forceRole == 'نائب العميد')
+        : _session.isViceDean;
+    final bool actAsDean = forceRole != null
+        ? (forceRole == 'dean' || forceRole == 'عميد')
+        : _session.isDean;
+
+    if (actAsDeptHead) {
       return _meetings.where((m) => m.departmentId == deptId).toList();
-    } else if (_session.isViceDean) {
+    } else if (actAsViceDean) {
       // نائب العميد يرى الاجتماعات التي تنتظر موافقته، وتلك المعتمدة/المحالة مسبقاً
       return _meetings.where((m) =>
-          m.college == college &&
+          _isCollegeMatch(m.college, college) &&
           m.status != MeetingStatus.scheduled &&
           m.status != MeetingStatus.draft).toList();
-    } else if (_session.isDean) {
+    } else if (actAsDean) {
       // العميد يرى الاجتماعات المعتمدة من نائب العميد، أو المعتمدة نهائياً، أو المرفوضة
       return _meetings.where((m) =>
-          m.college == college &&
+          _isCollegeMatch(m.college, college) &&
           (m.status == MeetingStatus.pendingDean ||
            m.status == MeetingStatus.forwardedToPresidency ||
            m.status == MeetingStatus.rejected)).toList();
@@ -141,6 +175,25 @@ class MeetingsViewModel extends ChangeNotifier {
         previousMinutesName = previousMinutesFile.name;
       }
 
+      String deptId = _session.userDepartment;
+      if (_session.isDeptHead && _session.userId.isNotEmpty) {
+        try {
+          final db = await DatabaseHelper.instance.database;
+          final List<Map<String, dynamic>> result = await db.query(
+            'departments',
+            columns: ['id'],
+            where: 'hod_id = ?',
+            whereArgs: [_session.userId],
+            limit: 1,
+          );
+          if (result.isNotEmpty && result.first['id'] != null) {
+            deptId = result.first['id'].toString();
+          }
+        } catch (e) {
+          debugPrint('Error fetching HOD department in scheduleMeeting: $e');
+        }
+      }
+
       final newMeeting = MeetingModel(
         id: id,
         title: title,
@@ -152,7 +205,7 @@ class MeetingsViewModel extends ChangeNotifier {
         attendeeIds: attendeeIds,
         minutes: '',
         status: MeetingStatus.scheduled,
-        departmentId: _session.userDepartment,
+        departmentId: deptId,
         college: _session.userCollege,
         createdAt: DateTime.now(),
         previousMinutesUrl: previousMinutesUrl,
@@ -250,6 +303,25 @@ class MeetingsViewModel extends ChangeNotifier {
         previousMinutesName = previousMinutesFile.name;
       }
 
+      String deptId = _session.userDepartment;
+      if (_session.isDeptHead && _session.userId.isNotEmpty) {
+        try {
+          final db = await DatabaseHelper.instance.database;
+          final List<Map<String, dynamic>> result = await db.query(
+            'departments',
+            columns: ['id'],
+            where: 'hod_id = ?',
+            whereArgs: [_session.userId],
+            limit: 1,
+          );
+          if (result.isNotEmpty && result.first['id'] != null) {
+            deptId = result.first['id'].toString();
+          }
+        } catch (e) {
+          debugPrint('Error fetching HOD department in updateMeeting: $e');
+        }
+      }
+
       await _firestore.collection('meetings').doc(meetingId).update({
         'title': title,
         'date': date,
@@ -260,6 +332,7 @@ class MeetingsViewModel extends ChangeNotifier {
         'attendeeIds': attendeeIds,
         'previousMinutesUrl': previousMinutesUrl,
         'previousMinutesName': previousMinutesName,
+        'departmentId': deptId,
       });
 
       // كتابة إشعارات التعديل لكل الحاضرين ومنشئ الاجتماع في Firestore
@@ -340,16 +413,20 @@ class MeetingsViewModel extends ChangeNotifier {
   }
 
   // حفظ مسودة المحضر في Firestore
-  Future<bool> saveMinutesDraft(String meetingId, String minutesText) async {
+  Future<bool> saveMinutesDraft(String meetingId, String minutesText, {String? departmentId}) async {
     _isSaving = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      await _firestore.collection('meetings').doc(meetingId).update({
+      final updates = <String, dynamic>{
         'minutes': minutesText,
         'status': MeetingStatus.draft.key,
-      });
+      };
+      if (departmentId != null && departmentId.isNotEmpty) {
+        updates['departmentId'] = departmentId;
+      }
+      await _firestore.collection('meetings').doc(meetingId).update(updates);
 
       await loadMeetings();
       return true;
@@ -397,6 +474,7 @@ class MeetingsViewModel extends ChangeNotifier {
     required MeetingModel meeting,
     required PlatformFile file,
     required String minutesText,
+    String? departmentId,
   }) async {
     _isSaving = true;
     _errorMessage = null;
@@ -414,6 +492,7 @@ class MeetingsViewModel extends ChangeNotifier {
       }
 
       final cleanName = file.name.replaceAll(' ', '_');
+      final actualDeptId = (departmentId != null && departmentId.isNotEmpty) ? departmentId : meeting.departmentId;
 
       if (!await hasInternet()) {
         // [حالة عدم توفر إنترنت]: نقوم بحفظ الملف محلياً وتخزينه في قائمة الانتظار للمزامنة لاحقاً
@@ -434,7 +513,7 @@ class MeetingsViewModel extends ChangeNotifier {
         final List<String> pendingList = prefs.getStringList('pending_docx_uploads') ?? [];
         
         // التنسيق: meetingId|departmentId|fileName|localFilePath|minutesText
-        final metadata = '${meeting.id}|${meeting.departmentId}|${file.name}|$localFilePath|${minutesText.replaceAll('\n', '\\n')}';
+        final metadata = '${meeting.id}|$actualDeptId|${file.name}|$localFilePath|${minutesText.replaceAll('\n', '\\n')}';
         pendingList.add(metadata);
         await prefs.setStringList('pending_docx_uploads', pendingList);
 
@@ -444,6 +523,7 @@ class MeetingsViewModel extends ChangeNotifier {
           'documentUrl': 'local_pending_upload', // مؤشر على أن الملف ينتظر الرفع
           'status': MeetingStatus.pendingViceDean.key,
           'rejectReason': null,
+          'departmentId': actualDeptId,
         });
 
         debugPrint('[OFFLINE SUCCESS] Meeting updated locally. Will upload file once internet is available.');
@@ -452,7 +532,7 @@ class MeetingsViewModel extends ChangeNotifier {
       }
 
       // [حالة توفر إنترنت]: الرفع المباشر
-      final storagePath = 'meetings/${meeting.departmentId}/${meeting.id}_$cleanName';
+      final storagePath = 'meetings/$actualDeptId/${meeting.id}_$cleanName';
       debugPrint('[STORAGE UPLOAD] Target Path: $storagePath');
       final storageRef = _storage.ref().child(storagePath);
 
@@ -471,6 +551,7 @@ class MeetingsViewModel extends ChangeNotifier {
         'documentUrl': documentUrl,
         'status': MeetingStatus.pendingViceDean.key,
         'rejectReason': null,
+        'departmentId': actualDeptId,
       });
 
       await loadMeetings();

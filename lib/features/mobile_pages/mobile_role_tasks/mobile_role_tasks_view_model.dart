@@ -75,7 +75,7 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'مراجعة واعتماد محاضر اجتماعات مجالس الأقسام',
           icon: Icons.rate_review_outlined,
           color: const Color(0xFFE03131),
-          onTap: () => onNavigate?.call(const MeetingsListView()),
+          onTap: () => onNavigate?.call(const MeetingsListView(forceRole: 'dean')),
         ),
         TaskItem(
           title: 'أعضاء هيئة التدريس بالكلية',
@@ -129,7 +129,7 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'مراجعة وتمرير محاضر اجتماعات الأقسام للعميد',
           icon: Icons.rate_review_outlined,
           color: const Color(0xFF7048E8),
-          onTap: () => onNavigate?.call(const MeetingsListView()),
+          onTap: () => onNavigate?.call(const MeetingsListView(forceRole: 'vice_dean')),
         ),
         TaskItem(
           title: 'جداول المحاضرات',
@@ -174,7 +174,7 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'تنظيم وتوثيق اجتماعات مجلس القسم',
           icon: Icons.meeting_room_outlined,
           color: const Color(0xFFF59F00),
-          onTap: () => onNavigate?.call(const MeetingsListView()),
+          onTap: () => onNavigate?.call(const MeetingsListView(forceRole: 'dept_head')),
         ),
         TaskItem(
           title: 'الخطة الدراسية للقسم',

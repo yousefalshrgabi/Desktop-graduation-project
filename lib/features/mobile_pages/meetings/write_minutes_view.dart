@@ -3,8 +3,11 @@ import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 import 'meeting_model.dart';
 import 'meetings_viewmodel.dart';
+
 
 class WriteMinutesView extends StatefulWidget {
   final MeetingModel meeting;
@@ -111,6 +114,7 @@ class _WriteMinutesViewState extends State<WriteMinutesView> {
     for (final controller in _agendaDecisionYearControllers) {
       controller.addListener(_updateCompiledMinutes);
     }
+    _fetchHodDepartment();
   }
 
   @override
@@ -339,6 +343,62 @@ class _WriteMinutesViewState extends State<WriteMinutesView> {
     }
   }
 
+  Future<void> _fetchHodDepartment() async {
+    if (_session.isDeptHead && _session.userId.isNotEmpty) {
+      String? deptName;
+      // 1. Try local SQLite
+      try {
+        final db = await DatabaseHelper.instance.database;
+        final List<Map<String, dynamic>> result = await db.query(
+          'departments',
+          columns: ['name'],
+          where: 'hod_id = ?',
+          whereArgs: [_session.userId],
+          limit: 1,
+        );
+        if (result.isNotEmpty && result.first['name'] != null) {
+          deptName = result.first['name'].toString();
+          debugPrint('[MEETINGS HOD] Found department name locally: $deptName');
+        }
+      } catch (e) {
+        debugPrint('[MEETINGS HOD] SQLite error fetching HOD department: $e');
+      }
+
+      // 2. Try Firebase Firestore fallback
+      if (deptName == null || deptName.isEmpty) {
+        try {
+          final querySnapshot = await FirebaseFirestore.instance
+              .collection('departments')
+              .where('hod_id', isEqualTo: _session.userId)
+              .limit(1)
+              .get()
+              .timeout(const Duration(seconds: 4));
+          if (querySnapshot.docs.isNotEmpty) {
+            deptName = querySnapshot.docs.first.data()['name']?.toString();
+            debugPrint('[MEETINGS HOD] Found department name from Firestore: $deptName');
+          }
+        } catch (e) {
+          debugPrint('[MEETINGS HOD] Firestore error fetching HOD department: $e');
+        }
+      }
+
+      // 3. Try AppSession fallback
+      if ((deptName == null || deptName.isEmpty) && _session.userDepartment.isNotEmpty) {
+        deptName = _session.userDepartment;
+        debugPrint('[MEETINGS HOD] Using AppSession userDepartment fallback: $deptName');
+      }
+
+      if (deptName != null && deptName.isNotEmpty) {
+        if (mounted) {
+          setState(() {
+            _deptController.text = deptName!;
+          });
+        }
+      }
+    }
+  }
+
+
   void _updateCompiledMinutes() {
     final buffer = StringBuffer();
     buffer.writeln('بسم الله الرحمن الرحيم');
@@ -457,7 +517,13 @@ class _WriteMinutesViewState extends State<WriteMinutesView> {
   Future<void> _saveDraft() async {
     setState(() => _localSaving = true);
     final vm = Provider.of<MeetingsViewModel>(context, listen: false);
-    final success = await vm.saveMinutesDraft(widget.meeting.id, _minutesController.text.trim());
+    final success = await vm.saveMinutesDraft(
+      widget.meeting.id, 
+      _minutesController.text.trim(),
+      departmentId: widget.meeting.departmentId.isNotEmpty 
+          ? widget.meeting.departmentId 
+          : _session.userDepartment,
+    );
     setState(() => _localSaving = false);
 
     if (success && mounted) {
@@ -490,6 +556,9 @@ class _WriteMinutesViewState extends State<WriteMinutesView> {
       meeting: widget.meeting,
       file: _selectedFile!,
       minutesText: _minutesController.text.trim(),
+      departmentId: widget.meeting.departmentId.isNotEmpty 
+          ? widget.meeting.departmentId 
+          : _session.userDepartment,
     );
 
     if (success && mounted) {
