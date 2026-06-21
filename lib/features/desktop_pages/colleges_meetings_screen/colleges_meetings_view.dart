@@ -43,7 +43,6 @@ class _CollegesMeetingsViewState extends State<CollegesMeetingsView> {
     }
   }
 
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -118,7 +117,7 @@ class _CollegesMeetingsViewState extends State<CollegesMeetingsView> {
           Expanded(
             child: SearchableUserDropdown(
               value: _viewModel.selectedCollege,
-              defaultName: 'الكل',
+              initialName: 'الكل',
               items: _viewModel.colleges,
               hint: 'تصفية حسب الكلية',
               onChanged: (val) => _viewModel.updateSelectedCollege(val),
@@ -200,7 +199,8 @@ class _CollegesMeetingsViewState extends State<CollegesMeetingsView> {
                   DataCell(Text(meeting.title, style: DesktopTextStyles.body)),
                   DataCell(
                       Text(meeting.college, style: DesktopTextStyles.body)),
-                  DataCell(Text(meeting.departmentId, style: DesktopTextStyles.body)),
+                  DataCell(Text(meeting.departmentId,
+                      style: DesktopTextStyles.body)),
                   DataCell(Text('${meeting.date} - ${meeting.time}',
                       style: DesktopTextStyles.body)),
                   DataCell(

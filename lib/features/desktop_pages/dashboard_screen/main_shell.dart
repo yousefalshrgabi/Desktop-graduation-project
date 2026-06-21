@@ -16,6 +16,7 @@ import 'package:academic_affairs_management/features/course_study_plan/screens/m
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/course_need_requests_screen.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/college_workload_requests_screen.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/overtime_submissions_screen.dart';
+import 'package:academic_affairs_management/features/desktop_pages/colleges_meetings_screen/colleges_meetings_view.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/widgets/change_password_dialog.dart';
 
@@ -118,6 +119,7 @@ class _MainShellState extends State<MainShell>
                     CourseNeedRequestsScreen(key: ValueKey('need_requests_$_selectedIndex')),
                     CollegeWorkloadRequestsScreen(key: ValueKey('workload_requests_$_selectedIndex')),
                     OvertimeSubmissionsScreen(key: ValueKey('overtime_$_selectedIndex')),
+                    CollegesMeetingsView(key: ValueKey('meetings_$_selectedIndex')),
                   ],
                 ),
                 // Toggle button
@@ -187,8 +189,11 @@ class _MainShellState extends State<MainShell>
                 _buildSidebarItem(7, 'إنجاز المقررات', Icons.query_stats),
                 _buildSidebarItem(8, 'طلبات الاحتياج', Icons.forward_to_inbox),
                 if (AppSession().isAdminOrDeanship || AppSession().isDean || AppSession().isViceDean) ...[
-                  _buildSidebarItem(9, 'اعتماد الأنصبة', Icons.assignment_turned_in_outlined),
-                  _buildSidebarItem(10, 'الساعات الزائدة والموازية', Icons.access_time_outlined),
+                  _buildSidebarItem(9, 'اعتمادات النِصاب', Icons.assignment_turned_in_outlined),
+                  _buildSidebarItem(10, 'التكليفات والإضافي', Icons.access_time_outlined),
+                ],
+                if (AppSession().isAdminOrDeanship) ...[
+                  _buildSidebarItem(11, 'محاضر الكليات', Icons.meeting_room),
                 ]
               ],
             ),
