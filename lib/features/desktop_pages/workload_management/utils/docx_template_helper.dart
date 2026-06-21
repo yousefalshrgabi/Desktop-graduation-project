@@ -104,11 +104,18 @@ class DocxTemplateHelper {
     var result = xml;
     for (final entry in placeholders.entries) {
       final escaped = escapeXml(sanitizeText(entry.value));
-      for (final key in [
-        entry.key,
-        entry.key.replaceAll('<', '&lt;').replaceAll('>', '&gt;'),
-      ]) {
-        result = result.replaceAll(key, escaped);
+      
+      // Build a regex that matches the placeholder even if it is split by XML tags.
+      // Word often splits text like {{isHajj}} into `<w:t>{{is</w:t></w:r><w:r><w:t>Hajj}}</w:t>`.
+      final chars = entry.key.split('').map((c) => RegExp.escape(c));
+      final pattern = chars.join(r'(?:<[^>]+>)*');
+      
+      try {
+        final regex = RegExp(pattern);
+        result = result.replaceAll(regex, escaped);
+      } catch (e) {
+        // Fallback to simple replace if regex fails
+        result = result.replaceAll(entry.key, escaped);
       }
     }
     return result;
