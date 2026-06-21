@@ -32,7 +32,7 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
     return await openDatabase(
       path,
-      version: 15,
+      version: 17,
       // 👈 تفعيل القيود المرجعية (Foreign Keys) لضمان صحة الربط بين الجداول
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -197,7 +197,7 @@ class DatabaseHelper {
           '[SQLITE DEBUG] ✅ تم إنشاء جدول timetables (v14) خلال الترقية');
     }
 
-    if (oldVersion < 15) {
+    if (oldVersion < 16) {
       // إضافة عمود updated_at للجداول الرئيسية (للمزامنة التفاضلية)
       final tables = ['users', 'colleges', 'departments', 'faculty_members'];
       for (final table in tables) {
@@ -213,6 +213,51 @@ class DatabaseHelper {
       // إنشاء الـ Triggers للتحديث التلقائي لـ updated_at
       await _createUpdateTimestampTriggers(db);
       debugPrint('[SQLITE DEBUG] ✅ تم إضافة updated_at والـ Triggers (v15)');
+    }
+
+    if (oldVersion < 16) {
+      try {
+        await db.execute('ALTER TABLE faculty_members ADD COLUMN updated_at TEXT');
+        await db.execute("UPDATE faculty_members SET updated_at = '1970-01-01T00:00:00.000'");
+      } catch (e) {
+        debugPrint('[SQLITE v16] ⚠️ العمود updated_at موجود بالفعل في faculty_members: $e');
+      }
+      debugPrint('[SQLITE DEBUG] ✅ تم ترقية قاعدة البيانات للإصدار 16 وإضافة updated_at لجدول faculty_members');
+    }
+
+    if (oldVersion < 17) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS graduation_projects (
+          id TEXT PRIMARY KEY,
+          teacher_name TEXT NOT NULL,
+          group_number INTEGER NOT NULL,
+          student_count INTEGER NOT NULL,
+          schedule_type TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT
+        )
+      ''');
+      try {
+        await db.execute('''
+          CREATE TRIGGER IF NOT EXISTS graduation_projects_set_updated_at_insert
+          AFTER INSERT ON graduation_projects
+          FOR EACH ROW
+          BEGIN
+            UPDATE graduation_projects SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
+          END;
+        ''');
+        await db.execute('''
+          CREATE TRIGGER IF NOT EXISTS graduation_projects_set_updated_at_update
+          AFTER UPDATE ON graduation_projects
+          FOR EACH ROW
+          BEGIN
+            UPDATE graduation_projects SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
+          END;
+        ''');
+      } catch (e) {
+        debugPrint('[SQLITE v17] ⚠️ خطأ في إنشاء Triggers لـ graduation_projects: $e');
+      }
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول graduation_projects والـ Triggers (v17)');
     }
   }
 
@@ -324,6 +369,7 @@ class DatabaseHelper {
           unpaid_leaves TEXT,
 
           created_at TEXT NOT NULL,
+          updated_at TEXT,
           
           -- 🔗 الربط المرجعي بجدول المستخدمين
           FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
@@ -458,6 +504,20 @@ class DatabaseHelper {
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول timetables');
 
+      // 12. جدول مجموعات مشروع التخرج
+      await db.execute('''
+        CREATE TABLE graduation_projects (
+          id TEXT PRIMARY KEY,
+          teacher_name TEXT NOT NULL,
+          group_number INTEGER NOT NULL,
+          student_count INTEGER NOT NULL,
+          schedule_type TEXT NOT NULL,
+          created_at TEXT NOT NULL,
+          updated_at TEXT
+        )
+      ''');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول graduation_projects');
+
       // إنشاء الـ Triggers للتحديث التلقائي لـ updated_at
       await _createUpdateTimestampTriggers(db);
 
@@ -469,7 +529,7 @@ class DatabaseHelper {
 
   /// ينشئ Triggers في SQLite تضبط updated_at تلقائياً عند أي INSERT أو UPDATE
   Future<void> _createUpdateTimestampTriggers(Database db) async {
-    final tables = ['users', 'colleges', 'departments', 'faculty_members'];
+    final tables = ['users', 'colleges', 'departments', 'faculty_members', 'graduation_projects'];
     for (final table in tables) {
       // Trigger عند الإدخال
       await db.execute('''

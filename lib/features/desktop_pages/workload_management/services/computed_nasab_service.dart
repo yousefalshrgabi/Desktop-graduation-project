@@ -5,7 +5,7 @@ import '../models/incentive_entry.dart';
 import '../utils/level_labels.dart';
 import '../utils/practical_hours_calculator.dart';
 import 'faculty_firestore_service.dart';
-import 'graduation_project_firestore_service.dart';
+import 'graduation_project_local_service.dart';
 import 'practical_group_firestore_service.dart';
 import 'semester_nasab_firestore_service.dart';
 
@@ -70,18 +70,18 @@ class ComputedNasabService {
     SemesterNasabFirestoreService? nasab,
     PracticalGroupFirestoreService? groups,
     FacultyFirestoreService? faculty,
-    GraduationProjectFirestoreService? gradProjects,
+    GraduationProjectLocalService? gradProjects,
   })  : _studyPlans = studyPlans ?? StudyPlanFirestoreService(),
         _nasab = nasab ?? SemesterNasabFirestoreService(),
         _groups = groups ?? PracticalGroupFirestoreService(),
         _faculty = faculty ?? FacultyFirestoreService(),
-        _gradProjects = gradProjects ?? GraduationProjectFirestoreService();
+        _gradProjects = gradProjects ?? GraduationProjectLocalService();
 
   final StudyPlanFirestoreService _studyPlans;
   final SemesterNasabFirestoreService _nasab;
   final PracticalGroupFirestoreService _groups;
   final FacultyFirestoreService _faculty;
-  final GraduationProjectFirestoreService _gradProjects;
+  final GraduationProjectLocalService _gradProjects;
 
   Future<List<PlanCourseSlot>> loadSlotsForTerm({
     required String collegeName,
@@ -341,12 +341,13 @@ class ComputedNasabService {
 
     // Add graduation projects
     for (final gradGroup in gradGroupsAll) {
-      if (gradGroup.isParallel) continue; // Usually, we only include 'عام' (regular) in the main nasab? Wait... The template might include both, but usually graduation projects are supervision hours.
+      if (gradGroup.isParallel)
+        continue; // Usually, we only include 'عام' (regular) in the main nasab? Wait... The template might include both, but usually graduation projects are supervision hours.
       final teacherName = gradGroup.teacherName.trim();
       if (teacherName.isEmpty) continue;
-      
+
       final supervisionHours = gradGroup.overtimeHours; // studentCount * 0.5
-      
+
       // Determine the teacher's department
       final sourceDept = deptByName[teacherName] ?? '';
 
