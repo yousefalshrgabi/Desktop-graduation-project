@@ -13,7 +13,10 @@ import 'package:academic_affairs_management/features/desktop_pages/workload_mana
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/college_overtime_preview_screen.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/services/college_workload_submission_service.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/college_workload_preview_screen.dart';
-import 'package:academic_affairs_management/features/mobile_pages/leave_request_screen.dart' show LeaveRequestScreen;
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/services/course_need_letter_service.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/course_need_preview_screen.dart';
+import 'package:academic_affairs_management/features/mobile_pages/leave_request_screen.dart'
+    show LeaveRequestScreen;
 
 class MobileRequestsView extends StatefulWidget {
   const MobileRequestsView({super.key});
@@ -27,6 +30,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
   final _session = AppSession();
   final _overtimeService = CollegeOvertimeSubmissionService();
   final _workloadService = CollegeWorkloadSubmissionService();
+  final _courseNeedService = CourseNeedLetterService();
 
   @override
   void initState() {
@@ -496,86 +500,130 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
               stream: _overtimeService.getAllSubmissions(),
               builder: (context, snapshotOvertimes) {
                 final allOvertimes = snapshotOvertimes.data ?? [];
-                final needsInbox = <dynamic>[];
-                final needsOutbox = <dynamic>[];
-                final currentUid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
-                for (final ot in allOvertimes) {
-                  final isSameCollege = ot.collegeName == _session.userCollege;
-                  final isMySubmission = ot.createdByUid == currentUid;
+                return StreamBuilder<List<SavedCourseNeedLetter>>(
+                  stream: (_session.isDean ||
+                          _session.isViceDean ||
+                          _session.isAdminOrDeanship)
+                      ? _courseNeedService.watchLetters()
+                      : const Stream.empty(),
+                  builder: (context, snapshotNeeds) {
+                    final allNeedLetters = snapshotNeeds.data ?? [];
+                    final needsInbox = <dynamic>[];
+                    final needsOutbox = <dynamic>[];
+                    final currentUid =
+                        FirebaseAuth.instance.currentUser?.uid ?? '';
 
-                  if (_session.isDean && isSameCollege) {
-                    if (ot.status == 'pending_dean') {
-                      needsInbox.add(ot);
-                    } else {
-                      needsOutbox.add(ot);
+                    for (final ot in allOvertimes) {
+                      final isSameCollege =
+                          ot.collegeName == _session.userCollege;
+                      final isMySubmission = ot.createdByUid == currentUid;
+
+                      if (_session.isDean && isSameCollege) {
+                        if (ot.status == 'pending_dean') {
+                          needsInbox.add(ot);
+                        } else {
+                          needsOutbox.add(ot);
+                        }
+                      } else if (_session.isAdminOrDeanship) {
+                        if (ot.status == 'pending_vice_chancellor') {
+                          needsInbox.add(ot);
+                        } else if (ot.status == 'approved') {
+                          needsOutbox.add(ot);
+                        }
+                      } else if (_session.isViceDean &&
+                          isSameCollege &&
+                          isMySubmission) {
+                        needsOutbox.add(ot);
+                      }
                     }
-                  } else if (_session.isAdminOrDeanship) {
-                    if (ot.status == 'pending_vice_chancellor') {
-                      needsInbox.add(ot);
-                    } else if (ot.status == 'approved') {
-                      needsOutbox.add(ot);
-                    }
-                  } else if (_session.isViceDean && isSameCollege && isMySubmission) {
-                     needsOutbox.add(ot);
-                  }
-                }
 
-                // معالجة طلبات النصاب المحسوب (للعميد ونائب العميد فقط)
-                for (final wl in allWorkloads) {
-                  if (wl.collegeName != _session.userCollege) continue;
-                  
-                  if (_session.isDean) {
-                    if (wl.status == 'pending_dean') {
-                      needsInbox.add(wl);   // العميد: وارد يحتاج اعتماده
-                    } else {
-                      needsOutbox.add(wl);  // العميد: صادر للمتابعة
-                    }
-                  } else if (_session.isViceDean) {
-                    needsOutbox.add(wl);    // نائب العميد: صادرة فقط لجميع طلبات كليته
-                  }
-                }
+                    // معالجة طلبات النصاب المحسوب (للعميد ونائب العميد فقط)
+                    for (final wl in allWorkloads) {
+                      if (wl.collegeName != _session.userCollege) continue;
 
-                return AnimatedBuilder(
-                  animation: _viewModel,
-                  builder: (context, child) {
-                    return Stack(
-                      children: [
-                        TabBarView(
+                      if (_session.isDean) {
+                        if (wl.status == 'pending_dean') {
+                          needsInbox.add(wl); // العميد: وارد يحتاج اعتماده
+                        } else {
+                          needsOutbox.add(wl); // العميد: صادر للمتابعة
+                        }
+                      } else if (_session.isViceDean) {
+                        needsOutbox.add(
+                            wl); // نائب العميد: صادرة فقط لجميع طلبات كليته
+                      }
+                    }
+
+                    // معالجة خطابات احتياج المقررات
+                    for (final nl in allNeedLetters) {
+                      final isSameCollege =
+                          nl.collegeName == _session.userCollege;
+                      final isMySubmission = nl.createdByUid == currentUid;
+
+                      if (_session.isDean && isSameCollege) {
+                        if (nl.status == 'pending_dean') {
+                          needsInbox.add(nl);
+                        } else {
+                          needsOutbox.add(nl);
+                        }
+                      } else if (_session.isAdminOrDeanship) {
+                        if (nl.status == 'pending_academic_affairs' ||
+                            nl.status == 'pending_vice_chancellor') {
+                          needsInbox.add(nl);
+                        } else if (nl.status == 'approved' ||
+                            nl.status == 'rejected_by_academic_affairs') {
+                          needsOutbox.add(nl);
+                        }
+                      } else if (_session.isViceDean &&
+                          isSameCollege &&
+                          isMySubmission) {
+                        needsOutbox.add(nl);
+                      }
+                    }
+
+                    return AnimatedBuilder(
+                      animation: _viewModel,
+                      builder: (context, child) {
+                        return Stack(
                           children: [
-                            _buildCombinedList(
-                              requests: _viewModel.receivedRequests,
-                              needs: needsInbox,
-                              isReceived: true,
+                            TabBarView(
+                              children: [
+                                _buildCombinedList(
+                                  requests: _viewModel.receivedRequests,
+                                  needs: needsInbox,
+                                  isReceived: true,
+                                ),
+                                _buildCombinedList(
+                                  requests: _viewModel.sentRequests,
+                                  needs: needsOutbox,
+                                  isReceived: false,
+                                ),
+                              ],
                             ),
-                            _buildCombinedList(
-                              requests: _viewModel.sentRequests,
-                              needs: needsOutbox,
-                              isReceived: false,
-                            ),
-                          ],
-                        ),
-                        if (_viewModel.isSending || _viewModel.isLoading)
-                          Container(
-                            color: Colors.black.withOpacity(0.3),
-                            child: Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  const CircularProgressIndicator(color: Colors.white),
-                                  const SizedBox(height: 16),
-                                  Text(
-                                      _viewModel.isSending
-                                          ? 'جاري الإرسال ورفع الملف...'
-                                          : 'جاري تحديث الصفحة...',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontWeight: FontWeight.bold)),
-                                ],
+                            if (_viewModel.isSending || _viewModel.isLoading)
+                              Container(
+                                color: Colors.black.withOpacity(0.3),
+                                child: Center(
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      const CircularProgressIndicator(
+                                          color: Colors.white),
+                                      const SizedBox(height: 16),
+                                      Text(
+                                          _viewModel.isSending
+                                              ? 'جاري الإرسال ورفع الملف...'
+                                              : 'جاري تحديث الصفحة...',
+                                          style: const TextStyle(
+                                              color: Colors.white,
+                                              fontWeight: FontWeight.bold)),
+                                    ],
+                                  ),
+                                ),
                               ),
-                            ),
-                          ),
-                      ],
+                          ],
+                        );
+                      },
                     );
                   },
                 );
@@ -588,10 +636,14 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
           children: [
             FloatingActionButton.extended(
               heroTag: 'leave_request_fab',
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeaveRequestScreen())),
+              onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                      builder: (_) => const LeaveRequestScreen())),
               backgroundColor: Colors.teal,
               icon: const Icon(Icons.description_outlined, color: Colors.white),
-              label: const Text('طلب إجازة رسمية', style: TextStyle(color: Colors.white)),
+              label: const Text('طلب إجازة رسمية',
+                  style: TextStyle(color: Colors.white)),
             ),
             const SizedBox(height: 10),
             FloatingActionButton.extended(
@@ -599,7 +651,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
               onPressed: _showNewRequestBottomSheet,
               backgroundColor: DesktopColors.primary,
               icon: const Icon(Icons.add, color: Colors.white),
-              label: const Text('طلب جديد', style: TextStyle(color: Colors.white)),
+              label:
+                  const Text('طلب جديد', style: TextStyle(color: Colors.white)),
             ),
           ],
         ),
@@ -632,16 +685,28 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
 
     combinedItems.sort((a, b) {
       DateTime dateA;
-      if (a is RequestModel) dateA = a.dateSent;
-      else if (a is CollegeOvertimeSubmission) dateA = a.createdAt ?? DateTime(2000);
-      else if (a is CollegeWorkloadSubmission) dateA = a.createdAt ?? DateTime(2000);
-      else dateA = DateTime(2000);
+      if (a is RequestModel)
+        dateA = a.dateSent;
+      else if (a is CollegeOvertimeSubmission)
+        dateA = a.createdAt ?? DateTime(2000);
+      else if (a is CollegeWorkloadSubmission)
+        dateA = a.createdAt ?? DateTime(2000);
+      else if (a is SavedCourseNeedLetter)
+        dateA = a.createdAt ?? DateTime(2000);
+      else
+        dateA = DateTime(2000);
 
       DateTime dateB;
-      if (b is RequestModel) dateB = b.dateSent;
-      else if (b is CollegeOvertimeSubmission) dateB = b.createdAt ?? DateTime(2000);
-      else if (b is CollegeWorkloadSubmission) dateB = b.createdAt ?? DateTime(2000);
-      else dateB = DateTime(2000);
+      if (b is RequestModel)
+        dateB = b.dateSent;
+      else if (b is CollegeOvertimeSubmission)
+        dateB = b.createdAt ?? DateTime(2000);
+      else if (b is CollegeWorkloadSubmission)
+        dateB = b.createdAt ?? DateTime(2000);
+      else if (b is SavedCourseNeedLetter)
+        dateB = b.createdAt ?? DateTime(2000);
+      else
+        dateB = DateTime(2000);
 
       return dateB.compareTo(dateA);
     });
@@ -654,6 +719,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
         items.add(_buildOvertimeCard(item, isReceived));
       } else if (item is CollegeWorkloadSubmission) {
         items.add(_buildWorkloadCard(item, isReceived));
+      } else if (item is SavedCourseNeedLetter) {
+        items.add(_buildNeedLetterCard(item, isReceived));
       }
     }
 
@@ -683,18 +750,23 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                 Expanded(
                   child: Text(
                     req.title,
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.bold),
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: statusColor.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     req.status,
-                    style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 12),
+                    style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12),
                   ),
                 ),
               ],
@@ -704,7 +776,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                 ? _buildInfoRow('الجهة المرسلة:', req.senderCollege)
                 : _buildInfoRow('الجهة المستقبلة:', req.destinationCollege),
             const SizedBox(height: 4),
-            _buildInfoRow('مقدم الطلب:', req.applicantName.isNotEmpty ? req.applicantName : 'غير حدد'),
+            _buildInfoRow('مقدم الطلب:',
+                req.applicantName.isNotEmpty ? req.applicantName : 'غير حدد'),
             const SizedBox(height: 4),
             _buildInfoRow('النوع:', req.type),
             if (req.description.isNotEmpty) ...[
@@ -721,8 +794,11 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
               const SizedBox(height: 8),
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(8)),
-                child: Text('سبب الرفض: ${req.rejectionReason}', style: const TextStyle(color: Colors.red, fontSize: 13)),
+                decoration: BoxDecoration(
+                    color: Colors.red[50],
+                    borderRadius: BorderRadius.circular(8)),
+                child: Text('سبب الرفض: ${req.rejectionReason}',
+                    style: const TextStyle(color: Colors.red, fontSize: 13)),
               ),
             ],
             const SizedBox(height: 12),
@@ -735,23 +811,31 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: DesktopColors.primary,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       minimumSize: Size.zero,
                     ),
                     child: const Text('رد'),
                   ),
                 const SizedBox(width: 8),
-                if (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type.contains('اجازة'))
+                if (req.type == 'استمارة طلب إجازة' ||
+                    req.type.contains('إجازة') ||
+                    req.type.contains('اجازة'))
                   ElevatedButton.icon(
                     onPressed: () => _exportLocalLeaveRequest(req),
-                    icon: const Icon(Icons.file_download, color: Colors.white, size: 16),
-                    label: const Text('تصدير الاستمارة', style: TextStyle(fontSize: 11)),
+                    icon: const Icon(Icons.file_download,
+                        color: Colors.white, size: 16),
+                    label: const Text('تصدير الاستمارة',
+                        style: TextStyle(fontSize: 11)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.teal,
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 8),
                       minimumSize: Size.zero,
                     ),
                   ),
@@ -762,8 +846,10 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     icon: const Icon(Icons.file_present),
                     label: const Text('عرض الملف'),
                     style: OutlinedButton.styleFrom(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
                       minimumSize: Size.zero,
                     ),
                   ),
@@ -775,9 +861,9 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
     );
   }
 
-
   Widget _buildOvertimeCard(CollegeOvertimeSubmission sub, bool isReceived) {
-    final typeName = sub.type == 'overtime' ? 'الساعات الزائدة' : 'الساعات الموازية';
+    final typeName =
+        sub.type == 'overtime' ? 'الساعات الزائدة' : 'الساعات الموازية';
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       elevation: 2,
@@ -787,7 +873,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => CollegeOvertimePreviewScreen(submission: sub),
+              builder: (context) =>
+                  CollegeOvertimePreviewScreen(submission: sub),
             ),
           );
         },
@@ -801,7 +888,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                   const CircleAvatar(
                     backgroundColor: DesktopColors.primary,
                     radius: 20,
-                    child: Icon(Icons.access_time, color: Colors.white, size: 20),
+                    child:
+                        Icon(Icons.access_time, color: Colors.white, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -810,11 +898,13 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                       children: [
                         Text(
                           'اعتماد كشوفات $typeName',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 16),
                         ),
                         Text(
                           'الكلية: ${sub.collegeName}',
-                          style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                          style: TextStyle(
+                              color: Colors.grey.shade700, fontSize: 13),
                         ),
                       ],
                     ),
@@ -825,15 +915,114 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(
+                    color: Colors.grey.shade50,
+                    borderRadius: BorderRadius.circular(8)),
                 child: Text(
                   'حالة الطلب: ${sub.status == 'pending_dean' ? 'بانتظار اعتماد العميد' : sub.status == 'pending_vice_chancellor' ? 'بانتظار اعتماد النيابة' : sub.status == 'approved' ? 'تم الاعتماد النهائي' : 'مرفوض'}',
                   style: TextStyle(
-                    color: sub.status == 'pending_dean' ? Colors.orange : (sub.status == 'approved' ? Colors.green : Colors.black87),
+                    color: sub.status == 'pending_dean'
+                        ? Colors.orange
+                        : (sub.status == 'approved'
+                            ? Colors.green
+                            : Colors.black87),
                     fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNeedLetterCard(SavedCourseNeedLetter sub, bool isReceived) {
+    String statusText;
+    Color statusColor;
+    switch (sub.status) {
+      case 'pending_dean':
+        statusText =
+            isReceived ? 'وارد — يحتاج اعتمادك' : 'صادر — بانتظار العميد';
+        statusColor = Colors.orange;
+        break;
+      case 'pending_academic_affairs':
+      case 'pending_vice_chancellor':
+        statusText = 'صادر — بانتظار الشؤون/النيابة';
+        statusColor = Colors.orange.shade700;
+        break;
+      case 'approved':
+        statusText = 'معتمد نهائياً';
+        statusColor = Colors.green;
+        break;
+      case 'rejected_by_dean':
+      case 'rejected_by_academic_affairs':
+      case 'rejected':
+        statusText = 'مرفوض';
+        statusColor = Colors.red;
+        break;
+      default:
+        statusText = sub.status;
+        statusColor = Colors.grey;
+    }
+
+    final termLabel = sub.term == 'first' ? 'الأول' : 'الثاني';
+    final canTap = isReceived && sub.status == 'pending_dean';
+
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: canTap
+            ? () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => CourseNeedPreviewScreen(
+                      savedLetter: sub,
+                      collegeName: sub.collegeName,
+                      term: sub.term,
+                      data: sub.data,
+                    ),
+                  ),
+                ).then((_) => setState(() {}))
+            : null,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Expanded(
+                    child: Text(
+                      'خطاب مقررات احتياج',
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: statusColor.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      statusText,
+                      style: TextStyle(
+                          color: statusColor,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              if (!isReceived) Text('الجهة المرسلة: كلية ${sub.collegeName}'),
+              Text('الفصل: $termLabel'),
             ],
           ),
         ),
@@ -846,7 +1035,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
     Color statusColor;
     switch (sub.status) {
       case 'pending_dean':
-        statusText = isReceived ? 'وارد — يحتاج اعتمادك' : 'صادر — بانتظار العميد';
+        statusText =
+            isReceived ? 'وارد — يحتاج اعتمادك' : 'صادر — بانتظار العميد';
         statusColor = Colors.orange;
         break;
       case 'pending_vice_chancellor':
@@ -898,7 +1088,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                   const CircleAvatar(
                     backgroundColor: DesktopColors.primary,
                     radius: 20,
-                    child: Icon(Icons.assignment_turned_in, color: Colors.white, size: 20),
+                    child: Icon(Icons.assignment_turned_in,
+                        color: Colors.white, size: 20),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -907,21 +1098,24 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                       children: [
                         Text(
                           'النصاب المحسوب — الفصل $termLabel',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          style: const TextStyle(
+                              fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                         Text(
                           'الكلية: ${sub.collegeName}',
-                          style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                          style: TextStyle(
+                              color: Colors.grey.shade700, fontSize: 13),
                         ),
                       ],
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                       color: statusColor.withValues(alpha: 0.1),
-                       borderRadius: BorderRadius.circular(12),
-                       border: Border.all(color: statusColor),
+                      color: statusColor.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: statusColor),
                     ),
                     child: Text(
                       statusText,
@@ -934,7 +1128,8 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                   ),
                 ],
               ),
-              if (sub.rejectionReason != null && sub.rejectionReason!.isNotEmpty) ...[
+              if (sub.rejectionReason != null &&
+                  sub.rejectionReason!.isNotEmpty) ...[
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(8),
