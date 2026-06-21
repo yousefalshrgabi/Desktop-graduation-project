@@ -52,6 +52,7 @@ class GraduationProjectLocalService {
 
   Future<void> deleteGroup(String groupId) async {
     final db = await DatabaseHelper.instance.database;
+    await db.insert('deleted_records', {'id': groupId, 'table_name': _tableName});
     await db.delete(
       _tableName,
       where: 'id = ?',
@@ -61,6 +62,10 @@ class GraduationProjectLocalService {
 
   Future<void> deleteAllGroupsForTeacher(String teacherName) async {
     final db = await DatabaseHelper.instance.database;
+    final groups = await getGroupsForTeacher(teacherName);
+    for (var g in groups) {
+      await db.insert('deleted_records', {'id': g.id, 'table_name': _tableName});
+    }
     await db.delete(
       _tableName,
       where: 'teacher_name = ?',

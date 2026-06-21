@@ -52,9 +52,7 @@ class TeacherWordExportService {
     final filtered = entries
         .where((e) => e.teachers.any((t) => t.trim() == teacherName.trim()))
         .toList();
-    final gradGroups = (await _gradProject.getGroupsForTeacher(teacherName))
-        .where((group) => !group.isParallel)
-        .toList();
+    final gradGroups = await _gradProject.getGroupsForTeacher(teacherName);
 
     if (filtered.isEmpty && gradGroups.isEmpty) {
       throw Exception('لا توجد بيانات لهذا المعلم');

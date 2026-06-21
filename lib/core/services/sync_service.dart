@@ -163,6 +163,7 @@ class SyncService {
     await uploadChangedRecords('colleges');
     await uploadChangedRecords('departments');
     await uploadChangedRecords('faculty_members', isFaculty: true);
+    await uploadChangedRecords('graduation_projects');
 
     // -- رفع البرامج غير المتزامنة (is_synced = 0) — كما هو --
     final programs = await db.query('programs', where: 'is_synced = ?', whereArgs: [0]);
@@ -270,6 +271,7 @@ class SyncService {
       await downloadTable('departments', 'departments');
       await downloadTable('faculty_members', 'faculty_members',
           isFaculty: true);
+      await downloadTable('graduation_projects', 'graduation_projects');
 
       // -- تنزيل البرامج --
       final progSnap = await _firestore.collection('programs').get(serverOnly);

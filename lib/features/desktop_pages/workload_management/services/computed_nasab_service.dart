@@ -340,9 +340,7 @@ class ComputedNasabService {
     }
 
     // Add graduation projects
-    for (final gradGroup in gradGroupsAll) {
-      if (gradGroup.isParallel)
-        continue; // Usually, we only include 'عام' (regular) in the main nasab? Wait... The template might include both, but usually graduation projects are supervision hours.
+    for (var gradGroup in gradGroupsAll) {
       final teacherName = gradGroup.teacherName.trim();
       if (teacherName.isEmpty) continue;
 
