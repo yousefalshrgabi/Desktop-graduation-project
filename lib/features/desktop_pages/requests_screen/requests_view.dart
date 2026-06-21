@@ -207,6 +207,53 @@ class _RequestsViewState extends State<RequestsView>
     }
   }
 
+  Future<void> _exportLeaveRequest(RequestModel req) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('جاري تصدير الاستمارة الرسمية...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final success = await _viewModel.exportLeaveRequest(req);
+    if (mounted) {
+      Navigator.pop(context);
+    }
+
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تصدير وحفظ الاستمارة الرسمية بنجاح!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_viewModel.errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showRespondDialog(RequestModel request) {
     TextEditingController reasonController = TextEditingController();
     List<PlatformFile> replyFiles = [];
@@ -1769,7 +1816,7 @@ class _RequestsViewState extends State<RequestsView>
             if (currentStep == 1 && _session.isDeptHead) {
               final reqDept = req.extraData?['sender_department']?.toString().trim();
               final myDept = _viewModel.currentUserDepartment?.trim();
-              if (reqDept != null && myDept != null && reqDept == myDept) {
+              if (reqDept != null && myDept != null && _viewModel.isSameDepartment(reqDept, myDept)) {
                 showRespondButton = true;
               }
             } else if (currentStep == 2 && _session.isViceDean) {
@@ -1956,6 +2003,60 @@ class _RequestsViewState extends State<RequestsView>
                       ),
                     ),
                   ),
+                if (req.extraData != null && req.extraData!['approval_history'] != null) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      border: Border.all(color: Colors.green[100]!),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'تاريخ الموافقات:',
+                          style: TextStyle(
+                            color: Colors.green,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        ... (req.extraData!['approval_history'] as List<dynamic>).map((item) {
+                          final String role = item['approver_role'] ?? '';
+                          final String approverName = item['approver_name'] ?? 'غير معروف';
+                          final String dateStr = item['date'] ?? '';
+                          String formattedTime = '';
+                          try {
+                            if (dateStr.isNotEmpty) {
+                              final dt = DateTime.parse(dateStr);
+                              formattedTime = _formatDate(dt);
+                            }
+                          } catch (_) {}
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 6.0),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'تمت الموافقـة من قبل $role ($approverName) بتاريخ $formattedTime',
+                                    style: const TextStyle(color: Colors.green, fontSize: 12),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        }),
+                      ],
+                    ),
+                  ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -2009,6 +2110,16 @@ class _RequestsViewState extends State<RequestsView>
                         label: const Text('عرض استمارة الطلب الرسمية'),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue[800],
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: () => _exportLeaveRequest(req),
+                        icon: const Icon(Icons.file_download),
+                        label: const Text('تصدير الاستمارة الرسمية'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[700],
                           foregroundColor: Colors.white,
                         ),
                       ),
@@ -2115,6 +2226,60 @@ class _RequestsViewState extends State<RequestsView>
                         }),
                       ]
                     ],
+                    if (req.extraData != null && req.extraData!['approval_history'] != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.green[50],
+                          border: Border.all(color: Colors.green[100]!),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'تاريخ الموافقات:',
+                              style: TextStyle(
+                                color: Colors.green,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            ... (req.extraData!['approval_history'] as List<dynamic>).map((item) {
+                              final String role = item['approver_role'] ?? '';
+                              final String approverName = item['approver_name'] ?? 'غير معروف';
+                              final String dateStr = item['date'] ?? '';
+                              String formattedTime = '';
+                              try {
+                                if (dateStr.isNotEmpty) {
+                                  final dt = DateTime.parse(dateStr);
+                                  formattedTime = _formatDate(dt);
+                                }
+                              } catch (_) {}
+                              return Padding(
+                                padding: const EdgeInsets.only(bottom: 6.0),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    const Icon(Icons.check_circle_outline, color: Colors.green, size: 16),
+                                    const SizedBox(width: 6),
+                                    Expanded(
+                                      child: Text(
+                                        'تمت الموافقـة من قبل $role ($approverName) بتاريخ $formattedTime',
+                                        style: const TextStyle(color: Colors.green, fontSize: 12),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (req.fileUrl != null) ...[
                       const SizedBox(height: 16),
                       Center(
@@ -2138,6 +2303,20 @@ class _RequestsViewState extends State<RequestsView>
                           ),
                         ),
                       ),
+                      if (req.status == 'مقبول') ...[
+                        const SizedBox(height: 12),
+                        Center(
+                          child: ElevatedButton.icon(
+                            onPressed: () => _exportLeaveRequest(req),
+                            icon: const Icon(Icons.file_download),
+                            label: const Text('تصدير الاستمارة الرسمية'),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green[700],
+                              foregroundColor: Colors.white,
+                            ),
+                          ),
+                        ),
+                      ],
                     ],
                   ],
                 ),

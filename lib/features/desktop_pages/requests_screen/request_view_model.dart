@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -11,7 +12,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'dart:convert';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
+import 'package:file_saver/file_saver.dart';
+import 'package:academic_affairs_management/features/desktop_pages/workload_management/utils/app_file_saver.dart';
 import 'package:academic_affairs_management/core/services/docx_export_service.dart';
+import 'package:uuid/uuid.dart';
 import 'request_model.dart';
 
 class RequestViewModel extends ChangeNotifier {
@@ -74,6 +78,30 @@ class RequestViewModel extends ChangeNotifier {
     _currentUserRole = role;
     _currentUserId = userId;
     _currentUserDepartment = department;
+
+    // إذا كان رئيس قسم والمسار فارغ، نتحقق من قاعدة البيانات المحلية (SQLite)
+    final bool isHOD = (role).toLowerCase().contains('head') ||
+                       (role).contains('رئيس');
+    if ((_currentUserDepartment == null || _currentUserDepartment!.isEmpty) &&
+        isHOD &&
+        (userId != null && userId.isNotEmpty)) {
+      DatabaseHelper.instance.database.then((db) {
+        db.query(
+          'departments',
+          where: 'hod_id = ?',
+          whereArgs: [userId],
+          limit: 1,
+        ).then((depts) {
+          if (depts.isNotEmpty) {
+            _currentUserDepartment = depts.first['name']?.toString() ?? '';
+            startListening();
+          }
+        });
+      }).catchError((e) {
+        debugPrint('Error loading department for HOD in setUserData: $e');
+      });
+    }
+
     startListening();
     loadCollegeDepartments();
   }
@@ -89,8 +117,53 @@ class RequestViewModel extends ChangeNotifier {
     _currentUserId = prefs.getString('userId') ?? '';
     _currentUserDepartment = prefs.getString('userDepartment') ?? '';
 
+    // إذا كان رئيس قسم والمسار فارغ، نتحقق من قاعدة البيانات المحلية (SQLite)
+    final bool isHOD = (_currentUserRole ?? '').toLowerCase().contains('head') ||
+                       (_currentUserRole ?? '').contains('رئيس');
+    if ((_currentUserDepartment == null || _currentUserDepartment!.isEmpty) &&
+        isHOD &&
+        (_currentUserId != null && _currentUserId!.isNotEmpty)) {
+      try {
+        final db = await DatabaseHelper.instance.database;
+        final depts = await db.query(
+          'departments',
+          where: 'hod_id = ?',
+          whereArgs: [_currentUserId!],
+          limit: 1,
+        );
+        if (depts.isNotEmpty) {
+          _currentUserDepartment = depts.first['name']?.toString() ?? '';
+          await prefs.setString('userDepartment', _currentUserDepartment!);
+        }
+      } catch (e) {
+        debugPrint('Error loading department for HOD in RequestViewModel: $e');
+      }
+    }
+
     startListening();
     loadCollegeDepartments();
+  }
+
+  String _normalizeArabic(String text) {
+    String t = text.trim().toLowerCase();
+    t = t.replaceAll(RegExp(r'[\u064B-\u0652]'), ''); // إزالة التشكيل
+    t = t.replaceAll(RegExp(r'[أإآ]'), 'ا'); // توحيد الألف
+    t = t.replaceAll('ة', 'ه'); // توحيد التاء المربوطة
+    t = t.replaceAll('ى', 'ي'); // توحيد الياء
+    t = t.replaceAll('ال', ''); // إزالة ال التعريف
+    t = t.replaceAll(RegExp(r'\s+'), ''); // إزالة المسافات
+    return t;
+  }
+
+  bool _isSameDepartment(String deptA, String deptB) {
+    final a = _normalizeArabic(deptA);
+    final b = _normalizeArabic(deptB);
+    if (a == b) return true;
+    return a.contains(b) || b.contains(a);
+  }
+
+  bool isSameDepartment(String deptA, String deptB) {
+    return _isSameDepartment(deptA, deptB);
   }
 
   bool _isSameCollege(String collegeA, String collegeB) {
@@ -146,20 +219,33 @@ class RequestViewModel extends ChangeNotifier {
         college.contains('نيابة') ||
         college.contains('الأكاديمية'));
 
+    // للطلبات غير النيابة العامة، نتحقق من تطابق الكلية أولاً لغير النيابة الأكاديمية
+    if (!isAcademicAffairs) {
+      final bool matchesCollege = _isSameCollege(req.destinationCollege, _currentUserCollege ?? '') ||
+                                  _isSameCollege(req.senderCollege, _currentUserCollege ?? '');
+      if (!matchesCollege) {
+        return false;
+      }
+    }
+
+    // إذا كان رئيس قسم (وليس عميداً أو نائباً للعميد)، يجب أن يطابق قسم مرسل الطلب قسم رئيس القسم الحالي
+    if (isDeptHead && !isAcademicAffairs && !isViceDean && !isDean) {
+      final dept = req.extraData?['sender_department']?.toString().trim();
+      final myDept = _currentUserDepartment?.trim();
+      if (dept != null && myDept != null) {
+        if (!_isSameDepartment(dept, myDept)) {
+          return false; // لا يطابق قسم رئيس القسم الحالي
+        }
+      }
+    }
+
     if (req.type == 'طلب من النيابة العامة') {
-      return isDean &&
-          _isSameCollege(req.destinationCollege, _currentUserCollege ?? '');
+      return isDean;
     }
 
     final bool isLeave =
         req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة');
     if (isLeave) {
-      // التحقق من الكلية أولاً لغير النيابة الأكاديمية
-      if (!isAcademicAffairs &&
-          !_isSameCollege(req.destinationCollege, _currentUserCollege ?? '')) {
-        return false;
-      }
-
       final int step = req.extraData?['current_step_order'] != null
           ? (req.extraData!['current_step_order'] is int
               ? req.extraData!['current_step_order'] as int
@@ -170,11 +256,7 @@ class RequestViewModel extends ChangeNotifier {
       bool canSee = false;
 
       if (isDeptHead && step >= 1) {
-        final dept = req.extraData?['sender_department']?.toString().trim();
-        final myDept = _currentUserDepartment?.trim();
-        if (dept != null && myDept != null && dept == myDept) {
-          canSee = true;
-        }
+        canSee = true; // تحقق القسم تم بالفعل أعلاه
       }
       if (isViceDean && step >= 2) {
         canSee = true;
@@ -194,7 +276,7 @@ class RequestViewModel extends ChangeNotifier {
       return ['نيابة الشؤون الأكاديمية', 'جميع الكليات']
           .contains(req.destinationCollege);
     } else {
-      return _isSameCollege(req.destinationCollege, _currentUserCollege ?? '');
+      return true; // تمت تصفية الكلية والقسم أعلاه بالفعل
     }
   }
 
@@ -599,6 +681,16 @@ class RequestViewModel extends ChangeNotifier {
       if (createdDoc.exists) {
         await _processAutoApprovals(
             docRef, createdDoc.data() as Map<String, dynamic>);
+        
+        // جلب الطلب المحدث بعد الموافقات التلقائية لإرسال الإشعار الصحيح
+        final updatedDoc = await docRef.get();
+        if (updatedDoc.exists) {
+          final updatedRequest = RequestModel.fromMap(
+            updatedDoc.data() as Map<String, dynamic>,
+            updatedDoc.id,
+          );
+          unawaited(_sendNotificationsForRequest(updatedRequest, isNewRequest: true));
+        }
       }
 
       _isSending = false;
@@ -791,6 +883,16 @@ class RequestViewModel extends ChangeNotifier {
           await _processAutoApprovals(
               requestDocRef, updatedDoc.data() as Map<String, dynamic>);
         }
+      }
+
+      // جلب الطلب النهائي لإرسال الإشعار المناسب
+      final finalDoc = await requestDocRef.get();
+      if (finalDoc.exists) {
+        final finalRequest = RequestModel.fromMap(
+          finalDoc.data() as Map<String, dynamic>,
+          finalDoc.id,
+        );
+        unawaited(_sendNotificationsForRequest(finalRequest, isNewRequest: false));
       }
 
       // 2.5. توليد استمارة طلب إجازة ورفعها عند القبول النهائي (الخطوة 4) (تم التعطيل مؤقتاً لتوليدها محلياً بناءً على طلب المستخدم)
@@ -1399,6 +1501,50 @@ class RequestViewModel extends ChangeNotifier {
     }
   }
 
+  Future<bool> exportLeaveRequest(RequestModel req) async {
+    try {
+      final extraData = req.extraData;
+      final applicantName =
+          req.applicantName.isNotEmpty ? req.applicantName : 'غير معروف';
+      final senderCollege =
+          req.senderCollege.isNotEmpty ? req.senderCollege : 'غير معروف';
+      final senderDepartment = extraData?['sender_department'] ?? 'غير معروف';
+      final leaveType = extraData?['leave_type'] ?? 'إجازة';
+      final duration =
+          extraData?['duration']?.toString() ?? '....................';
+      final startDate = extraData?['start_date'] != null
+          ? _formatIsoDate(extraData?['start_date'])
+          : '....................';
+      final requestDate = extraData?['request_date'] != null
+          ? _formatIsoDate(extraData?['request_date'])
+          : '....................';
+
+      final docxBytes = await DocxExportService.createLeaveRequestDocx(
+        applicantName: applicantName,
+        college: senderCollege,
+        department: senderDepartment,
+        leaveType: leaveType,
+        duration: '$duration أيام',
+        startDate: startDate,
+        requestDate: requestDate,
+        approvalHistory: extraData?['approval_history'] ?? [],
+      );
+
+      await AppFileSaver.saveExportedFile(
+        name: 'استمارة_طلب_إجازة_${applicantName.replaceAll(' ', '_')}',
+        bytes: Uint8List.fromList(docxBytes),
+        ext: 'docx',
+        mimeType: MimeType.microsoftWord,
+      );
+      return true;
+    } catch (e) {
+      debugPrint('❌ Failed to export leave request: $e');
+      _errorMessage = 'فشل تصدير الاستمارة: $e';
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<void> loadCollegeDepartments() async {
     try {
       final db = await DatabaseHelper.instance.database;
@@ -1567,6 +1713,273 @@ class RequestViewModel extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error processing auto approvals: $e');
+    }
+  }
+
+  bool _isSameRole(String userRoleStr, String targetRole) {
+    final lowerRole = userRoleStr.toLowerCase();
+    final lowerTarget = targetRole.toLowerCase();
+
+    List<String> roles = [];
+    if (lowerRole.startsWith('[')) {
+      try {
+        roles = List<String>.from(jsonDecode(lowerRole))
+            .map((r) => r.toLowerCase())
+            .toList();
+      } catch (_) {}
+    }
+    if (roles.isEmpty) {
+      roles = [lowerRole];
+    }
+
+    return roles.any((r) {
+      if (r == lowerTarget) return true;
+      if (lowerTarget == 'head of department' &&
+          (r.contains('dept_head') ||
+              r.contains('dept head') ||
+              r.contains('head of department') ||
+              r.contains('رئيس قسم') ||
+              r.contains('رئيس القسم'))) {
+        return true;
+      }
+      if (lowerTarget == 'vice dean for academic affairs' &&
+          (r.contains('vice_dean') ||
+              r.contains('vice dean') ||
+              r.contains('نائب العميد') ||
+              r.contains('نائب عميد'))) {
+        return true;
+      }
+      if (lowerTarget == 'dean' &&
+          ((r.contains('dean') && !r.contains('vice')) || r.contains('عميد'))) {
+        return true;
+      }
+      return false;
+    });
+  }
+
+  bool _isAcademicRole(String roleStr, String collegeStr) {
+    final lowerRole = roleStr.toLowerCase();
+    final lowerCollege = collegeStr.toLowerCase();
+
+    List<String> roles = [];
+    if (lowerRole.startsWith('[')) {
+      try {
+        roles = List<String>.from(jsonDecode(lowerRole))
+            .map((r) => r.toLowerCase())
+            .toList();
+      } catch (_) {}
+    }
+    if (roles.isEmpty) {
+      roles = [lowerRole];
+    }
+
+    return roles.any((r) =>
+        r.contains('prosecution') ||
+        r.contains('deanship') ||
+        (r.contains('academic') && !r.contains('vice')) ||
+        r.contains('admin') ||
+        lowerCollege.contains('نيابة') ||
+        lowerCollege.contains('الأكاديمية'));
+  }
+
+  Future<List<String>> _getRecipientUserIdsForRequest(RequestModel req,
+      {required bool isLeaveRequest, required int step}) async {
+    List<String> userIds = [];
+
+    try {
+      final snapshot = await _firestore.collection('users').get();
+
+      if (isLeaveRequest) {
+        if (step == 1) {
+          final String? dept = req.extraData?['sender_department']?.toString().trim();
+          final String college = req.senderCollege.trim();
+
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final userRole = data['role']?.toString() ?? '';
+            final userDept = data['department']?.toString() ?? '';
+            final userFac = data['faculty']?.toString() ?? '';
+
+            if (_isSameRole(userRole, 'Head of department') &&
+                _isSameDepartment(userDept, dept ?? '') &&
+                _isSameCollege(userFac, college)) {
+              userIds.add(doc.id);
+            }
+          }
+        } else if (step == 2) {
+          final String college = req.senderCollege.trim();
+
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final userRole = data['role']?.toString() ?? '';
+            final userFac = data['faculty']?.toString() ?? '';
+
+            if ((_isSameRole(userRole, 'Vice Dean for Academic Affairs') ||
+                    _isSameRole(userRole, 'Vice Dean for Student Affairs')) &&
+                _isSameCollege(userFac, college)) {
+              userIds.add(doc.id);
+            }
+          }
+        } else if (step == 3) {
+          final String college = req.senderCollege.trim();
+
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final userRole = data['role']?.toString() ?? '';
+            final userFac = data['faculty']?.toString() ?? '';
+
+            if (_isSameRole(userRole, 'Dean') && _isSameCollege(userFac, college)) {
+              userIds.add(doc.id);
+            }
+          }
+        } else if (step == 4) {
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final userRole = data['role']?.toString() ?? '';
+            final userFac = data['faculty']?.toString() ?? '';
+
+            if (_isAcademicRole(userRole, userFac)) {
+              userIds.add(doc.id);
+            }
+          }
+        }
+      } else {
+        final String dest = req.destinationCollege.trim();
+        if (dest == 'نيابة الشؤون الأكاديمية' ||
+            dest == 'جميع الكليات' ||
+            dest.toLowerCase().contains('نيابة') ||
+            dest.toLowerCase().contains('academic')) {
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final userRole = data['role']?.toString() ?? '';
+            final userFac = data['faculty']?.toString() ?? '';
+
+            if (_isAcademicRole(userRole, userFac)) {
+              userIds.add(doc.id);
+            }
+          }
+        } else {
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final userRole = data['role']?.toString() ?? '';
+            final userFac = data['faculty']?.toString() ?? '';
+
+            if (_isSameCollege(userFac, dest)) {
+              if (_isSameRole(userRole, 'Dean') ||
+                  _isSameRole(userRole, 'Vice Dean for Academic Affairs') ||
+                  _isSameRole(userRole, 'Vice Dean for Student Affairs') ||
+                  _isSameRole(userRole, 'Head of department')) {
+                userIds.add(doc.id);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[NOTIFICATIONS] Error fetching users from Firestore: $e');
+    }
+
+    return userIds.toSet().toList();
+  }
+
+  Future<void> _createNotification({
+    required String userId,
+    required String title,
+    required String body,
+    required String requestId,
+    required String type,
+  }) async {
+    try {
+      final notificationId = const Uuid().v4();
+      await _firestore.collection('notifications').doc(notificationId).set({
+        'id': notificationId,
+        'userId': userId,
+        'title': title,
+        'body': body,
+        'createdAt': FieldValue.serverTimestamp(),
+        'isRead': false,
+        'type': type,
+        'requestId': requestId,
+      });
+      debugPrint('[NOTIFICATIONS] ✅ Sent notification to user: $userId (Title: $title)');
+    } catch (e) {
+      debugPrint('[NOTIFICATIONS] ❌ Failed to write notification to Firestore: $e');
+    }
+  }
+
+  Future<void> _sendNotificationsForRequest(RequestModel req, {required bool isNewRequest}) async {
+    try {
+      final String? senderId = req.senderId;
+      final String status = req.status;
+
+      // 1. إذا كان الطلب مكتملاً (مقبول أو مرفوض أو مقبول جزئياً)
+      if (status == 'مقبول' || status == 'مرفوض' || status == 'مقبول جزئياً') {
+        if (senderId != null && senderId.isNotEmpty) {
+          final String title = status == 'مقبول'
+              ? 'تم قبول طلبك'
+              : (status == 'مرفوض' ? 'تم رفض طلبك' : 'تحديث بخصوص طلبك');
+
+          String body = '';
+          if (status == 'مقبول') {
+            body = 'تمت الموافقة النهائية على طلبك "${req.title}".';
+          } else if (status == 'مرفوض') {
+            final reason = (req.rejectionReason != null && req.rejectionReason!.trim().isNotEmpty)
+                ? '\nالسبب: ${req.rejectionReason}'
+                : '';
+            body = 'تم رفض طلبك "${req.title}".$reason';
+          } else {
+            body = 'تم تحديث حالة طلبك "${req.title}" إلى: $status.';
+          }
+
+          await _createNotification(
+            userId: senderId,
+            title: title,
+            body: body,
+            requestId: req.id,
+            type: 'request',
+          );
+        }
+        return;
+      }
+
+      // 2. إذا كان الطلب قيد الانتظار، نرسل للمستلمين المحددين
+      if (status == 'قيد الانتظار') {
+        final bool isLeave = req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة');
+        final int step = req.extraData?['current_step_order'] != null
+            ? (req.extraData!['current_step_order'] is int
+                ? req.extraData!['current_step_order'] as int
+                : int.tryParse(req.extraData!['current_step_order'].toString()) ?? 1)
+            : 1;
+
+        final List<String> recipients = await _getRecipientUserIdsForRequest(req, isLeaveRequest: isLeave, step: step);
+
+        String title = 'طلب جديد وارد';
+        String body = 'تم إرسال طلب جديد "${req.title}" من ${req.applicantName}.';
+
+        if (isLeave) {
+          String stepLabel = 'رئيس القسم';
+          if (step == 2) stepLabel = 'نائب العميد للشؤون الأكاديمية';
+          if (step == 3) stepLabel = 'عميد الكلية';
+          if (step == 4) stepLabel = 'نيابة الشؤون الأكاديمية';
+
+          title = 'طلب إجازة جديد بانتظار موافقتك';
+          body = 'طلب إجازة مقدم من ${req.applicantName} بانتظار موافقتك بصفتك $stepLabel.';
+        }
+
+        for (var userId in recipients) {
+          if (userId == _currentUserId) continue;
+
+          await _createNotification(
+            userId: userId,
+            title: title,
+            body: body,
+            requestId: req.id,
+            type: 'request',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('[NOTIFICATIONS] ❌ فشل إرسال الإشعارات: $e');
     }
   }
 }

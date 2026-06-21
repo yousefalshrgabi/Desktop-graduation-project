@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 
 /// خدمة الجلسة المركزية - تحتوي على بيانات المستخدم الحالي وصلاحياته
 class AppSession {
@@ -23,6 +24,26 @@ class AppSession {
     userRole = prefs.getString('userRole') ?? '';
     userCollege = prefs.getString('college') ?? '';
     userDepartment = prefs.getString('userDepartment') ?? '';
+
+    // إذا كان رئيس قسم ولم يتم تعيين القسم في الحساب، نقوم بجلبه من جدول الأقسام محلياً
+    if (userDepartment.isEmpty && isDeptHead && userId.isNotEmpty) {
+      try {
+        final db = await DatabaseHelper.instance.database;
+        final depts = await db.query(
+          'departments',
+          where: 'hod_id = ?',
+          whereArgs: [userId],
+          limit: 1,
+        );
+        if (depts.isNotEmpty) {
+          userDepartment = depts.first['name']?.toString() ?? '';
+          await prefs.setString('userDepartment', userDepartment);
+        }
+      } catch (e) {
+        // نستخدم print بدلاً من debugPrint لعدم استيراد فلاتر هنا إذا لم تكن مستوردة
+        print('Error loading department for HOD in AppSession: $e');
+      }
+    }
   }
 
   /// حفظ بيانات الجلسة

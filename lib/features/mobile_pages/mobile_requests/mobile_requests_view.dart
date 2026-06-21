@@ -148,6 +148,53 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
     }
   }
 
+  Future<void> _exportLeaveRequest(RequestModel req) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: Card(
+          child: Padding(
+            padding: EdgeInsets.all(20.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('جاري تصدير الاستمارة الرسمية...'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final success = await _viewModel.exportLeaveRequest(req);
+    if (mounted) {
+      Navigator.pop(context);
+    }
+
+    if (success) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('تم تصدير وحفظ الاستمارة الرسمية بنجاح!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } else {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(_viewModel.errorMessage),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
   void _showRequestTypesDialog() {
     if (_session.isAdminOrDeanship) {
       _showProsecutionRequestBottomSheet();
@@ -1046,10 +1093,10 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     ? req.extraData!['current_step_order'] as int
                     : int.tryParse(req.extraData!['current_step_order'].toString()) ?? 1)
                 : 1;
-            if (currentStep == 1 && _session.isDeptHead) {
+             if (currentStep == 1 && _session.isDeptHead) {
               final reqDept = req.extraData?['sender_department']?.toString().trim();
               final myDept = _viewModel.currentUserDepartment?.trim();
-              if (reqDept != null && myDept != null && reqDept == myDept) {
+              if (reqDept != null && myDept != null && _viewModel.isSameDepartment(reqDept, myDept)) {
                 showRespondButton = true;
               }
             } else if (currentStep == 2 && _session.isViceDean) {
@@ -1317,6 +1364,21 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                         label: const Text('عرض استمارة الطلب الرسمية', style: TextStyle(fontSize: 11)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.blue[800],
+                          foregroundColor: Colors.white,
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 8),
+                          minimumSize: Size.zero,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ElevatedButton.icon(
+                        onPressed: () => _exportLeaveRequest(req),
+                        icon: const Icon(Icons.file_download, color: Colors.white, size: 16),
+                        label: const Text('تصدير الاستمارة الرسمية', style: TextStyle(fontSize: 11)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.green[700],
                           foregroundColor: Colors.white,
                           shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(8)),

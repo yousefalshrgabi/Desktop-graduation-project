@@ -3,6 +3,7 @@ import 'package:intl/intl.dart' as intl;
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_view_model.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
+import 'package:file_picker/file_picker.dart';
 
 class LeaveRequestScreen extends StatefulWidget {
   const LeaveRequestScreen({Key? key}) : super(key: key);
@@ -19,11 +20,13 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
   final TextEditingController _collegeController = TextEditingController();
   final TextEditingController _departmentController = TextEditingController();
   final TextEditingController _durationController = TextEditingController();
+  final TextEditingController _notesController = TextEditingController();
 
   final RequestViewModel _viewModel = RequestViewModel();
 
   List<String> _departments = [];
   String? _selectedDepartment;
+  PlatformFile? _selectedFile;
 
   @override
   void initState() {
@@ -125,15 +128,25 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
         'sender_department': _departmentController.text.trim(),
       };
 
+      if (_notesController.text.trim().isNotEmpty) {
+        extraData['notes'] = _notesController.text.trim();
+      }
+
+      String description = 'المدة: ${_durationController.text} أيام ابتداءً من ${intl.DateFormat('yyyy/MM/dd').format(_startDate!)}';
+      if (_notesController.text.trim().isNotEmpty) {
+        description += '\nملاحظات: ${_notesController.text.trim()}';
+      }
+
       // إرسال الطلب عبر الـ ViewModel
       bool success = await _viewModel.sendRequest(
         title: 'طلب إجازة: $_selectedLeaveType',
         destinationCollege: _collegeController.text, // يُرسل لكلية الموظف نفسه (إلى رئيس القسم)
         type: 'استمارة طلب إجازة',
-        description: 'المدة: ${_durationController.text} أيام ابتداءً من ${intl.DateFormat('yyyy/MM/dd').format(_startDate!)}',
+        description: description,
         applicantName: _nameController.text,
         senderCollege: _collegeController.text,
         extraData: extraData,
+        attachedFiles: _selectedFile != null ? [_selectedFile!] : null,
       );
 
       // إخفاء مؤشر التحميل
@@ -316,6 +329,20 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
+                _buildSectionTitle('معلومات إضافية (اختياري)'),
+                TextFormField(
+                  controller: _notesController,
+                  decoration: const InputDecoration(
+                    labelText: 'ملاحظات',
+                    alignLabelWithHint: true,
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.note_alt),
+                  ),
+                  maxLines: 3,
+                ),
+                const SizedBox(height: 24),
+                _buildAttachmentSection(),
+                const SizedBox(height: 24),
 
                 // 3. معلومات النظام
                 Container(
@@ -373,12 +400,85 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
     );
   }
 
+  Future<void> _pickAttachment() async {
+    try {
+      FilePickerResult? result = await FilePicker.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['pdf', 'doc', 'docx', 'jpg', 'png'],
+      );
+      if (result != null && result.files.isNotEmpty) {
+        setState(() {
+          _selectedFile = result.files.first;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error picking file: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('خطأ في اختيار الملف: $e')),
+      );
+    }
+  }
+
+  Widget _buildAttachmentSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionTitle('المرفقات (اختياري)'),
+        if (_selectedFile != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.blue.withOpacity(0.05),
+              border: Border.all(color: Colors.blue.withOpacity(0.2)),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.insert_drive_file, color: Colors.blue),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    _selectedFile!.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w500),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.red),
+                  onPressed: () {
+                    setState(() {
+                      _selectedFile = null;
+                    });
+                  },
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+        OutlinedButton.icon(
+          onPressed: _pickAttachment,
+          icon: const Icon(Icons.attach_file),
+          label: Text(_selectedFile == null ? 'إرفاق مستند' : 'تغيير المستند المرفق'),
+          style: OutlinedButton.styleFrom(
+            minimumSize: const Size.fromHeight(48),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(8),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
     _collegeController.dispose();
     _departmentController.dispose();
     _durationController.dispose();
+    _notesController.dispose();
     super.dispose();
   }
 }

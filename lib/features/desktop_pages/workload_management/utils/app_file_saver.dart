@@ -17,7 +17,7 @@ class AppFileSaver {
     required String ext,
     required MimeType mimeType,
   }) async {
-    if (kIsWeb) {
+    if (kIsWeb || Platform.isAndroid || Platform.isIOS) {
       await FileSaver.instance.saveFile(
         name: name,
         bytes: bytes,

@@ -21,10 +21,10 @@ class MainShell extends StatefulWidget {
   const MainShell({super.key});
 
   @override
-  State<MainShell> createState() => _MainShellState();
+  State<MainShell> createState() => MainShellState();
 }
 
-class _MainShellState extends State<MainShell>
+class MainShellState extends State<MainShell>
     with SingleTickerProviderStateMixin {
   int _selectedIndex = 0;
   int _dashboardKeyCount = 0;
@@ -65,7 +65,7 @@ class _MainShellState extends State<MainShell>
   }
 
   /// Called from DashboardView quick-access buttons
-  void _navigateTo(int index) {
+  void navigateTo(int index) {
     setState(() {
       _selectedIndex = index;
       if (index == 0) _dashboardKeyCount++;
@@ -96,7 +96,7 @@ class _MainShellState extends State<MainShell>
                   children: [
                     DashboardView(
                         key: ValueKey('dash_$_dashboardKeyCount'),
-                        onNavigate: _navigateTo),
+                        onNavigate: navigateTo),
                     Colleges(key: ValueKey('colleges_$_selectedIndex')),
                     DepartmentsView(key: ValueKey('depts_$_selectedIndex')),
                     FacultyMembers(key: ValueKey('faculty_$_selectedIndex')),
