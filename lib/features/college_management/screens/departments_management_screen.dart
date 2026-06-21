@@ -200,6 +200,7 @@ class _DepartmentsManagementScreenState
           final updatedData = {
             'name': nameCtrl.text.trim(),
             'hod_id': selectedHodId ?? '',
+            'updated_at': DateTime.now().toIso8601String(),
           };
 
           // تحديث محلي
@@ -287,7 +288,7 @@ class _DepartmentsManagementScreenState
             newRole = newRole.replaceFirst(']', ', "dept_head"]');
           }
 
-          await db.update('users', {'role': newRole},
+          await db.update('users', {'role': newRole, 'updated_at': DateTime.now().toIso8601String()},
               where: 'id = ?', whereArgs: [userId]);
           await _firestore
               .collection('users')
@@ -316,7 +317,7 @@ class _DepartmentsManagementScreenState
               .replaceAll(',]', ']');
           if (newRole == '[]') newRole = 'faculty_member'; // دور افتراضي
 
-          await db.update('users', {'role': newRole},
+          await db.update('users', {'role': newRole, 'updated_at': DateTime.now().toIso8601String()},
               where: 'id = ?', whereArgs: [userId]);
           await _firestore
               .collection('users')

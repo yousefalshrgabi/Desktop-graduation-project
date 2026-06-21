@@ -29,21 +29,28 @@ class GraduationProjectLocalService {
     final isNew = group.id.isEmpty;
     final id = isNew ? _uuid.v4() : group.id;
 
-    final data = {
-      'id': id,
-      'teacher_name': group.teacherName,
-      'group_number': group.groupNumber,
-      'student_count': group.studentCount,
-      'schedule_type': group.scheduleType,
-      'created_at': DateTime.now().toIso8601String(),
-    };
-
     if (isNew) {
-      await db.insert(_tableName, data);
+      final insertData = {
+        'id': id,
+        'teacher_name': group.teacherName,
+        'group_number': group.groupNumber,
+        'student_count': group.studentCount,
+        'schedule_type': group.scheduleType,
+        'created_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      await db.insert(_tableName, insertData);
     } else {
+      final updateData = {
+        'teacher_name': group.teacherName,
+        'group_number': group.groupNumber,
+        'student_count': group.studentCount,
+        'schedule_type': group.scheduleType,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
       await db.update(
         _tableName,
-        data,
+        updateData,
         where: 'id = ?',
         whereArgs: [id],
       );

@@ -143,6 +143,7 @@ class CollegesViewModel extends ChangeNotifier {
       data['id'] =
           data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
       data['created_at'] = DateTime.now().toIso8601String();
+      data['updated_at'] = DateTime.now().toIso8601String();
 
       // تحويل المسميات لتطابق أعمدة الجدول
       if (data.containsKey('arName')) data['ar_name'] = data.remove('arName');
@@ -222,6 +223,7 @@ class CollegesViewModel extends ChangeNotifier {
       }
 
       data.remove('createdAt');
+      data['updated_at'] = DateTime.now().toIso8601String();
 
       // 3. تحديث الكلية والصلاحيات في عملية واحدة
       await db.transaction((txn) async {

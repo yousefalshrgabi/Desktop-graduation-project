@@ -121,6 +121,8 @@ class UsersViewModel extends ChangeNotifier {
       data.remove('createAt');
       data.remove('createdAt');
       data.remove('created_at');
+      // تحديث وقت التعديل لكي تعمل المزامنة الذكية
+      data['updated_at'] = DateTime.now().toIso8601String();
 
       await db.update(
         'users',
@@ -196,6 +198,7 @@ class UsersViewModel extends ChangeNotifier {
           data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
       data['id'] = userId;
       data['created_at'] = DateTime.now().toIso8601String();
+      data['updated_at'] = DateTime.now().toIso8601String();
 
       data.remove('createAt');
       data.remove('createdAt');
@@ -224,6 +227,7 @@ class UsersViewModel extends ChangeNotifier {
             // ❌ تم حذف إدخال الإيميل من هنا نهائياً ليطابق التحديث الأخير للقاعدة
             'status': 'نشط',
             'created_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
           });
           debugPrint(
               'تم إنشاء ملف أكاديمي مبدئي للمستخدم الجديد برقم: $facultyId');
@@ -250,7 +254,11 @@ class UsersViewModel extends ChangeNotifier {
   static List<String> _parseRoles(String roleStr) {
     if (roleStr.isEmpty) return [];
     if (roleStr.startsWith('[')) {
-      try { return List<String>.from(jsonDecode(roleStr)); } catch(e) { return [roleStr]; }
+      try {
+        return List<String>.from(jsonDecode(roleStr));
+      } catch (e) {
+        return [roleStr];
+      }
     }
     return [roleStr];
   }
@@ -258,8 +266,10 @@ class UsersViewModel extends ChangeNotifier {
   static bool _hasAdminRole(List<String> roles) =>
       roles.any((r) => _adminRoles.contains(r));
 
-  static Future<void> addRoleToUser(DatabaseExecutor txnOrDb, String userId, String newRole) async {
-    final res = await txnOrDb.query('users', where: 'id = ?', whereArgs: [userId], limit: 1);
+  static Future<void> addRoleToUser(
+      DatabaseExecutor txnOrDb, String userId, String newRole) async {
+    final res = await txnOrDb.query('users',
+        where: 'id = ?', whereArgs: [userId], limit: 1);
     if (res.isEmpty) return;
 
     List<String> roles = _parseRoles(res.first['role']?.toString() ?? '');
@@ -273,11 +283,20 @@ class UsersViewModel extends ChangeNotifier {
       roles.remove('Faculty Member');
     }
 
-    await txnOrDb.update('users', {'role': jsonEncode(roles)}, where: 'id = ?', whereArgs: [userId]);
+    await txnOrDb.update(
+        'users',
+        {
+          'role': jsonEncode(roles),
+          'updated_at': DateTime.now().toIso8601String()
+        },
+        where: 'id = ?',
+        whereArgs: [userId]);
   }
 
-  static Future<void> removeRoleFromUser(DatabaseExecutor txnOrDb, String userId, String roleToRemove) async {
-    final res = await txnOrDb.query('users', where: 'id = ?', whereArgs: [userId], limit: 1);
+  static Future<void> removeRoleFromUser(
+      DatabaseExecutor txnOrDb, String userId, String roleToRemove) async {
+    final res = await txnOrDb.query('users',
+        where: 'id = ?', whereArgs: [userId], limit: 1);
     if (res.isEmpty) return;
 
     List<String> roles = _parseRoles(res.first['role']?.toString() ?? '');
@@ -296,7 +315,13 @@ class UsersViewModel extends ChangeNotifier {
     // إذا أصبحت القائمة فارغة تماماً (احتياط)
     if (roles.isEmpty) roles.add('Faculty Member');
 
-    await txnOrDb.update('users', {'role': jsonEncode(roles)}, where: 'id = ?', whereArgs: [userId]);
+    await txnOrDb.update(
+        'users',
+        {
+          'role': jsonEncode(roles),
+          'updated_at': DateTime.now().toIso8601String()
+        },
+        where: 'id = ?',
+        whereArgs: [userId]);
   }
 }
-

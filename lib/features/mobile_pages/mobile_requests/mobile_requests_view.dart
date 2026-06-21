@@ -125,6 +125,64 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
     }
   }
 
+  void _showAttachmentsDialog(RequestModel req) {
+    List<String> urls = [];
+    if (req.fileUrl != null && req.fileUrl!.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(req.fileUrl!);
+        if (decoded is List) {
+          urls = List<String>.from(decoded);
+        } else {
+          urls = [req.fileUrl!];
+        }
+      } catch (e) {
+        urls = [req.fileUrl!];
+      }
+    }
+
+    if (urls.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('لا توجد ملفات مرفقة')),
+      );
+      return;
+    }
+
+    if (urls.length == 1) {
+      _openFile(urls.first);
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('الملفات المرفقة'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: urls.length,
+            itemBuilder: (context, index) {
+              return ListTile(
+                leading: const Icon(Icons.attach_file, color: DesktopColors.primary),
+                title: Text('مرفق ${index + 1}'),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _openFile(urls[index]);
+                },
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('إغلاق'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showNewRequestBottomSheet() {
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
@@ -371,11 +429,11 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     ? request.description
                     : 'لا توجد تفاصيل'),
                 const SizedBox(height: 16),
-                if (request.fileUrl != null) ...[
+                if (request.fileUrl != null && request.fileUrl!.isNotEmpty) ...[
                   OutlinedButton.icon(
-                    onPressed: () => _openFile(request.fileUrl),
+                    onPressed: () => _showAttachmentsDialog(request),
                     icon: const Icon(Icons.visibility),
-                    label: const Text('فتح الملف المرفق'),
+                    label: const Text('عرض المرفقات'),
                   ),
                   const SizedBox(height: 16),
                 ],
@@ -840,11 +898,11 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     ),
                   ),
                 const SizedBox(width: 8),
-                if (req.fileUrl != null)
+                if (req.fileUrl != null && req.fileUrl!.isNotEmpty)
                   OutlinedButton.icon(
-                    onPressed: () => _openFile(req.fileUrl),
+                    onPressed: () => _showAttachmentsDialog(req),
                     icon: const Icon(Icons.file_present),
-                    label: const Text('عرض الملف'),
+                    label: const Text('المرفقات'),
                     style: OutlinedButton.styleFrom(
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8)),

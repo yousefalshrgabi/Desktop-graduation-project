@@ -32,7 +32,7 @@ class DatabaseHelper {
     debugPrint('[SQLITE DEBUG] 🟡 2. جاري فتح/إنشاء قاعدة البيانات...');
     return await openDatabase(
       path,
-      version: 17,
+      version: 19,
       // 👈 تفعيل القيود المرجعية (Foreign Keys) لضمان صحة الربط بين الجداول
       onConfigure: (db) async {
         await db.execute('PRAGMA foreign_keys = ON');
@@ -210,9 +210,9 @@ class DatabaseHelper {
         }
       }
 
-      // إنشاء الـ Triggers للتحديث التلقائي لـ updated_at
-      await _createUpdateTimestampTriggers(db);
-      debugPrint('[SQLITE DEBUG] ✅ تم إضافة updated_at والـ Triggers (v15)');
+      // إزالة الـ Triggers نهائياً لمنع التعارض
+      await _dropUpdateTimestampTriggers(db);
+      debugPrint('[SQLITE DEBUG] ✅ تم إضافة updated_at وحذف الـ Triggers (v15)');
     }
 
     if (oldVersion < 16) {
@@ -226,38 +226,27 @@ class DatabaseHelper {
     }
 
     if (oldVersion < 17) {
-      await db.execute('''
-        CREATE TABLE IF NOT EXISTS graduation_projects (
-          id TEXT PRIMARY KEY,
-          teacher_name TEXT NOT NULL,
-          group_number INTEGER NOT NULL,
-          student_count INTEGER NOT NULL,
-          schedule_type TEXT NOT NULL,
-          created_at TEXT NOT NULL,
-          updated_at TEXT
-        )
-      ''');
       try {
         await db.execute('''
-          CREATE TRIGGER IF NOT EXISTS graduation_projects_set_updated_at_insert
-          AFTER INSERT ON graduation_projects
-          FOR EACH ROW
-          BEGIN
-            UPDATE graduation_projects SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
-          END;
-        ''');
-        await db.execute('''
-          CREATE TRIGGER IF NOT EXISTS graduation_projects_set_updated_at_update
-          AFTER UPDATE ON graduation_projects
-          FOR EACH ROW
-          BEGIN
-            UPDATE graduation_projects SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
-          END;
+          CREATE TABLE IF NOT EXISTS graduation_projects (
+            id TEXT PRIMARY KEY,
+            teacher_name TEXT NOT NULL,
+            group_number INTEGER NOT NULL,
+            student_count INTEGER NOT NULL,
+            schedule_type TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT
+          )
         ''');
       } catch (e) {
-        debugPrint('[SQLITE v17] ⚠️ خطأ في إنشاء Triggers لـ graduation_projects: $e');
+        debugPrint('[SQLITE v17] ⚠️ خطأ في إنشاء جدول graduation_projects: $e');
       }
-      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول graduation_projects والـ Triggers (v17)');
+      debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول graduation_projects (v17)');
+    }
+
+    if (oldVersion < 19) {
+      await _dropUpdateTimestampTriggers(db);
+      debugPrint('[SQLITE DEBUG] ✅ تم حذف الـ Triggers نهائياً لمنع تعارض المزامنة (v19)');
     }
   }
 
@@ -518,8 +507,8 @@ class DatabaseHelper {
       ''');
       debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جدول graduation_projects');
 
-      // إنشاء الـ Triggers للتحديث التلقائي لـ updated_at
-      await _createUpdateTimestampTriggers(db);
+      // حذف الـ Triggers نهائياً لمنع تعارض المزامنة
+      await _dropUpdateTimestampTriggers(db);
 
       debugPrint('[SQLITE DEBUG] 🎉 اكتمل بناء قاعدة البيانات المحلية بنجاح!');
     } catch (e) {
@@ -527,30 +516,14 @@ class DatabaseHelper {
     }
   }
 
-  /// ينشئ Triggers في SQLite تضبط updated_at تلقائياً عند أي INSERT أو UPDATE
-  Future<void> _createUpdateTimestampTriggers(Database db) async {
+  /// يحذف الـ Triggers نهائياً لمنع تعارضها مع ConflictAlgorithm.replace
+  Future<void> _dropUpdateTimestampTriggers(Database db) async {
     final tables = ['users', 'colleges', 'departments', 'faculty_members', 'graduation_projects'];
     for (final table in tables) {
-      // Trigger عند الإدخال
-      await db.execute('''
-        CREATE TRIGGER IF NOT EXISTS ${table}_set_updated_at_insert
-        AFTER INSERT ON $table
-        FOR EACH ROW
-        BEGIN
-          UPDATE $table SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
-        END;
-      ''');
-      // Trigger عند التعديل (أي عمود)
-      await db.execute('''
-        CREATE TRIGGER IF NOT EXISTS ${table}_set_updated_at_update
-        AFTER UPDATE ON $table
-        FOR EACH ROW
-        BEGIN
-          UPDATE $table SET updated_at = STRFTIME('%Y-%m-%dT%H:%M:%f', 'NOW') WHERE id = NEW.id;
-        END;
-      ''');
+      await db.execute('DROP TRIGGER IF EXISTS ${table}_set_updated_at_insert');
+      await db.execute('DROP TRIGGER IF EXISTS ${table}_set_updated_at_update');
     }
-    debugPrint('[SQLITE DEBUG] ✅ تم إنشاء جميع الـ Triggers للتحديث التلقائي.');
+    debugPrint('[SQLITE DEBUG] ✅ تم حذف جميع الـ Triggers الخاصة بالتحديث التلقائي.');
   }
 
   // =================================================================

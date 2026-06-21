@@ -179,6 +179,7 @@ class DepartmentsViewModel extends ChangeNotifier {
       data['id'] =
           data['id'] ?? DateTime.now().millisecondsSinceEpoch.toString();
       data['created_at'] = DateTime.now().toIso8601String();
+      data['updated_at'] = DateTime.now().toIso8601String();
 
       // 2. تحويل المفاتيح القديمة (Firebase) إلى الجديدة (SQLite) بأمان
       if (data.containsKey('collegeId'))
@@ -232,6 +233,7 @@ class DepartmentsViewModel extends ChangeNotifier {
       if (data.containsKey('hodId')) data['hod_id'] = data.remove('hodId');
       if (data.containsKey('HODId')) data['hod_id'] = data.remove('HODId');
       data.remove('createdAt');
+      data['updated_at'] = DateTime.now().toIso8601String();
 
       // 3. تحديث القسم والصلاحيات في عملية واحدة
       await db.transaction((txn) async {

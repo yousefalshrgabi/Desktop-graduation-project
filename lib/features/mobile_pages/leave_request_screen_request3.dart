@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:intl/intl.dart' as intl;
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_view_model.dart';
@@ -329,7 +329,6 @@ class _LeaveRequestScreenState extends State<LeaveRequestScreen> {
                   ],
                 ),
                 const SizedBox(height: 24),
-
                 _buildSectionTitle('معلومات إضافية (اختياري)'),
                 TextFormField(
                   controller: _notesController,

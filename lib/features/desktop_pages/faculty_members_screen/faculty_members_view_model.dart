@@ -294,6 +294,7 @@ class FacultyMembersViewModel extends ChangeNotifier {
           'department': finalMember.department,
           'status': finalMember.status,
           if (facultyName.isNotEmpty) 'faculty': facultyName,
+          'updated_at': DateTime.now().toIso8601String(),
         };
 
         await db.update('users', updatedUserData,
@@ -385,6 +386,7 @@ class FacultyMembersViewModel extends ChangeNotifier {
               'code': '',
               'dean_id': '',
               'created_at': DateTime.now().toIso8601String(),
+              'updated_at': DateTime.now().toIso8601String(),
             });
           }
 
@@ -418,7 +420,7 @@ class FacultyMembersViewModel extends ChangeNotifier {
               userId = existingUsers.first['id']?.toString() ?? '';
               if (userId.isNotEmpty) {
                 await txn.update(
-                    'users', {'faculty': collegeName, 'department': dept},
+                    'users', {'faculty': collegeName, 'department': dept, 'updated_at': DateTime.now().toIso8601String()},
                     where: 'id = ?', whereArgs: [userId]);
               }
             } else {
@@ -433,6 +435,7 @@ class FacultyMembersViewModel extends ChangeNotifier {
                 'department': dept,
                 'status': 'نشط',
                 'created_at': DateTime.now().toIso8601String(),
+                'updated_at': DateTime.now().toIso8601String(),
               });
             }
 
@@ -547,12 +550,14 @@ class FacultyMembersViewModel extends ChangeNotifier {
 
             if (existingFaculty.isNotEmpty) {
               final facultyId = existingFaculty.first['id'] as String;
+              facultyData['updated_at'] = DateTime.now().toIso8601String();
               await txn.update('faculty_members', facultyData,
                   where: 'id = ?', whereArgs: [facultyId]);
             } else {
               facultyData['id'] =
                   DateTime.now().millisecondsSinceEpoch.toString() + 'F$i';
               facultyData['created_at'] = DateTime.now().toIso8601String();
+              facultyData['updated_at'] = DateTime.now().toIso8601String();
               await txn.insert('faculty_members', facultyData);
             }
           }
