@@ -13,6 +13,7 @@ import 'package:academic_affairs_management/features/desktop_pages/workload_mana
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/college_overtime_preview_screen.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/services/college_workload_submission_service.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/college_workload_preview_screen.dart';
+import 'package:academic_affairs_management/features/mobile_pages/leave_request_screen.dart' show LeaveRequestScreen;
 
 class MobileRequestsView extends StatefulWidget {
   const MobileRequestsView({super.key});
@@ -36,7 +37,26 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
       college: _session.userCollege,
       role: _session.userRole,
       userId: _session.userId,
+      department: _session.userDepartment,
     );
+    _viewModel.loadColleges();
+  }
+
+  Future<void> _viewLocalLeaveRequest(RequestModel req) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    final path = await _viewModel.generateLeaveRequestLocally(req);
+    if (mounted) {
+      Navigator.pop(context);
+    }
+    if (path == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر إنشاء الاستمارة')),
+      );
+    }
   }
 
   @override
@@ -554,12 +574,25 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
             );
           },
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          heroTag: null,
-          onPressed: _showNewRequestBottomSheet,
-          backgroundColor: DesktopColors.primary,
-          icon: const Icon(Icons.add, color: Colors.white),
-          label: const Text('طلب جديد', style: TextStyle(color: Colors.white)),
+        floatingActionButton: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FloatingActionButton.extended(
+              heroTag: 'leave_request_fab',
+              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const LeaveRequestScreen())),
+              backgroundColor: Colors.teal,
+              icon: const Icon(Icons.description_outlined, color: Colors.white),
+              label: const Text('طلب إجازة رسمية', style: TextStyle(color: Colors.white)),
+            ),
+            const SizedBox(height: 10),
+            FloatingActionButton.extended(
+              heroTag: 'new_request_fab',
+              onPressed: _showNewRequestBottomSheet,
+              backgroundColor: DesktopColors.primary,
+              icon: const Icon(Icons.add, color: Colors.white),
+              label: const Text('طلب جديد', style: TextStyle(color: Colors.white)),
+            ),
+          ],
         ),
       ),
     );
@@ -700,6 +733,20 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     child: const Text('رد'),
                   ),
                 const SizedBox(width: 8),
+                if (req.status == 'مقبول' && (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة')))
+                  ElevatedButton.icon(
+                    onPressed: () => _viewLocalLeaveRequest(req),
+                    icon: const Icon(Icons.description, color: Colors.white, size: 16),
+                    label: const Text('عرض استمارة الطلب الرسمية', style: TextStyle(fontSize: 11)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.teal,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      minimumSize: Size.zero,
+                    ),
+                  ),
+                const SizedBox(width: 8),
                 if (req.fileUrl != null)
                   OutlinedButton.icon(
                     onPressed: () => _openFile(req.fileUrl),
@@ -718,6 +765,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
       ),
     );
   }
+
 
   Widget _buildOvertimeCard(CollegeOvertimeSubmission sub, bool isReceived) {
     final typeName = sub.type == 'overtime' ? 'الساعات الزائدة' : 'الساعات الموازية';
