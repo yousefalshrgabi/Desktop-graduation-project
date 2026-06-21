@@ -105,6 +105,37 @@ class _RequestsViewState extends State<RequestsView>
     }
   }
 
+  Future<void> _viewLocalLeaveRequest(RequestModel req) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(child: CircularProgressIndicator()),
+    );
+    final path = await _viewModel.generateLeaveRequestLocally(req);
+    if (mounted) {
+      Navigator.pop(context);
+    }
+    if (path == null && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('تعذر إنشاء الاستمارة')),
+      );
+      return;
+    }
+    if (path != null && mounted) {
+      try {
+        final uri = Uri.file(path);
+        await launchUrl(uri);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إنشاء الاستمارة — جاري الفتح...')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم إنشاء الاستمارة لكن تعذر فتحها: $e')),
+        );
+      }
+    }
+  }
+
   void _showRespondDialog(RequestModel request) {
     TextEditingController reasonController = TextEditingController();
     
@@ -871,6 +902,17 @@ class _RequestsViewState extends State<RequestsView>
                         );
                       }),
                     const SizedBox(width: 12),
+                    if (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type.contains('اجازة'))
+                      ElevatedButton.icon(
+                        onPressed: () => _viewLocalLeaveRequest(req),
+                        icon: const Icon(Icons.description, color: Colors.white, size: 16),
+                        label: const Text('عرض الاستمارة', style: TextStyle(fontSize: 12)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.teal,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    const SizedBox(width: 12),
                     if (req.status == 'قيد الانتظار')
                       ElevatedButton.icon(
                         onPressed: () => _showRespondDialog(req),
@@ -949,6 +991,20 @@ class _RequestsViewState extends State<RequestsView>
                           onPressed: () => _openSpecificFile(req, 0),
                           icon: const Icon(Icons.file_download),
                           label: const Text('فتح/تحميل الملف المرسل'),
+                        ),
+                      ),
+                    ],
+                    if (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type.contains('اجازة')) ...[
+                      const SizedBox(height: 16),
+                      Center(
+                        child: ElevatedButton.icon(
+                          onPressed: () => _viewLocalLeaveRequest(req),
+                          icon: const Icon(Icons.description, color: Colors.white, size: 16),
+                          label: const Text('عرض الاستمارة الرسمية', style: TextStyle(fontSize: 12)),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.teal,
+                            foregroundColor: Colors.white,
+                          ),
                         ),
                       ),
                     ],

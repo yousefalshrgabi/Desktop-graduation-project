@@ -56,6 +56,20 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('تعذر إنشاء الاستمارة')),
       );
+      return;
+    }
+    if (path != null && mounted) {
+      try {
+        final uri = Uri.file(path);
+        await launchUrl(uri);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('تم إنشاء الاستمارة — جاري الفتح...')),
+        );
+      } catch (e) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تم إنشاء الاستمارة لكن تعذر فتحها: $e')),
+        );
+      }
     }
   }
 
