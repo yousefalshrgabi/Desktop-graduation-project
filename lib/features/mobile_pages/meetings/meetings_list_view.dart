@@ -10,19 +10,21 @@ import 'write_minutes_view.dart';
 import 'review_meeting_dialog.dart';
 
 class MeetingsListView extends StatelessWidget {
-  const MeetingsListView({super.key});
+  final String? forceRole;
+  const MeetingsListView({super.key, this.forceRole});
 
   @override
   Widget build(BuildContext context) {
     return ChangeNotifierProvider(
-      create: (_) => MeetingsViewModel(),
-      child: const _MeetingsListViewContent(),
+      create: (_) => MeetingsViewModel(forceRole: forceRole),
+      child: _MeetingsListViewContent(forceRole: forceRole),
     );
   }
 }
 
 class _MeetingsListViewContent extends StatefulWidget {
-  const _MeetingsListViewContent();
+  final String? forceRole;
+  const _MeetingsListViewContent({this.forceRole});
 
   @override
   State<_MeetingsListViewContent> createState() => _MeetingsListViewContentState();
@@ -56,9 +58,15 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
     });
   }
 
-  bool get _isHOD => _session.isDeptHead;
-  bool get _isViceDean => _session.isViceDean;
-  bool get _isDean => _session.isDean;
+  bool get _isHOD => widget.forceRole != null
+      ? (widget.forceRole == 'dept_head' || widget.forceRole == 'رئيس قسم')
+      : _session.isDeptHead;
+  bool get _isViceDean => widget.forceRole != null
+      ? (widget.forceRole == 'vice_dean' || widget.forceRole == 'نائب العميد')
+      : _session.isViceDean;
+  bool get _isDean => widget.forceRole != null
+      ? (widget.forceRole == 'dean' || widget.forceRole == 'عميد')
+      : _session.isDean;
 
   Color _getStatusColor(MeetingStatus status) {
     switch (status) {
