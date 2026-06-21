@@ -1318,7 +1318,12 @@ class RequestViewModel extends ChangeNotifier {
       );
 
       final tempDir = await getTemporaryDirectory();
-      final localFile = File(p.join(tempDir.path, 'leave_request_$requestId.docx'));
+      
+      final safeName = applicantName.replaceAll(' ', '_').replaceAll(RegExp(r'[\\/:*?"<>|]'), '');
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final fileName = 'استمارة_إجازة_${safeName}_$timestamp.docx';
+      
+      final localFile = File(p.join(tempDir.path, fileName));
       await localFile.writeAsBytes(docxBytes);
       
       debugPrint('✅ Generated leave request locally: ${localFile.path}');
