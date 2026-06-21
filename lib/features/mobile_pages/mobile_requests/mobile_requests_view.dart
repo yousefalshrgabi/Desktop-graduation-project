@@ -733,11 +733,11 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     child: const Text('رد'),
                   ),
                 const SizedBox(width: 8),
-                if (req.status == 'مقبول' && (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة')))
+                if (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة'))
                   ElevatedButton.icon(
                     onPressed: () => _viewLocalLeaveRequest(req),
                     icon: const Icon(Icons.description, color: Colors.white, size: 16),
-                    label: const Text('عرض استمارة الطلب الرسمية', style: TextStyle(fontSize: 11)),
+                    label: const Text('عرض الاستمارة', style: TextStyle(fontSize: 11)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.teal,
                       foregroundColor: Colors.white,
