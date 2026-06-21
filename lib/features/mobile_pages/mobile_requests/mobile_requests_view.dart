@@ -733,7 +733,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                     child: const Text('رد'),
                   ),
                 const SizedBox(width: 8),
-                if (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة'))
+                if (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type.contains('اجازة'))
                   ElevatedButton.icon(
                     onPressed: () => _viewLocalLeaveRequest(req),
                     icon: const Icon(Icons.description, color: Colors.white, size: 16),
