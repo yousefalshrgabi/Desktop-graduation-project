@@ -42,7 +42,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
     _viewModel.loadColleges();
   }
 
-  Future<void> _viewLocalLeaveRequest(RequestModel req) async {
+  Future<void> _exportLocalLeaveRequest(RequestModel req) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -52,24 +52,19 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
     if (mounted) {
       Navigator.pop(context);
     }
+    if (path == 'canceled') {
+      return;
+    }
     if (path == null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر إنشاء الاستمارة')),
+        const SnackBar(content: Text('تعذر تصدير الاستمارة')),
       );
       return;
     }
-    if (path != null && mounted) {
-      try {
-        final uri = Uri.file(path);
-        await launchUrl(uri);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إنشاء الاستمارة — جاري الفتح...')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم إنشاء الاستمارة لكن تعذر فتحها: $e')),
-        );
-      }
+    if (path != null && path != 'canceled' && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تم تصدير الاستمارة بنجاح إلى:\n$path')),
+      );
     }
   }
 
@@ -749,9 +744,9 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                 const SizedBox(width: 8),
                 if (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type.contains('اجازة'))
                   ElevatedButton.icon(
-                    onPressed: () => _viewLocalLeaveRequest(req),
-                    icon: const Icon(Icons.description, color: Colors.white, size: 16),
-                    label: const Text('عرض الاستمارة', style: TextStyle(fontSize: 11)),
+                    onPressed: () => _exportLocalLeaveRequest(req),
+                    icon: const Icon(Icons.file_download, color: Colors.white, size: 16),
+                    label: const Text('تصدير الاستمارة', style: TextStyle(fontSize: 11)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.teal,
                       foregroundColor: Colors.white,

@@ -105,7 +105,7 @@ class _RequestsViewState extends State<RequestsView>
     }
   }
 
-  Future<void> _viewLocalLeaveRequest(RequestModel req) async {
+  Future<void> _exportLocalLeaveRequest(RequestModel req) async {
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -115,24 +115,23 @@ class _RequestsViewState extends State<RequestsView>
     if (mounted) {
       Navigator.pop(context);
     }
+    
+    if (path == 'canceled') {
+      // User canceled the save dialog
+      return;
+    }
+    
     if (path == null && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('تعذر إنشاء الاستمارة')),
+        const SnackBar(content: Text('تعذر تصدير الاستمارة')),
       );
       return;
     }
-    if (path != null && mounted) {
-      try {
-        final uri = Uri.file(path);
-        await launchUrl(uri);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم إنشاء الاستمارة — جاري الفتح...')),
-        );
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('تم إنشاء الاستمارة لكن تعذر فتحها: $e')),
-        );
-      }
+    
+    if (path != null && path != 'canceled' && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('تم تصدير الاستمارة بنجاح إلى:\n$path')),
+      );
     }
   }
 
@@ -904,9 +903,9 @@ class _RequestsViewState extends State<RequestsView>
                     const SizedBox(width: 12),
                     if (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type.contains('اجازة'))
                       ElevatedButton.icon(
-                        onPressed: () => _viewLocalLeaveRequest(req),
-                        icon: const Icon(Icons.description, color: Colors.white, size: 16),
-                        label: const Text('عرض الاستمارة', style: TextStyle(fontSize: 12)),
+                        onPressed: () => _exportLocalLeaveRequest(req),
+                        icon: const Icon(Icons.file_download, color: Colors.white, size: 16),
+                        label: const Text('تصدير الاستمارة', style: TextStyle(fontSize: 12)),
                         style: ElevatedButton.styleFrom(
                           backgroundColor: Colors.teal,
                           foregroundColor: Colors.white,
@@ -998,9 +997,9 @@ class _RequestsViewState extends State<RequestsView>
                       const SizedBox(height: 16),
                       Center(
                         child: ElevatedButton.icon(
-                          onPressed: () => _viewLocalLeaveRequest(req),
-                          icon: const Icon(Icons.description, color: Colors.white, size: 16),
-                          label: const Text('عرض الاستمارة الرسمية', style: TextStyle(fontSize: 12)),
+                          onPressed: () => _exportLocalLeaveRequest(req),
+                          icon: const Icon(Icons.file_download, color: Colors.white, size: 16),
+                          label: const Text('تصدير الاستمارة الرسمية', style: TextStyle(fontSize: 12)),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: Colors.teal,
                             foregroundColor: Colors.white,
