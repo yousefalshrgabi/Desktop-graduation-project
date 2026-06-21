@@ -98,8 +98,10 @@ class RequestViewModel extends ChangeNotifier {
     final b = collegeB.trim().toLowerCase().replaceAll(RegExp(r'\s+'), '');
     if (a == b) return true;
 
-    final cleanA = a.replaceAll(RegExp(r'\(.*?\)'), '').replaceAll(RegExp(r'（.*?）'), '');
-    final cleanB = b.replaceAll(RegExp(r'\(.*?\)'), '').replaceAll(RegExp(r'（.*?）'), '');
+    final cleanA =
+        a.replaceAll(RegExp(r'\(.*?\)'), '').replaceAll(RegExp(r'（.*?）'), '');
+    final cleanB =
+        b.replaceAll(RegExp(r'\(.*?\)'), '').replaceAll(RegExp(r'（.*?）'), '');
     if (cleanA == cleanB) return true;
 
     return cleanA.contains(cleanB) || cleanB.contains(cleanA);
@@ -145,20 +147,24 @@ class RequestViewModel extends ChangeNotifier {
         college.contains('الأكاديمية'));
 
     if (req.type == 'طلب من النيابة العامة') {
-      return isDean && _isSameCollege(req.destinationCollege, _currentUserCollege ?? '');
+      return isDean &&
+          _isSameCollege(req.destinationCollege, _currentUserCollege ?? '');
     }
 
-    final bool isLeave = req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة');
+    final bool isLeave =
+        req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة');
     if (isLeave) {
       // التحقق من الكلية أولاً لغير النيابة الأكاديمية
-      if (!isAcademicAffairs && !_isSameCollege(req.destinationCollege, _currentUserCollege ?? '')) {
+      if (!isAcademicAffairs &&
+          !_isSameCollege(req.destinationCollege, _currentUserCollege ?? '')) {
         return false;
       }
 
       final int step = req.extraData?['current_step_order'] != null
           ? (req.extraData!['current_step_order'] is int
               ? req.extraData!['current_step_order'] as int
-              : int.tryParse(req.extraData!['current_step_order'].toString()) ?? 1)
+              : int.tryParse(req.extraData!['current_step_order'].toString()) ??
+                  1)
           : 1;
 
       bool canSee = false;
@@ -363,7 +369,8 @@ class RequestViewModel extends ChangeNotifier {
 
   /// رفع بايتات ملف ثنائي عبر REST API الخاص بـ Firebase Storage
   /// لتفادي مشكلة الانهيار (C++ Runtime Crash) على تطبيق الديسكتوب في Windows.
-  Future<String> _uploadBytesRest(List<int> bytes, String storagePath, String contentType) async {
+  Future<String> _uploadBytesRest(
+      List<int> bytes, String storagePath, String contentType) async {
     final auth = FirebaseAuth.instance;
     final currentUser = auth.currentUser;
     final idToken = await currentUser?.getIdToken();
@@ -372,19 +379,18 @@ class RequestViewModel extends ChangeNotifier {
     final client = HttpClient();
     try {
       final uri = Uri.parse(
-        'https://firebasestorage.googleapis.com/v0/b/$bucketName/o?name=${Uri.encodeComponent(storagePath)}'
-      );
+          'https://firebasestorage.googleapis.com/v0/b/$bucketName/o?name=${Uri.encodeComponent(storagePath)}');
       final request = await client.postUrl(uri);
-      
+
       request.headers.set('Content-Type', contentType);
       if (idToken != null) {
         request.headers.set('Authorization', 'Bearer $idToken');
       }
-      
+
       request.add(bytes);
       final response = await request.close();
       final responseBody = await response.transform(utf8.decoder).join();
-      
+
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final Map<String, dynamic> jsonResponse = jsonDecode(responseBody);
         final String? downloadToken = jsonResponse['downloadTokens'];
@@ -393,7 +399,8 @@ class RequestViewModel extends ChangeNotifier {
         }
         throw Exception('No downloadTokens found in response');
       } else {
-        throw Exception('Upload failed: ${response.statusCode} - $responseBody');
+        throw Exception(
+            'Upload failed: ${response.statusCode} - $responseBody');
       }
     } finally {
       client.close();
@@ -418,7 +425,8 @@ class RequestViewModel extends ChangeNotifier {
       String storagePath = 'faculty_files/$cleanName/$fileName';
 
       if (!kIsWeb && Platform.isWindows) {
-        debugPrint('🚀 [ATTACHMENT] Using REST API for attachment upload on Windows...');
+        debugPrint(
+            '🚀 [ATTACHMENT] Using REST API for attachment upload on Windows...');
         final bytes = await File(file.path!).readAsBytes();
         return await _uploadBytesRest(
           bytes,
@@ -492,15 +500,17 @@ class RequestViewModel extends ChangeNotifier {
       for (int i = 0; i < urls.length; i++) {
         String url = urls[i];
         if (url.isEmpty) continue;
-        
+
         String ext = '.pdf';
         try {
           String rawPath = Uri.parse(url).path;
-          String possibleExt = rawPath.split('.').last.split('?').first.toLowerCase();
+          String possibleExt =
+              rawPath.split('.').last.split('?').first.toLowerCase();
           if (possibleExt.length <= 5) ext = '.$possibleExt';
         } catch (_) {}
-        
-        String fileName = 'downloaded_${DateTime.now().millisecondsSinceEpoch}_$i$ext';
+
+        String fileName =
+            'downloaded_${DateTime.now().millisecondsSinceEpoch}_$i$ext';
         final localPath = p.join(archiveDir.path, fileName);
         final File file = File(localPath);
 
@@ -581,12 +591,14 @@ class RequestViewModel extends ChangeNotifier {
         extraData: extraData,
       );
 
-      final docRef = await _firestore.collection('requests').add(newRequest.toMap());
+      final docRef =
+          await _firestore.collection('requests').add(newRequest.toMap());
 
       // معالجة الموافقات التلقائية المترتبة على أدوار منشئ الطلب
       final createdDoc = await docRef.get();
       if (createdDoc.exists) {
-        await _processAutoApprovals(docRef, createdDoc.data() as Map<String, dynamic>);
+        await _processAutoApprovals(
+            docRef, createdDoc.data() as Map<String, dynamic>);
       }
 
       _isSending = false;
@@ -601,7 +613,9 @@ class RequestViewModel extends ChangeNotifier {
   }
 
   Future<bool> respondToRequest(String requestId, String status,
-      {String? rejectionReason, List<String>? approvedFields, List<PlatformFile>? attachedFiles}) async {
+      {String? rejectionReason,
+      List<String>? approvedFields,
+      List<PlatformFile>? attachedFiles}) async {
     _isLoading = true;
     notifyListeners();
 
@@ -627,21 +641,38 @@ class RequestViewModel extends ChangeNotifier {
       List<String> userRoles = [];
       if (lowerRole.startsWith('[')) {
         try {
-          userRoles = List<String>.from(jsonDecode(lowerRole)).map((r) => r.toLowerCase()).toList();
+          userRoles = List<String>.from(jsonDecode(lowerRole))
+              .map((r) => r.toLowerCase())
+              .toList();
         } catch (_) {}
       }
       if (userRoles.isEmpty) {
         userRoles = [lowerRole];
       }
 
-      bool hasDeptHead = userRoles.any((r) => r.contains('dept_head') || r.contains('dept head') || r.contains('head of department') || r.contains('رئيس قسم') || r.contains('رئيس القسم'));
-      bool hasViceDean = userRoles.any((r) => r.contains('vice_dean') || r.contains('vice dean') || r.contains('نائب العميد') || r.contains('نائب عميد'));
-      bool hasDean = userRoles.any((r) => (r.contains('dean') && !r.contains('vice')) || r.contains('عميد'));
-      bool hasAcademicAffairs = userRoles.any((r) => r.contains('prosecution') || (r.contains('academic') && !r.contains('vice')) || r.contains('admin') || lowerCollege.contains('نيابة') || lowerCollege.contains('الأكاديمية'));
+      bool hasDeptHead = userRoles.any((r) =>
+          r.contains('dept_head') ||
+          r.contains('dept head') ||
+          r.contains('head of department') ||
+          r.contains('رئيس قسم') ||
+          r.contains('رئيس القسم'));
+      bool hasViceDean = userRoles.any((r) =>
+          r.contains('vice_dean') ||
+          r.contains('vice dean') ||
+          r.contains('نائب العميد') ||
+          r.contains('نائب عميد'));
+      bool hasDean = userRoles.any((r) =>
+          (r.contains('dean') && !r.contains('vice')) || r.contains('عميد'));
+      bool hasAcademicAffairs = userRoles.any((r) =>
+          r.contains('prosecution') ||
+          (r.contains('academic') && !r.contains('vice')) ||
+          r.contains('admin') ||
+          lowerCollege.contains('نيابة') ||
+          lowerCollege.contains('الأكاديمية'));
 
       int reqStep = extraData?['current_step_order'] != null
-          ? (extraData!['current_step_order'] is int 
-              ? extraData['current_step_order'] as int 
+          ? (extraData!['current_step_order'] is int
+              ? extraData['current_step_order'] as int
               : int.tryParse(extraData['current_step_order'].toString()) ?? 1)
           : 1;
 
@@ -677,9 +708,11 @@ class RequestViewModel extends ChangeNotifier {
         }
       }
 
-      bool isLeaveRequest = (type == 'استمارة طلب إجازة' || type.contains('إجازة'));
+      bool isLeaveRequest =
+          (type == 'استمارة طلب إجازة' || type.contains('إجازة'));
       String statusToUpdate = status;
-      String destinationCollegeToUpdate = requestData['destinationCollege'] ?? '';
+      String destinationCollegeToUpdate =
+          requestData['destinationCollege'] ?? '';
       final updatedExtraData = Map<String, dynamic>.from(extraData ?? {});
 
       // 👈 رفع ملفات الرد إن وجدت وحفظ مساراتها
@@ -707,8 +740,9 @@ class RequestViewModel extends ChangeNotifier {
           List<dynamic> approvalHistory = extraData?['approval_history'] != null
               ? List<dynamic>.from(extraData?['approval_history'])
               : [];
-          
-          final alreadyApproved = approvalHistory.any((s) => s is Map && s['step'] == currentStep);
+
+          final alreadyApproved =
+              approvalHistory.any((s) => s is Map && s['step'] == currentStep);
           if (!alreadyApproved) {
             approvalHistory.add({
               'step': currentStep,
@@ -717,14 +751,14 @@ class RequestViewModel extends ChangeNotifier {
               'date': DateTime.now().toIso8601String(),
             });
           }
-          
+
           updatedExtraData['approval_history'] = approvalHistory;
 
           if (currentStep < 4) {
             statusToUpdate = 'قيد الانتظار';
             int nextStep = currentStep + 1;
             updatedExtraData['current_step_order'] = nextStep;
-            
+
             if (nextStep == 4) {
               destinationCollegeToUpdate = 'نيابة الشؤون الأكاديمية';
             }
@@ -735,7 +769,8 @@ class RequestViewModel extends ChangeNotifier {
         } else if (status == 'مرفوض') {
           statusToUpdate = 'مرفوض';
           updatedExtraData['rejected_by_role'] = roleLabel;
-          updatedExtraData['rejected_by_name'] = _currentUserName ?? 'غير معروف';
+          updatedExtraData['rejected_by_name'] =
+              _currentUserName ?? 'غير معروف';
         }
       }
 
@@ -753,7 +788,8 @@ class RequestViewModel extends ChangeNotifier {
       if (statusToUpdate == 'قيد الانتظار') {
         final updatedDoc = await requestDocRef.get();
         if (updatedDoc.exists) {
-          await _processAutoApprovals(requestDocRef, updatedDoc.data() as Map<String, dynamic>);
+          await _processAutoApprovals(
+              requestDocRef, updatedDoc.data() as Map<String, dynamic>);
         }
       }
 
@@ -817,7 +853,9 @@ class RequestViewModel extends ChangeNotifier {
       */
 
       // 3. التحديث التلقائي لبيانات العضو عند الموافقة (كلياً أو جزئياً)
-      if ((status == 'مقبول' || status == 'مقبول جزئياً') && type == 'تعديل معلومات' && senderId != null) {
+      if ((status == 'مقبول' || status == 'مقبول جزئياً') &&
+          type == 'تعديل معلومات' &&
+          senderId != null) {
         debugPrint('[AUTO-UPDATE] 🚀 جاري تحديث بيانات العضو $senderId...');
         try {
           Map<String, dynamic> facultyData = {};
@@ -832,7 +870,6 @@ class RequestViewModel extends ChangeNotifier {
             'birthDate': 'birth_date',
             'firstAppointmentDate': 'first_appointment_date',
             'universityAppointmentDate': 'university_appointment_date',
-            
             'bscDegree': 'bsc_degree',
             'bscDate': 'bsc_date',
             'bscUniversity': 'bsc_university',
@@ -840,7 +877,6 @@ class RequestViewModel extends ChangeNotifier {
             'bscAcademicTitle': 'bsc_academic_title',
             'bscTitleTransferDate': 'bsc_title_transfer_date',
             'bscSpecialization': 'bsc_specialization',
-
             'mscDegree': 'msc_degree',
             'mscDate': 'msc_date',
             'mscUniversity': 'msc_university',
@@ -849,17 +885,14 @@ class RequestViewModel extends ChangeNotifier {
             'mscTitleTransferDate': 'msc_title_transfer_date',
             'mscDecisionNumber': 'msc_decision_number',
             'mscExactSpecialization': 'msc_exact_specialization',
-
             'currentDegree': 'current_degree',
             'currentDegreeDate': 'current_degree_date',
             'currentUniversity': 'current_university',
             'currentCountry': 'current_country',
-
             'assistantProfDate': 'assistant_prof_date',
             'assistantProfDecision': 'assistant_prof_decision',
             'assocProfDate': 'assoc_prof_date',
             'assocProfDecision': 'assoc_prof_decision',
-
             'currentAcademicTitle': 'current_academic_title',
             'titleTransferDate': 'title_transfer_date',
             'generalSpecialization': 'general_specialization',
@@ -868,14 +901,18 @@ class RequestViewModel extends ChangeNotifier {
 
           String? facultyDocId = extraData?['faculty_doc_id']?.toString();
           Map<String, dynamic> currentMember = {};
-          
+
           String targetUserId = senderId ?? '';
 
           if (facultyDocId != null && facultyDocId.isNotEmpty) {
-            final fsDoc = await _firestore.collection('faculty_members').doc(facultyDocId).get();
+            final fsDoc = await _firestore
+                .collection('faculty_members')
+                .doc(facultyDocId)
+                .get();
             if (fsDoc.exists) {
               currentMember = Map<String, dynamic>.from(fsDoc.data() as Map);
-              targetUserId = currentMember['user_id']?.toString() ?? senderId ?? '';
+              targetUserId =
+                  currentMember['user_id']?.toString() ?? senderId ?? '';
             }
           } else {
             final fsQuery = await _firestore
@@ -886,7 +923,8 @@ class RequestViewModel extends ChangeNotifier {
 
             if (fsQuery.docs.isNotEmpty) {
               facultyDocId = fsQuery.docs.first.id;
-              currentMember = Map<String, dynamic>.from(fsQuery.docs.first.data());
+              currentMember =
+                  Map<String, dynamic>.from(fsQuery.docs.first.data());
               targetUserId = senderId ?? '';
             }
           }
@@ -895,13 +933,14 @@ class RequestViewModel extends ChangeNotifier {
             // fallback: ابحث في SQLite المحلي
             final db = await DatabaseHelper.instance.database;
             final localRec = await db.query('faculty_members',
-                where: 'id = ? OR user_id = ?', 
-                whereArgs: [facultyDocId ?? '', senderId ?? ''], 
+                where: 'id = ? OR user_id = ?',
+                whereArgs: [facultyDocId ?? '', senderId ?? ''],
                 limit: 1);
             if (localRec.isNotEmpty) {
               facultyDocId ??= localRec.first['id']?.toString();
               currentMember = Map<String, dynamic>.from(localRec.first);
-              targetUserId = currentMember['user_id']?.toString() ?? senderId ?? '';
+              targetUserId =
+                  currentMember['user_id']?.toString() ?? senderId ?? '';
             }
           }
 
@@ -915,7 +954,9 @@ class RequestViewModel extends ChangeNotifier {
             if (key == 'email') {
               userData['pending_email'] = value;
             } else {
-              if (key == 'name' || key == 'department' || key == 'idCardNumber') {
+              if (key == 'name' ||
+                  key == 'department' ||
+                  key == 'idCardNumber') {
                 userData[key] = value;
               }
               facultyData[keyMap[key] ?? key] = value;
@@ -950,7 +991,8 @@ class RequestViewModel extends ChangeNotifier {
               Map<String, dynamic> filesMapping = {};
               if (extraData != null && extraData['new_files_mapping'] != null) {
                 try {
-                  filesMapping = Map<String, dynamic>.from(extraData['new_files_mapping']);
+                  filesMapping =
+                      Map<String, dynamic>.from(extraData['new_files_mapping']);
                 } catch (_) {}
               }
 
@@ -958,13 +1000,15 @@ class RequestViewModel extends ChangeNotifier {
               for (int i = 0; i < newUrls.length; i++) {
                 String url = newUrls[i];
                 if (url.isEmpty) continue;
-                String localPath = i < newLocalPaths.length ? newLocalPaths[i] : '';
+                String localPath =
+                    i < newLocalPaths.length ? newLocalPaths[i] : '';
 
                 // تحديد الفئة
                 String category = 'others';
                 try {
                   filesMapping.forEach((k, v) {
-                    if (v is List && (v.contains(i) || v.contains(i.toString()))) {
+                    if (v is List &&
+                        (v.contains(i) || v.contains(i.toString()))) {
                       category = k;
                     }
                   });
@@ -1020,22 +1064,28 @@ class RequestViewModel extends ChangeNotifier {
             // معالجة الملفات المحذوفة
             if (extraData != null && extraData['deleted_files'] != null) {
               List<dynamic> deletedUrlsRaw = extraData['deleted_files'];
-              List<String> deletedUrls = deletedUrlsRaw.map((e) => e.toString()).toList();
-              
+              List<String> deletedUrls =
+                  deletedUrlsRaw.map((e) => e.toString()).toList();
+
               if (deletedUrls.isNotEmpty) {
                 // القوائم الحالية (سواء تم تحديثها بالملفات الجديدة أم لا)
-                Map<String, List<String>> currentUrlsMap =
-                    _parseJsonMap(facultyData['file_url']?.toString() ?? currentMember['file_url']?.toString() ?? '');
-                Map<String, List<String>> currentLocalPathsMap =
-                    _parseJsonMap(facultyData['local_file_path']?.toString() ?? currentMember['local_file_path']?.toString() ?? '');
+                Map<String, List<String>> currentUrlsMap = _parseJsonMap(
+                    facultyData['file_url']?.toString() ??
+                        currentMember['file_url']?.toString() ??
+                        '');
+                Map<String, List<String>> currentLocalPathsMap = _parseJsonMap(
+                    facultyData['local_file_path']?.toString() ??
+                        currentMember['local_file_path']?.toString() ??
+                        '');
 
                 for (String delUrl in deletedUrls) {
                   if (delUrl.isEmpty) continue;
-                  
+
                   // حذف من السحابة
                   try {
                     await _storage.refFromURL(delUrl).delete();
-                    debugPrint('[AUTO-UPDATE] 🗑️ تم حذف الملف من السحابة: $delUrl');
+                    debugPrint(
+                        '[AUTO-UPDATE] 🗑️ تم حذف الملف من السحابة: $delUrl');
                   } catch (e) {
                     debugPrint('[AUTO-UPDATE] ⚠️ فشل حذف الملف من السحابة: $e');
                   }
@@ -1043,7 +1093,7 @@ class RequestViewModel extends ChangeNotifier {
                   // حذف من القوائم
                   String foundCategory = '';
                   int foundIndex = -1;
-                  
+
                   currentUrlsMap.forEach((cat, urls) {
                     int idx = urls.indexOf(delUrl);
                     if (idx != -1) {
@@ -1054,22 +1104,28 @@ class RequestViewModel extends ChangeNotifier {
 
                   if (foundCategory.isNotEmpty && foundIndex != -1) {
                     currentUrlsMap[foundCategory]!.removeAt(foundIndex);
-                    
-                    if (currentLocalPathsMap[foundCategory] != null && currentLocalPathsMap[foundCategory]!.length > foundIndex) {
-                      String localPathToDelete = currentLocalPathsMap[foundCategory]![foundIndex];
+
+                    if (currentLocalPathsMap[foundCategory] != null &&
+                        currentLocalPathsMap[foundCategory]!.length >
+                            foundIndex) {
+                      String localPathToDelete =
+                          currentLocalPathsMap[foundCategory]![foundIndex];
                       currentLocalPathsMap[foundCategory]!.removeAt(foundIndex);
-                      
-                      if (localPathToDelete.isNotEmpty && File(localPathToDelete).existsSync()) {
+
+                      if (localPathToDelete.isNotEmpty &&
+                          File(localPathToDelete).existsSync()) {
                         try {
                           File(localPathToDelete).deleteSync();
-                          debugPrint('[AUTO-UPDATE] 🗑️ تم حذف الملف محلياً: $localPathToDelete');
+                          debugPrint(
+                              '[AUTO-UPDATE] 🗑️ تم حذف الملف محلياً: $localPathToDelete');
                         } catch (_) {}
                       }
                     }
                   }
                 }
                 facultyData['file_url'] = jsonEncode(currentUrlsMap);
-                facultyData['local_file_path'] = jsonEncode(currentLocalPathsMap);
+                facultyData['local_file_path'] =
+                    jsonEncode(currentLocalPathsMap);
               }
             }
             debugPrint('[AUTO-UPDATE] 📁 تمت إضافة الملفات المصنفة بنجاح.');
@@ -1104,7 +1160,8 @@ class RequestViewModel extends ChangeNotifier {
           debugPrint('[AUTO-UPDATE] ❌ فشل التحديث التلقائي: $e');
         }
       } else if (status == 'مقبول' && type == 'حذف ملف' && senderId != null) {
-        debugPrint('[AUTO-UPDATE] 🚀 جاري حذف الملف المطلوب للعضو $senderId...');
+        debugPrint(
+            '[AUTO-UPDATE] 🚀 جاري حذف الملف المطلوب للعضو $senderId...');
         try {
           String? categoryToDelete = extraData?['delete_file_category'];
           String? urlToDelete = extraData?['delete_file_url'];
@@ -1122,7 +1179,8 @@ class RequestViewModel extends ChangeNotifier {
 
             if (fsQuery.docs.isNotEmpty) {
               facultyDocId = fsQuery.docs.first.id;
-              currentMember = Map<String, dynamic>.from(fsQuery.docs.first.data());
+              currentMember =
+                  Map<String, dynamic>.from(fsQuery.docs.first.data());
             } else {
               final db = await DatabaseHelper.instance.database;
               final localRecord = await db.query('faculty_members',
@@ -1134,19 +1192,24 @@ class RequestViewModel extends ChangeNotifier {
             }
 
             if (facultyDocId != null && currentMember.isNotEmpty) {
-              Map<String, List<String>> currentUrlsMap = _parseJsonMap(currentMember['file_url']);
-              Map<String, List<String>> currentLocalPathsMap = _parseJsonMap(currentMember['local_file_path']);
+              Map<String, List<String>> currentUrlsMap =
+                  _parseJsonMap(currentMember['file_url']);
+              Map<String, List<String>> currentLocalPathsMap =
+                  _parseJsonMap(currentMember['local_file_path']);
 
               int indexToDelete = -1;
               if (currentUrlsMap.containsKey(categoryToDelete)) {
-                indexToDelete = currentUrlsMap[categoryToDelete]!.indexOf(urlToDelete);
+                indexToDelete =
+                    currentUrlsMap[categoryToDelete]!.indexOf(urlToDelete);
                 if (indexToDelete != -1) {
                   currentUrlsMap[categoryToDelete]!.removeAt(indexToDelete);
-                  
+
                   // حذف المسار المحلي المقابل إذا وجد
-                  if (currentLocalPathsMap.containsKey(categoryToDelete) && 
-                      currentLocalPathsMap[categoryToDelete]!.length > indexToDelete) {
-                    currentLocalPathsMap[categoryToDelete]!.removeAt(indexToDelete);
+                  if (currentLocalPathsMap.containsKey(categoryToDelete) &&
+                      currentLocalPathsMap[categoryToDelete]!.length >
+                          indexToDelete) {
+                    currentLocalPathsMap[categoryToDelete]!
+                        .removeAt(indexToDelete);
                   }
 
                   // حفظ التعديلات في البيانات
@@ -1166,12 +1229,15 @@ class RequestViewModel extends ChangeNotifier {
                   // حذف الملف من السحابة
                   try {
                     await _storage.refFromURL(urlToDelete).delete();
-                    debugPrint('[AUTO-UPDATE] ✅ تم حذف الملف من السحابة: $urlToDelete');
+                    debugPrint(
+                        '[AUTO-UPDATE] ✅ تم حذف الملف من السحابة: $urlToDelete');
                   } catch (e) {
-                    debugPrint('[AUTO-UPDATE] ⚠️ فشل حذف الملف من السحابة (ربما غير موجود): $e');
+                    debugPrint(
+                        '[AUTO-UPDATE] ⚠️ فشل حذف الملف من السحابة (ربما غير موجود): $e');
                   }
-                  
-                  debugPrint('[AUTO-UPDATE] ✅ تم تحديث بيانات العضو بعد حذف الملف.');
+
+                  debugPrint(
+                      '[AUTO-UPDATE] ✅ تم تحديث بيانات العضو بعد حذف الملف.');
                 }
               }
             }
@@ -1293,12 +1359,15 @@ class RequestViewModel extends ChangeNotifier {
     try {
       final String requestId = req.id;
       final extraData = req.extraData;
-      
-      final applicantName = req.applicantName.isNotEmpty ? req.applicantName : 'غير معروف';
-      final senderCollege = req.senderCollege.isNotEmpty ? req.senderCollege : 'غير معروف';
+
+      final applicantName =
+          req.applicantName.isNotEmpty ? req.applicantName : 'غير معروف';
+      final senderCollege =
+          req.senderCollege.isNotEmpty ? req.senderCollege : 'غير معروف';
       final senderDepartment = extraData?['sender_department'] ?? 'غير معروف';
       final leaveType = extraData?['leave_type'] ?? 'إجازة';
-      final duration = extraData?['duration']?.toString() ?? '....................';
+      final duration =
+          extraData?['duration']?.toString() ?? '....................';
       final startDate = extraData?['start_date'] != null
           ? _formatIsoDate(extraData?['start_date'])
           : '....................';
@@ -1318,12 +1387,14 @@ class RequestViewModel extends ChangeNotifier {
       );
 
       final tempDir = await getTemporaryDirectory();
-      
-      final safeName = applicantName.replaceAll(' ', '_').replaceAll(RegExp(r'[\\/:*?"<>|]'), '');
+
+      final safeName = applicantName
+          .replaceAll(' ', '_')
+          .replaceAll(RegExp(r'[\\/:*?"<>|]'), '');
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final defaultFileName = 'استمارة_إجازة_${safeName}_$timestamp.docx';
-      
-      final String? outputFile = await FilePicker.platform.saveFile(
+
+      final String? outputFile = await FilePicker.saveFile(
         dialogTitle: 'اختر مكان حفظ استمارة الإجازة',
         fileName: defaultFileName,
         type: FileType.custom,
@@ -1336,7 +1407,7 @@ class RequestViewModel extends ChangeNotifier {
 
       final localFile = File(outputFile);
       await localFile.writeAsBytes(docxBytes);
-      
+
       debugPrint('✅ Generated leave request locally: ${localFile.path}');
       return localFile.path;
     } catch (e) {
@@ -1363,7 +1434,8 @@ class RequestViewModel extends ChangeNotifier {
             .map((d) => d['name'].toString())
             .toList();
       } else {
-        _collegeDepartments = departments.map((d) => d['name'].toString()).toList();
+        _collegeDepartments =
+            departments.map((d) => d['name'].toString()).toList();
       }
       notifyListeners();
     } catch (e) {
@@ -1402,12 +1474,14 @@ class RequestViewModel extends ChangeNotifier {
     }
   }
 
-  Future<void> _processAutoApprovals(DocumentReference requestDoc, Map<String, dynamic> requestData) async {
+  Future<void> _processAutoApprovals(
+      DocumentReference requestDoc, Map<String, dynamic> requestData) async {
     try {
       final String? senderId = requestData['senderId'];
       if (senderId == null || senderId.isEmpty) return;
 
-      final senderDoc = await _firestore.collection('users').doc(senderId).get();
+      final senderDoc =
+          await _firestore.collection('users').doc(senderId).get();
       if (!senderDoc.exists) return;
 
       final senderData = senderDoc.data();
@@ -1444,7 +1518,8 @@ class RequestViewModel extends ChangeNotifier {
           (r.contains('dean') && !r.contains('vice')) || r.contains('عميد'));
 
       bool changed = false;
-      final extraData = Map<String, dynamic>.from(requestData['extraData'] ?? {});
+      final extraData =
+          Map<String, dynamic>.from(requestData['extraData'] ?? {});
       int reqStep = extraData['current_step_order'] != null
           ? (extraData['current_step_order'] is int
               ? extraData['current_step_order'] as int
@@ -1466,14 +1541,16 @@ class RequestViewModel extends ChangeNotifier {
           roleLabel = 'رئيس القسم (موافقة تلقائية - مقدم الطلب)';
         } else if (reqStep == 2 && senderHasViceDean) {
           canAutoApprove = true;
-          roleLabel = 'نائب العميد للشؤون الأكاديمية (موافقة تلقائية - مقدم الطلب)';
+          roleLabel =
+              'نائب العميد للشؤون الأكاديمية (موافقة تلقائية - مقدم الطلب)';
         } else if (reqStep == 3 && senderHasDean) {
           canAutoApprove = true;
           roleLabel = 'عميد الكلية (موافقة تلقائية - مقدم الطلب)';
         }
 
         if (canAutoApprove) {
-          final alreadyApproved = approvalHistory.any((s) => s is Map && s['step'] == reqStep);
+          final alreadyApproved =
+              approvalHistory.any((s) => s is Map && s['step'] == reqStep);
           if (!alreadyApproved) {
             approvalHistory.add({
               'step': reqStep,

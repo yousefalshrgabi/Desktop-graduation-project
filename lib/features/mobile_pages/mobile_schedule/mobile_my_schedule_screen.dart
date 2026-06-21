@@ -15,7 +15,7 @@ class MobileMyScheduleScreen extends StatefulWidget {
 
 class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
   final _nasabService = ComputedNasabService();
-  
+
   String _term = 'first';
   bool _loading = true;
   bool _exporting = false;
@@ -33,7 +33,7 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
       _loading = true;
       _errorMessage = '';
     });
-    
+
     try {
       final session = AppSession();
       final college = session.userCollege;
@@ -54,7 +54,7 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
 
       _myNasab = allEntries.where((e) {
         return e.teacherName.trim().toLowerCase() == userName.toLowerCase() ||
-               e.teacherName.toLowerCase().contains(userName.toLowerCase());
+            e.teacherName.toLowerCase().contains(userName.toLowerCase());
       }).toList();
 
       setState(() {
@@ -71,7 +71,7 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
   Future<void> _exportData(String action) async {
     final college = AppSession().userCollege;
     final teacherName = AppSession().userName;
-    
+
     if (college.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('الكلية غير محددة')),
@@ -96,7 +96,7 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
           teacherFilter: teacherName,
         );
       }
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('تم تصدير النصاب المحسوب بنجاح')),
@@ -118,7 +118,7 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
     double totalTheory = 0;
     double totalPractical = 0;
     double totalSupervision = 0;
-    
+
     for (var e in _myNasab) {
       totalTheory += e.theoryHours;
       totalPractical += e.practicalHours;
@@ -143,7 +143,8 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
                         child: SizedBox(
                           width: 20,
                           height: 20,
-                          child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                              color: Colors.white, strokeWidth: 2),
                         ),
                       ),
                     )
@@ -156,7 +157,8 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
                           value: 'word',
                           child: Row(
                             children: [
-                              Icon(Icons.description_outlined, color: Colors.blue),
+                              Icon(Icons.description_outlined,
+                                  color: Colors.blue),
                               SizedBox(width: 8),
                               Text('تصدير كملف Word'),
                             ],
@@ -166,7 +168,8 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
                           value: 'pdf',
                           child: Row(
                             children: [
-                              Icon(Icons.picture_as_pdf_outlined, color: Colors.red),
+                              Icon(Icons.picture_as_pdf_outlined,
+                                  color: Colors.red),
                               SizedBox(width: 8),
                               Text('طباعة كملف PDF'),
                             ],
@@ -206,7 +209,6 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
                 ),
               ),
             ),
-            
             if (_loading)
               const Expanded(
                 child: Center(
@@ -221,14 +223,18 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
                 ),
               )
             else if (_errorMessage.isNotEmpty)
-              Expanded(child: Center(child: Text(_errorMessage, style: const TextStyle(color: Colors.red))))
+              Expanded(
+                  child: Center(
+                      child: Text(_errorMessage,
+                          style: const TextStyle(color: Colors.red))))
             else if (_myNasab.isEmpty)
               Expanded(
                 child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.assignment_outlined, size: 80, color: Colors.grey[300]),
+                      Icon(Icons.assignment_outlined,
+                          size: 80, color: Colors.grey[300]),
                       const SizedBox(height: 16),
                       Text(
                         'لا يوجد نصاب متاح للفصل المحدد.',
@@ -247,13 +253,29 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
                         padding: const EdgeInsets.all(16),
                         child: Row(
                           children: [
-                            Expanded(child: _buildSummaryCard('الإجمالي', totalHours.toStringAsFixed(1), Colors.blue)),
+                            Expanded(
+                                child: _buildSummaryCard(
+                                    'الإجمالي',
+                                    totalHours.toStringAsFixed(1),
+                                    Colors.blue)),
                             const SizedBox(width: 8),
-                            Expanded(child: _buildSummaryCard('نظري', totalTheory.toStringAsFixed(1), Colors.orange)),
+                            Expanded(
+                                child: _buildSummaryCard(
+                                    'نظري',
+                                    totalTheory.toStringAsFixed(1),
+                                    Colors.orange)),
                             const SizedBox(width: 8),
-                            Expanded(child: _buildSummaryCard('عملي', totalPractical.toStringAsFixed(1), Colors.green)),
+                            Expanded(
+                                child: _buildSummaryCard(
+                                    'عملي',
+                                    totalPractical.toStringAsFixed(1),
+                                    Colors.green)),
                             const SizedBox(width: 8),
-                            Expanded(child: _buildSummaryCard('إشراف', totalSupervision.toStringAsFixed(1), Colors.purple)),
+                            Expanded(
+                                child: _buildSummaryCard(
+                                    'إشراف',
+                                    totalSupervision.toStringAsFixed(1),
+                                    Colors.purple)),
                           ],
                         ),
                       ),
@@ -267,7 +289,8 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
                             return Card(
                               margin: const EdgeInsets.only(bottom: 12),
                               elevation: 1,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12)),
                               child: Padding(
                                 padding: const EdgeInsets.all(16),
                                 child: Column(
@@ -284,22 +307,33 @@ class _MobileMyScheduleScreenState extends State<MobileMyScheduleScreen> {
                                     const SizedBox(height: 12),
                                     Row(
                                       children: [
-                                        _buildDetailChip('التخصص', entry.courseDepartment, Icons.account_tree_outlined),
+                                        _buildDetailChip(
+                                            'التخصص',
+                                            entry.courseDepartment,
+                                            Icons.account_tree_outlined),
                                         const SizedBox(width: 8),
-                                        _buildDetailChip('المستوى', entry.level, Icons.layers_outlined),
+                                        _buildDetailChip('المستوى', entry.level,
+                                            Icons.layers_outlined),
                                       ],
                                     ),
                                     const Padding(
-                                      padding: EdgeInsets.symmetric(vertical: 12),
+                                      padding:
+                                          EdgeInsets.symmetric(vertical: 12),
                                       child: Divider(height: 1),
                                     ),
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceAround,
                                       children: [
-                                        _buildHourInfo('نظري', entry.theoryHours),
-                                        _buildHourInfo('عملي', entry.practicalHours),
-                                        _buildHourInfo('إشراف', entry.supervisionHours),
-                                        _buildHourInfo('المجموع', entry.totalHours, isTotal: true),
+                                        _buildHourInfo(
+                                            'نظري', entry.theoryHours),
+                                        _buildHourInfo(
+                                            'عملي', entry.practicalHours),
+                                        _buildHourInfo(
+                                            'إشراف', entry.supervisionHours),
+                                        _buildHourInfo(
+                                            'المجموع', entry.totalHours,
+                                            isTotal: true),
                                       ],
                                     ),
                                   ],
