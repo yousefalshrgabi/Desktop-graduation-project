@@ -17,7 +17,6 @@ import '../../desktop_pages/workload_management/models/faculty_option.dart';
 import '../../desktop_pages/workload_management/services/faculty_firestore_service.dart';
 import '../utils/timetable_schedule_grid.dart';
 import '../widgets/timetable_data_table.dart';
-import '../widgets/teacher_sync_dialog.dart';
 
 class TeachersScheduleScreen extends StatefulWidget {
   const TeachersScheduleScreen({super.key, this.collegeName});
@@ -367,7 +366,7 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
                             ),
                             const SizedBox(height: 8),
                             DropdownButtonFormField<int>(
-                              value: group['studentCount'] as int,
+                              initialValue: group['studentCount'] as int,
                               decoration: const InputDecoration(
                                 labelText: 'عدد الطلاب',
                                 border: OutlineInputBorder(),
@@ -388,7 +387,7 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
                             ),
                             const SizedBox(height: 12),
                             DropdownButtonFormField<String>(
-                              value: (group['scheduleType'] ?? 'عام').toString(),
+                              initialValue: (group['scheduleType'] ?? 'عام').toString(),
                               decoration: const InputDecoration(
                                 labelText: 'النوع',
                                 border: OutlineInputBorder(),
@@ -424,7 +423,7 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: DropdownButtonFormField<int>(
-                            value: group['studentCount'] as int,
+                            initialValue: group['studentCount'] as int,
                             decoration: const InputDecoration(
                               labelText: 'عدد الطلاب',
                               border: OutlineInputBorder(),
@@ -447,7 +446,7 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: DropdownButtonFormField<String>(
-                            value: (group['scheduleType'] ?? 'عام').toString(),
+                            initialValue: (group['scheduleType'] ?? 'عام').toString(),
                             decoration: const InputDecoration(
                               labelText: 'النوع',
                               border: OutlineInputBorder(),
@@ -833,7 +832,7 @@ class _TeachersScheduleScreenState extends State<TeachersScheduleScreen> {
                   children: [
                     Expanded(
                       child: DropdownButtonFormField<String>(
-                        value: _searchQuery != null &&
+                        initialValue: _searchQuery != null &&
                                 sortedOptions.contains(_searchQuery)
                             ? _searchQuery
                             : null,

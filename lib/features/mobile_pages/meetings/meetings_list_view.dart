@@ -221,9 +221,9 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
                   margin: const EdgeInsets.only(top: 4),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: _getStatusColor(meeting.status).withOpacity(0.1),
+                    color: _getStatusColor(meeting.status).withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: _getStatusColor(meeting.status).withOpacity(0.3)),
+                    border: Border.all(color: _getStatusColor(meeting.status).withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     meeting.status.displayName,
@@ -247,9 +247,9 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: DesktopColors.primary.withOpacity(0.05),
+                        color: DesktopColors.primary.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: DesktopColors.primary.withOpacity(0.2)),
+                        border: Border.all(color: DesktopColors.primary.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         children: [
@@ -280,9 +280,9 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: DesktopColors.primary.withOpacity(0.05),
+                        color: DesktopColors.primary.withValues(alpha: 0.05),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: DesktopColors.primary.withOpacity(0.2)),
+                        border: Border.all(color: DesktopColors.primary.withValues(alpha: 0.2)),
                       ),
                       child: Row(
                         children: [
@@ -425,9 +425,9 @@ class _MeetingsListViewContentState extends State<_MeetingsListViewContent> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                 decoration: BoxDecoration(
-                                  color: statusColor.withOpacity(0.1),
+                                  color: statusColor.withValues(alpha: 0.1),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: statusColor.withOpacity(0.3)),
+                                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                                 ),
                                 child: Text(
                                   meeting.status.displayName,

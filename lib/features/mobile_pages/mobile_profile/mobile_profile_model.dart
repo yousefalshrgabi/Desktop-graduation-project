@@ -1,0 +1,1 @@
+export 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_member_model.dart';

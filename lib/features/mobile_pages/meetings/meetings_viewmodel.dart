@@ -587,7 +587,6 @@ class MeetingsViewModel extends ChangeNotifier {
         final departmentId = parts[1];
         final fileName = parts[2];
         final localPath = parts[3];
-        final minutesText = parts[4].replaceAll('\\n', '\n');
 
         final localFile = File(localPath);
         if (!await localFile.exists()) {

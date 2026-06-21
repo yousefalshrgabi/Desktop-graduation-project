@@ -1,4 +1,4 @@
-import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
+
 import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/features/desktop_pages/users_screen/add_user_dialog.dart';
@@ -342,9 +342,9 @@ class _UsersState extends State<Users> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: DesktopColors.primary.withOpacity(0.1),
+                  color: DesktopColors.primary.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: DesktopColors.primary.withOpacity(0.4)),
+                  border: Border.all(color: DesktopColors.primary.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   '+${roles.length - 1}',
@@ -369,9 +369,9 @@ class _UsersState extends State<Users> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.1),
+        color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.5)),
+        border: Border.all(color: color.withValues(alpha: 0.5)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

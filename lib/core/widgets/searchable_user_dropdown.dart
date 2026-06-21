@@ -100,7 +100,7 @@ class SearchableUserDropdown extends StatelessWidget {
                         return ListTile(
                           title: Text(option['name'] ?? '',
                               style: DesktopTextStyles.body),
-                          hoverColor: DesktopColors.primary.withOpacity(0.1),
+                          hoverColor: DesktopColors.primary.withValues(alpha: 0.1),
                           onTap: () => onSelected(option),
                         );
                       },

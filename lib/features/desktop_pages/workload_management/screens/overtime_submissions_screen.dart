@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 import 'package:intl/intl.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
@@ -99,14 +100,6 @@ class _OvertimeSubmissionsScreenState extends State<OvertimeSubmissionsScreen> {
         statusColor = Colors.grey;
     }
 
-    bool canApprove = false;
-    bool isFinalApproval = false;
-    if (_session.isDean && sub.status == 'pending_dean') canApprove = true;
-    if (_session.isAdminOrDeanship && sub.status == 'pending_vice_chancellor') {
-      canApprove = true;
-      isFinalApproval = true;
-    }
-
     final typeName = sub.type == 'overtime' ? 'الساعات الزائدة' : 'الساعات الموازية';
 
     return Card(
@@ -130,7 +123,7 @@ class _OvertimeSubmissionsScreenState extends State<OvertimeSubmissionsScreen> {
         trailing: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: statusColor.withOpacity(0.1),
+            color: statusColor.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: statusColor),
           ),
@@ -146,120 +139,5 @@ class _OvertimeSubmissionsScreenState extends State<OvertimeSubmissionsScreen> {
         },
       ),
     );
-  }
-
-  void _showActionDialog(CollegeOvertimeSubmission sub, bool isFinalApproval) {
-    final typeName = sub.type == 'overtime' ? 'الساعات الزائدة' : 'الساعات الموازية';
-    
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('اعتماد كشوفات $typeName'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('الكلية: ${sub.collegeName}'),
-            const SizedBox(height: 16),
-            Text('هل تود اعتماد هذا الطلب ${isFinalApproval ? 'بشكل نهائي' : 'ورفعه لنيابة رئاسة الجامعة'}؟'),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('إغلاق'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _handleReject(sub.id, isFinalApproval);
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('رفض الطلب'),
-          ),
-          FilledButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              _handleApprove(sub.id, isFinalApproval);
-            },
-            style: FilledButton.styleFrom(backgroundColor: Colors.green),
-            child: const Text('اعتماد الطلب'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _handleApprove(String id, bool isFinalApproval) async {
-    try {
-      if (isFinalApproval) {
-        await _service.approveByDeanship(id);
-      } else {
-        await _service.approveByDean(id);
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم اعتماد الطلب بنجاح'), backgroundColor: Colors.green),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
-  }
-
-  Future<void> _handleReject(String id, bool isFinalApproval) async {
-    final reasonController = TextEditingController();
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('سبب الرفض'),
-        content: TextField(
-          controller: reasonController,
-          decoration: const InputDecoration(hintText: 'اكتب سبب الرفض هنا...'),
-          maxLines: 3,
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('إلغاء')),
-          FilledButton(
-            onPressed: () {
-              if (reasonController.text.trim().isEmpty) {
-                ScaffoldMessenger.of(ctx).showSnackBar(
-                  const SnackBar(content: Text('يرجى كتابة سبب الرفض')),
-                );
-                return;
-              }
-              Navigator.pop(ctx, true);
-            },
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('تأكيد الرفض'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm != true) return;
-
-    try {
-      if (isFinalApproval) {
-        await _service.rejectByDeanship(id, reasonController.text.trim());
-      } else {
-        await _service.rejectByDean(id, reasonController.text.trim());
-      }
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم رفض الطلب'), backgroundColor: Colors.orange),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('خطأ: $e'), backgroundColor: Colors.red),
-        );
-      }
-    }
   }
 }

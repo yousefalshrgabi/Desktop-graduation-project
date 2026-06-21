@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'mobile_home_view_model.dart';
+import 'mobile_home_model.dart';
 
 class MobileHomeView extends StatefulWidget {
   final Function(int) onTabChange;
@@ -63,7 +64,7 @@ class _MobileHomeViewState extends State<MobileHomeView> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: DesktopColors.primary.withOpacity(0.3),
+            color: DesktopColors.primary.withValues(alpha: 0.3),
             blurRadius: 12,
             offset: const Offset(0, 4),
           ),
@@ -72,7 +73,7 @@ class _MobileHomeViewState extends State<MobileHomeView> {
       child: Row(
         children: [
           CircleAvatar(
-            backgroundColor: Colors.white.withOpacity(0.2),
+            backgroundColor: Colors.white.withValues(alpha: 0.2),
             radius: 30,
             child: Text(
               _viewModel.userName.isNotEmpty
@@ -108,7 +109,7 @@ class _MobileHomeViewState extends State<MobileHomeView> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.2),
+                    color: Colors.white.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(20),
                   ),
                   child: Text(
@@ -146,10 +147,10 @@ class _MobileHomeViewState extends State<MobileHomeView> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: action.color.withOpacity(0.2)),
+          border: Border.all(color: action.color.withValues(alpha: 0.2)),
           boxShadow: [
             BoxShadow(
-              color: action.color.withOpacity(0.06),
+              color: action.color.withValues(alpha: 0.06),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),

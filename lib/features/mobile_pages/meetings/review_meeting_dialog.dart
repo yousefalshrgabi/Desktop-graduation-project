@@ -148,9 +148,9 @@ class _ReviewMeetingDialogState extends State<ReviewMeetingDialog> {
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: DesktopColors.primary.withOpacity(0.05),
+                      color: DesktopColors.primary.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: DesktopColors.primary.withOpacity(0.2)),
+                      border: Border.all(color: DesktopColors.primary.withValues(alpha: 0.2)),
                     ),
                     child: ListTile(
                       leading: const Icon(Icons.description, color: DesktopColors.primary),
@@ -177,9 +177,9 @@ class _ReviewMeetingDialogState extends State<ReviewMeetingDialog> {
                   Container(
                     width: double.infinity,
                     decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.05),
+                      color: Colors.green.withValues(alpha: 0.05),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.withOpacity(0.2)),
+                      border: Border.all(color: Colors.green.withValues(alpha: 0.2)),
                     ),
                     child: ListTile(
                       leading: const Icon(Icons.description, color: Colors.green),

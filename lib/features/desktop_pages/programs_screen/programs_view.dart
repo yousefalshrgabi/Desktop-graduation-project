@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
-import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
+
 import 'programs_viewmodel.dart';
 import 'add_program_dialog.dart';
 import 'edit_program_dialog.dart';

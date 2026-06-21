@@ -1,7 +1,7 @@
 import 'package:excel/excel.dart' hide Border;
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
+
 
 import '../models/faculty_option.dart';
 import '../models/semester_nasab_assignment.dart';
@@ -1098,7 +1098,7 @@ class _CourseAssignmentCard extends StatelessWidget {
             const SizedBox(height: 8),
             DecoratedBox(
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withOpacity(0.45),
+                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.45),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Padding(

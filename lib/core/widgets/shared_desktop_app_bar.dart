@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
-import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
+import 'package:academic_affairs_management/features/desktop_pages/sync_dialog/sync_dialog_view.dart';
 
 class SharedDesktopAppBar extends StatelessWidget implements PreferredSizeWidget {
   final List<Widget>? extraActions;

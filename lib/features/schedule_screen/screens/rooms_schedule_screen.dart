@@ -158,7 +158,7 @@ class _RoomsScheduleScreenState extends State<RoomsScheduleScreen> {
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _searchQuery != null &&
+                            initialValue: _searchQuery != null &&
                                     rooms.contains(_searchQuery)
                                 ? _searchQuery
                                 : null,

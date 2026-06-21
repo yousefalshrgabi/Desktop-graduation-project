@@ -1,24 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import '../../schedule_screen/screens/teachers_schedule_screen.dart';
-import '../../course_study_plan/screens/mobile_study_plan_template_settings_screen.dart';
-import '../../course_study_plan/screens/mobile_course_study_plan_list_screen.dart';
-import '../../course_study_plan/screens/mobile_course_progress_tracking_screen.dart';
-import '../mobile_schedule/mobile_my_schedule_screen.dart';
+import '../course_study_plan/mobile_study_plan_template_settings/mobile_study_plan_template_settings_view.dart';
+import '../course_study_plan/mobile_course_study_plan_list/mobile_course_study_plan_list_view.dart';
+import '../course_study_plan/mobile_course_progress_tracking/mobile_course_progress_tracking_view.dart';
+import '../mobile_schedule/mobile_my_schedule_view.dart';
 
-class QuickActionItem {
-  final String label;
-  final IconData icon;
-  final Color color;
-  final VoidCallback onTap;
-
-  const QuickActionItem({
-    required this.label,
-    required this.icon,
-    required this.color,
-    required this.onTap,
-  });
-}
+import 'mobile_home_model.dart';
 
 class MobileHomeViewModel extends ChangeNotifier {
   final AppSession _session = AppSession();
@@ -60,7 +48,7 @@ class MobileHomeViewModel extends ChangeNotifier {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const MobileMyScheduleScreen(),
+              builder: (context) => const MobileMyScheduleView(),
             ),
           );
         },
@@ -114,7 +102,7 @@ class MobileHomeViewModel extends ChangeNotifier {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const MobileCourseStudyPlanListScreen(),
+              builder: (context) => const MobileCourseStudyPlanListView(),
             ),
           );
         },
@@ -130,7 +118,7 @@ class MobileHomeViewModel extends ChangeNotifier {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (context) => const MobileCourseProgressTrackingScreen(),
+              builder: (context) => const MobileCourseProgressTrackingView(),
             ),
           );
         },
@@ -147,7 +135,7 @@ class MobileHomeViewModel extends ChangeNotifier {
             context,
             MaterialPageRoute(
               builder: (context) =>
-                  const MobileStudyPlanTemplateSettingsScreen(),
+                  const MobileStudyPlanTemplateSettingsView(),
             ),
           );
         },

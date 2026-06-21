@@ -838,7 +838,7 @@ class _WriteMinutesViewState extends State<WriteMinutesView> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: DesktopColors.primary.withOpacity(0.05),
+                                  color: DesktopColors.primary.withValues(alpha: 0.05),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(

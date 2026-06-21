@@ -157,7 +157,7 @@ class _NotificationDetailsViewState extends State<NotificationDetailsView> {
                           Container(
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: DesktopColors.primary.withOpacity(0.1),
+                              color: DesktopColors.primary.withValues(alpha: 0.1),
                               shape: BoxShape.circle,
                             ),
                             child: const Icon(
@@ -303,9 +303,9 @@ class _NotificationDetailsViewState extends State<NotificationDetailsView> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: statusColor.withOpacity(0.3)),
+                    border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     meeting.status.displayName,
@@ -514,16 +514,16 @@ class _NotificationDetailsViewState extends State<NotificationDetailsView> {
       child: Container(
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: DesktopColors.primary.withOpacity(0.04),
+          color: DesktopColors.primary.withValues(alpha: 0.04),
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: DesktopColors.primary.withOpacity(0.12)),
+          border: Border.all(color: DesktopColors.primary.withValues(alpha: 0.12)),
         ),
         child: Row(
           children: [
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: DesktopColors.primary.withOpacity(0.08),
+                color: DesktopColors.primary.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: const Icon(

@@ -158,7 +158,7 @@ class _StudentsScheduleScreenState extends State<StudentsScheduleScreen> {
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _searchQuery != null &&
+                            initialValue: _searchQuery != null &&
                                     groups.contains(_searchQuery)
                                 ? _searchQuery
                                 : null,

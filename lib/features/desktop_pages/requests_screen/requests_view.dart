@@ -478,7 +478,6 @@ class _RequestsViewState extends State<RequestsView>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: urls.asMap().entries.map((entry) {
                           int idx = entry.key;
-                          String url = entry.value;
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8.0),
                             child: OutlinedButton.icon(
@@ -1685,7 +1684,7 @@ class _RequestsViewState extends State<RequestsView>
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
+                            color: Colors.black.withValues(alpha: 0.05),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           )
@@ -1717,7 +1716,7 @@ class _RequestsViewState extends State<RequestsView>
               ),
               if (_viewModel.isSending || _viewModel.isLoading)
                 Container(
-                  color: Colors.black.withOpacity(0.3),
+                  color: Colors.black.withValues(alpha: 0.3),
                   child: Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -1805,9 +1804,9 @@ class _RequestsViewState extends State<RequestsView>
                       padding: const EdgeInsets.symmetric(
                           horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: statusColor.withOpacity(0.5)),
+                        border: Border.all(color: statusColor.withValues(alpha: 0.5)),
                       ),
                       child: Text(
                         req.status,

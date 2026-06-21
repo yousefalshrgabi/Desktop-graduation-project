@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/features/authentiction/login_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/main_shell.dart';
 import 'package:academic_affairs_management/features/mobile_pages/mobile_shell/mobile_shell_view.dart';
+import 'splash_view_model.dart';
 
 class SplashView extends StatefulWidget {
   const SplashView({super.key});
@@ -17,6 +16,7 @@ class _SplashViewState extends State<SplashView>
   late AnimationController _controller;
   late Animation<double> _fadeAnimation;
   late Animation<double> _scaleAnimation;
+  final SplashViewModel _viewModel = SplashViewModel();
 
   @override
   void initState() {
@@ -45,31 +45,17 @@ class _SplashViewState extends State<SplashView>
   }
 
   Future<void> _navigateToNext() async {
-    // انتظار مدة عرض شاشة البداية لتجربة مستخدم سلسة
-    await Future.delayed(const Duration(milliseconds: 2800));
+    final destination = await _viewModel.checkLoginStatus();
     if (!mounted) return;
 
-    final prefs = await SharedPreferences.getInstance();
-    final bool isLoggedIn = prefs.getBool('isLoggedIn') ?? false;
-
-    if (isLoggedIn) {
-      await AppSession().loadFromPrefs();
-      if (!mounted) return;
-
-      final session = AppSession();
-      if (session.isAdminOrDeanship) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const MainShell()),
-        );
-      } else if (session.userRole.isNotEmpty) {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const MobileShell()),
-        );
-      } else {
-        Navigator.of(context).pushReplacement(
-          MaterialPageRoute(builder: (_) => const LoginView()),
-        );
-      }
+    if (destination == 'admin') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MainShell()),
+      );
+    } else if (destination == 'mobile') {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (_) => const MobileShell()),
+      );
     } else {
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(builder: (_) => const LoginView()),
@@ -111,7 +97,7 @@ class _SplashViewState extends State<SplashView>
                 height: 300,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.03),
+                  color: Colors.white.withValues(alpha: 0.03),
                 ),
               ),
             ),
@@ -123,7 +109,7 @@ class _SplashViewState extends State<SplashView>
                 height: 400,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: Colors.white.withOpacity(0.02),
+                  color: Colors.white.withValues(alpha: 0.02),
                 ),
               ),
             ),
@@ -152,7 +138,7 @@ class _SplashViewState extends State<SplashView>
                       shape: BoxShape.circle,
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.25),
+                          color: Colors.black.withValues(alpha: 0.25),
                           blurRadius: 25,
                           offset: const Offset(0, 10),
                         ),
@@ -196,7 +182,7 @@ class _SplashViewState extends State<SplashView>
                   Text(
                     'Academic Affairs Management System',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.7),
+                      color: Colors.white.withValues(alpha: 0.7),
                       fontSize: 14,
                       fontWeight: FontWeight.w300,
                       letterSpacing: 0.8,
@@ -226,7 +212,7 @@ class _SplashViewState extends State<SplashView>
                   Text(
                     'جاري تهيئة النظام...',
                     style: TextStyle(
-                      color: Colors.white.withOpacity(0.5),
+                      color: Colors.white.withValues(alpha: 0.5),
                       fontSize: 12,
                     ),
                   ),

@@ -1,17 +1,15 @@
 import 'package:academic_affairs_management/main.dart';
-import 'package:academic_affairs_management/features/authentiction/login_view.dart';
 import 'package:academic_affairs_management/features/authentiction/login_view_model.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/dashboard_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/colleges_screen/colleges_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/departments_screen/departments_view.dart';
-import 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_members.dart';
+import 'package:academic_affairs_management/features/desktop_pages/faculty_members_screen/faculty_members_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/users_screen/users_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/requests_screen/requests_view.dart';
-import 'package:academic_affairs_management/features/desktop_pages/programs_screen/programs_view.dart';
-import 'package:academic_affairs_management/features/desktop_pages/subjects_screen/subjects_view.dart';
-import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/screens/study_plan_list_screen.dart';
+
+import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/study_plan_list/study_plan_list_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/course_assignment_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/workload_report_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/colleges_meetings_screen/colleges_meetings_view.dart';
@@ -100,9 +98,9 @@ class _MainShellState extends State<MainShell>
                         onNavigate: _navigateTo),
                     Colleges(key: ValueKey('colleges_$_selectedIndex')),
                     DepartmentsView(key: ValueKey('depts_$_selectedIndex')),
-                    FacultyMembers(key: ValueKey('faculty_$_selectedIndex')),
+                    FacultyMembersView(key: ValueKey('faculty_$_selectedIndex')),
                     Users(key: ValueKey('users_$_selectedIndex')),
-                    StudyPlanListScreen(
+                    StudyPlanListView(
                       key: ValueKey('study_plans_$_selectedIndex'),
                       initialCollege: AppSession().userCollege.isNotEmpty
                           ? AppSession().userCollege
@@ -248,7 +246,7 @@ class _MainShellState extends State<MainShell>
               horizontal: DesktopSpacing.md, vertical: 12),
           decoration: BoxDecoration(
             color: isSelected
-                ? DesktopColors.primary.withOpacity(0.1)
+                ? DesktopColors.primary.withValues(alpha: 0.1)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
           ),

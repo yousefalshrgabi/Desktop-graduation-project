@@ -127,7 +127,7 @@ class _DepartmentCellBody extends StatelessWidget {
             padding: const EdgeInsets.symmetric(vertical: 4),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: theme.colorScheme.primaryContainer.withOpacity(0.35),
+                color: theme.colorScheme.primaryContainer.withValues(alpha: 0.35),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: theme.colorScheme.outlineVariant,

@@ -209,7 +209,7 @@ class _DepartmentScheduleScreenState extends State<DepartmentScheduleScreen> {
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
-                            value: _searchQuery != null &&
+                            initialValue: _searchQuery != null &&
                                     specializations.contains(_searchQuery)
                                 ? _searchQuery
                                 : null,

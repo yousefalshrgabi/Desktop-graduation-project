@@ -1,27 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/features/mobile_pages/meetings/meetings_list_view.dart';
-import 'package:academic_affairs_management/features/college_management/screens/departments_management_screen.dart';
-import 'package:academic_affairs_management/features/college_management/screens/college_faculty_screen.dart';
-import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/screens/study_plan_list_screen.dart';
+import 'package:academic_affairs_management/features/mobile_pages/departments_management/departments_management_view.dart';
+import 'package:academic_affairs_management/features/mobile_pages/college_faculty/college_faculty_view.dart';
+import 'package:academic_affairs_management/features/desktop_pages/study_plans_ui/study_plan_list/study_plan_list_view.dart';
 import 'package:academic_affairs_management/features/desktop_pages/workload_management/screens/course_assignment_view.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/DB/DatabaseHelper.dart';
 
-class TaskItem {
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final Color color;
-  final VoidCallback? onTap;
-
-  const TaskItem({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.color,
-    this.onTap,
-  });
-}
+import 'mobile_role_tasks_model.dart';
 
 class MobileRoleTasksViewModel extends ChangeNotifier {
   final String role;
@@ -61,7 +47,7 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           icon: Icons.schema_outlined,
           color: const Color(0xFF0CA678),
           onTap: () => onNavigate?.call(
-            StudyPlanListScreen(
+            StudyPlanListView(
               initialCollege: AppSession().userCollege.isNotEmpty
                   ? AppSession().userCollege
                   : null,
@@ -82,7 +68,7 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'استعراض بيانات الأعضاء وإدارتها',
           icon: Icons.supervised_user_circle_outlined,
           color: const Color(0xFF7048E8),
-          onTap: () => onNavigate?.call(const CollegeFacultyScreen()),
+          onTap: () => onNavigate?.call(const CollegeFacultyView()),
         ),
       ];
     } else if (isViceDean) {
@@ -100,7 +86,7 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           icon: Icons.school_outlined,
           color: const Color(0xFF0CA678),
           onTap: () => onNavigate?.call(
-            StudyPlanListScreen(
+            StudyPlanListView(
               initialCollege: AppSession().userCollege.isNotEmpty
                   ? AppSession().userCollege
                   : null,
@@ -143,14 +129,14 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
           subtitle: 'عرض وإدارة أقسام الكلية وتعيين رؤسائها',
           icon: Icons.account_tree_outlined,
           color: const Color(0xFF099268),
-          onTap: () => onNavigate?.call(const DepartmentsManagementScreen()),
+          onTap: () => onNavigate?.call(const DepartmentsManagementView()),
         ),
         TaskItem(
           title: 'أعضاء هيئة التدريس بالكلية',
           subtitle: 'استعراض بيانات الأعضاء وطلب تحديثها',
           icon: Icons.people_alt_outlined,
           color: const Color(0xFFE03131),
-          onTap: () => onNavigate?.call(const CollegeFacultyScreen()),
+          onTap: () => onNavigate?.call(const CollegeFacultyView()),
         ),
       ];
     } else if (isDeptHead) {
@@ -198,7 +184,7 @@ class MobileRoleTasksViewModel extends ChangeNotifier {
             }
 
             onNavigate?.call(
-              StudyPlanListScreen(
+              StudyPlanListView(
                 initialCollege: AppSession().userCollege.isNotEmpty
                     ? AppSession().userCollege
                     : null,

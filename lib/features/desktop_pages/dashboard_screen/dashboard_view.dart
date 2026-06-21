@@ -1,4 +1,4 @@
-import 'package:academic_affairs_management/features/desktop_pages/SyncDialog.dart';
+
 import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
@@ -220,7 +220,7 @@ class _DashboardViewState extends State<DashboardView> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: color.withOpacity(0.12),
+            color: color.withValues(alpha: 0.12),
             blurRadius: 16,
             offset: const Offset(0, 6),
           ),
@@ -233,7 +233,7 @@ class _DashboardViewState extends State<DashboardView> {
             height: 48,
             decoration: BoxDecoration(
               gradient: LinearGradient(
-                colors: [color, color.withOpacity(0.7)],
+                colors: [color, color.withValues(alpha: 0.7)],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
@@ -319,7 +319,7 @@ class _DashboardViewState extends State<DashboardView> {
             borderRadius: BorderRadius.circular(20),
             boxShadow: [
               BoxShadow(
-                color: module.gradient.first.withOpacity(0.35),
+                color: module.gradient.first.withValues(alpha: 0.35),
                 blurRadius: 20,
                 offset: const Offset(0, 8),
               ),
@@ -335,7 +335,7 @@ class _DashboardViewState extends State<DashboardView> {
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.07),
+                    color: Colors.white.withValues(alpha: 0.07),
                   ),
                 ),
               ),
@@ -347,7 +347,7 @@ class _DashboardViewState extends State<DashboardView> {
                   height: 160,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.07),
+                    color: Colors.white.withValues(alpha: 0.07),
                   ),
                 ),
               ),
@@ -361,7 +361,7 @@ class _DashboardViewState extends State<DashboardView> {
                       width: 56,
                       height: 56,
                       decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.2),
+                        color: Colors.white.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(14),
                       ),
                       child: Icon(module.icon, color: Colors.white, size: 30),
@@ -381,7 +381,7 @@ class _DashboardViewState extends State<DashboardView> {
                         Text(
                           module.subtitle,
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.8),
+                            color: Colors.white.withValues(alpha: 0.8),
                             fontSize: 12,
                             height: 1.4,
                           ),
@@ -398,7 +398,7 @@ class _DashboardViewState extends State<DashboardView> {
                   width: 32,
                   height: 32,
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.15),
+                    color: Colors.white.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: const Icon(Icons.arrow_forward_ios,

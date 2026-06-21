@@ -354,7 +354,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                         color: exists
                                             ? Colors.green.shade700
                                             : DesktopColors.primary
-                                                .withOpacity(0.8),
+                                                .withValues(alpha: 0.8),
                                       ),
                                     ),
                                   ],
@@ -573,10 +573,10 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                               child: Container(
                                 padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: DesktopColors.primary.withOpacity(0.05),
+                                  color: DesktopColors.primary.withValues(alpha: 0.05),
                                   borderRadius: BorderRadius.circular(10),
                                   border: Border.all(
-                                      color: DesktopColors.primary.withOpacity(0.2)),
+                                      color: DesktopColors.primary.withValues(alpha: 0.2)),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -591,7 +591,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
                                         Expanded(
                                           child:
                                               DropdownButtonFormField<String>(
-                                            value: selectedCategory,
+                                            initialValue: selectedCategory,
                                             decoration: InputDecoration(
                                               contentPadding:
                                                   const EdgeInsets.symmetric(
@@ -1113,7 +1113,7 @@ class _MobileProfilePageState extends State<MobileProfilePage>
           ),
           const SizedBox(width: 8),
           Expanded(
-            child: Divider(color: DesktopColors.primary.withOpacity(0.3)),
+            child: Divider(color: DesktopColors.primary.withValues(alpha: 0.3)),
           ),
         ],
       ),

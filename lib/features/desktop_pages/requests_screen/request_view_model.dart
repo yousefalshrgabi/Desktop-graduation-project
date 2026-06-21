@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -902,7 +901,7 @@ class RequestViewModel extends ChangeNotifier {
           String? facultyDocId = extraData?['faculty_doc_id']?.toString();
           Map<String, dynamic> currentMember = {};
 
-          String targetUserId = senderId ?? '';
+          String targetUserId = senderId;
 
           if (facultyDocId != null && facultyDocId.isNotEmpty) {
             final fsDoc = await _firestore
@@ -912,7 +911,7 @@ class RequestViewModel extends ChangeNotifier {
             if (fsDoc.exists) {
               currentMember = Map<String, dynamic>.from(fsDoc.data() as Map);
               targetUserId =
-                  currentMember['user_id']?.toString() ?? senderId ?? '';
+                  currentMember['user_id']?.toString() ?? senderId;
             }
           } else {
             final fsQuery = await _firestore
@@ -925,7 +924,7 @@ class RequestViewModel extends ChangeNotifier {
               facultyDocId = fsQuery.docs.first.id;
               currentMember =
                   Map<String, dynamic>.from(fsQuery.docs.first.data());
-              targetUserId = senderId ?? '';
+              targetUserId = senderId;
             }
           }
 
@@ -934,13 +933,13 @@ class RequestViewModel extends ChangeNotifier {
             final db = await DatabaseHelper.instance.database;
             final localRec = await db.query('faculty_members',
                 where: 'id = ? OR user_id = ?',
-                whereArgs: [facultyDocId ?? '', senderId ?? ''],
+                whereArgs: [facultyDocId ?? '', senderId],
                 limit: 1);
             if (localRec.isNotEmpty) {
               facultyDocId ??= localRec.first['id']?.toString();
               currentMember = Map<String, dynamic>.from(localRec.first);
               targetUserId =
-                  currentMember['user_id']?.toString() ?? senderId ?? '';
+                  currentMember['user_id']?.toString() ?? senderId;
             }
           }
 

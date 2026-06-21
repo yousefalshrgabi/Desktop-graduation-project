@@ -247,37 +247,7 @@ class _EditCollegeDialogState extends State<EditCollegeDialog> {
     );
   }
 
-  Widget _buildUserDropdown({
-    required String? value,
-    required String hint,
-    required void Function(String?) onChanged,
-  }) {
-    // التحقق مما إذا كانت القيمة المختارة موجودة فعلياً في القائمة الحالية لتجنب الـ Assertion Error
-    final bool valueExists = widget.viewModel.potentialDeans.any((user) => user['id'] == value);
-    final String? effectiveValue = valueExists ? value : null;
 
-    return DropdownButtonFormField<String>(
-      value: effectiveValue,
-      decoration: InputDecoration(
-        enabledBorder: DesktopInputTheme.inputDecorationTheme.enabledBorder,
-        focusedBorder: DesktopInputTheme.inputDecorationTheme.focusedBorder,
-        filled: true,
-        fillColor: Colors.grey[50],
-        prefixIcon: const Icon(Icons.person, color: Colors.grey),
-      ),
-      hint: Text(hint),
-      items: [
-        const DropdownMenuItem(value: null, child: Text('لا يوجد (غير محدد)')),
-        ...widget.viewModel.potentialDeans.map((user) {
-          return DropdownMenuItem<String>(
-            value: user['id'],
-            child: Text(user['name']),
-          );
-        }),
-      ],
-      onChanged: onChanged,
-    );
-  }
 
   Widget _buildLabel(String text) {
     return Padding(

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'mobile_role_tasks_view_model.dart';
+import 'mobile_role_tasks_model.dart';
 
 class MobileRoleTasksPage extends StatefulWidget {
   final String role;
@@ -63,7 +64,7 @@ class _MobileRoleTasksPageState extends State<MobileRoleTasksPage> {
                                 : _viewModel.isViceDean
                                     ? const Color(0xFF0CA678)
                                     : const Color(0xFFF59F00))
-                            .withOpacity(0.3),
+                            .withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -74,7 +75,7 @@ class _MobileRoleTasksPageState extends State<MobileRoleTasksPage> {
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.2),
+                          color: Colors.white.withValues(alpha: 0.2),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -143,10 +144,10 @@ class _MobileRoleTasksPageState extends State<MobileRoleTasksPage> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: task.color.withOpacity(0.15)),
+        border: Border.all(color: task.color.withValues(alpha: 0.15)),
         boxShadow: [
           BoxShadow(
-            color: task.color.withOpacity(0.05),
+            color: task.color.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -166,7 +167,7 @@ class _MobileRoleTasksPageState extends State<MobileRoleTasksPage> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: task.color.withOpacity(0.1),
+                    color: task.color.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(task.icon, color: task.color, size: 24),
@@ -196,7 +197,7 @@ class _MobileRoleTasksPageState extends State<MobileRoleTasksPage> {
                   ),
                 ),
                 Icon(Icons.arrow_forward_ios,
-                    size: 14, color: task.color.withOpacity(0.6)),
+                    size: 14, color: task.color.withValues(alpha: 0.6)),
               ],
             ),
           ),

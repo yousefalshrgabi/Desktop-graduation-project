@@ -563,7 +563,7 @@ class _MobileShellState extends State<MobileShell> {
                               decoration: BoxDecoration(
                                 color: isRead
                                     ? Colors.transparent
-                                    : DesktopColors.primary.withOpacity(0.05),
+                                    : DesktopColors.primary.withValues(alpha: 0.05),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: ListTile(
@@ -625,7 +625,7 @@ class _MobileShellState extends State<MobileShell> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withValues(alpha: 0.08),
             blurRadius: 10,
             offset: const Offset(0, -2),
           ),

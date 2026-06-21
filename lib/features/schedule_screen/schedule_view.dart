@@ -4,7 +4,6 @@ import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'screens/department_schedule_screen.dart';
 import 'screens/teachers_schedule_screen.dart';
 import 'screens/rooms_schedule_screen.dart';
-import 'screens/upload_schedule_screen.dart';
 
 /// الشاشة الرئيسية لنظام الجداول - تحتوي على تبويبات لكل نوع
 class ScheduleView extends StatelessWidget {

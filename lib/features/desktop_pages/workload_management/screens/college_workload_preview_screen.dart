@@ -1,4 +1,4 @@
-import 'package:academic_affairs_management/core/services/app_session.dart';
+
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:flutter/material.dart';
 
@@ -109,7 +109,7 @@ class _CollegeWorkloadPreviewScreenState
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: statusColor.withOpacity(0.1),
+                    color: statusColor.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: statusColor),
                   ),
@@ -264,7 +264,7 @@ class _CollegeWorkloadPreviewScreenState
 
                 return ListTile(
                   leading: CircleAvatar(
-                    backgroundColor: DesktopColors.primary.withOpacity(0.1),
+                    backgroundColor: DesktopColors.primary.withValues(alpha: 0.1),
                     child: Text(
                       '${index + 1}',
                       style: const TextStyle(

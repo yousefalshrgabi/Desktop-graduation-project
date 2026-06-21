@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/features/authentiction/login_view_model.dart';
-import 'package:academic_affairs_management/features/desktop_pages/dashboard_screen/main_shell.dart';
-import 'package:academic_affairs_management/features/mobile_pages/mobile_shell/mobile_shell_view.dart';
+
 
 class LoginView extends StatefulWidget {
   const LoginView({super.key});
@@ -209,7 +208,7 @@ class _LoginViewState extends State<LoginView> {
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 10,
                             offset: const Offset(0, 4),
                           ),
@@ -454,7 +453,7 @@ class _LoginViewState extends State<LoginView> {
                 ? []
                 : [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.12),
+                      color: Colors.black.withValues(alpha: 0.12),
                       blurRadius: 30,
                       offset: const Offset(0, 8),
                     ),
@@ -474,7 +473,7 @@ class _LoginViewState extends State<LoginView> {
                             end: Alignment.bottomRight,
                             colors: [
                               const Color(0xFF0123C9),
-                              const Color(0xFF0123C9).withOpacity(0.75),
+                              const Color(0xFF0123C9).withValues(alpha: 0.75),
                             ],
                           ),
                           borderRadius: const BorderRadius.only(
@@ -494,7 +493,7 @@ class _LoginViewState extends State<LoginView> {
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.black.withOpacity(0.2),
+                                    color: Colors.black.withValues(alpha: 0.2),
                                     blurRadius: 20,
                                     offset: const Offset(0, 6),
                                   ),
@@ -528,7 +527,7 @@ class _LoginViewState extends State<LoginView> {
                               width: 60,
                               height: 3,
                               decoration: BoxDecoration(
-                                color: Colors.white.withOpacity(0.5),
+                                color: Colors.white.withValues(alpha: 0.5),
                                 borderRadius: BorderRadius.circular(2),
                               ),
                             ),
@@ -536,7 +535,7 @@ class _LoginViewState extends State<LoginView> {
                             Text(
                               'Academic Affairs Management System',
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.8),
+                                color: Colors.white.withValues(alpha: 0.8),
                                 fontSize: 13,
                               ),
                             ),

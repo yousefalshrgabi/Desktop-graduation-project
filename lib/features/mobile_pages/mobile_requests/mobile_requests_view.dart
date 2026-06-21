@@ -1,12 +1,12 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/services/app_session.dart';
-import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_model.dart';
-import 'package:academic_affairs_management/features/desktop_pages/requests_screen/request_view_model.dart';
+import 'mobile_request_model.dart';
+import 'mobile_requests_view_model.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
-import 'package:academic_affairs_management/features/mobile_pages/leave_request_screen.dart';
+import 'package:academic_affairs_management/features/mobile_pages/leave_request/leave_request_view.dart';
 
 class MobileRequestsView extends StatefulWidget {
   const MobileRequestsView({super.key});
@@ -16,7 +16,7 @@ class MobileRequestsView extends StatefulWidget {
 }
 
 class _MobileRequestsViewState extends State<MobileRequestsView> {
-  final RequestViewModel _viewModel = RequestViewModel();
+  final MobileRequestsViewModel _viewModel = MobileRequestsViewModel();
   final _session = AppSession();
 
   @override
@@ -173,7 +173,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                       style: TextStyle(fontSize: 14, color: Colors.grey)),
                   const SizedBox(height: 20),
                   DropdownButtonFormField<String>(
-                    value: selectedForm,
+                    initialValue: selectedForm,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10)),
@@ -213,7 +213,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const LeaveRequestScreen(),
+                          builder: (context) => const LeaveRequestView(),
                         ),
                       );
                     } else {
@@ -281,7 +281,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: selectedDestination,
+                    initialValue: selectedDestination,
                     decoration: InputDecoration(
                       labelText: 'الجهة الموجه إليها',
                       border: OutlineInputBorder(
@@ -302,7 +302,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: selectedType,
+                    initialValue: selectedType,
                     decoration: InputDecoration(
                       labelText: 'نوع الطلب',
                       border: OutlineInputBorder(
@@ -785,7 +785,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                   const Text('الكلية المرسل إليها:', style: TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
-                    value: selectedCollege,
+                    initialValue: selectedCollege,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10)),
@@ -978,7 +978,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                 ),
                 if (_viewModel.isSending || _viewModel.isLoading)
                   Container(
-                    color: Colors.black.withOpacity(0.3),
+                    color: Colors.black.withValues(alpha: 0.3),
                     child: Center(
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
@@ -1088,7 +1088,7 @@ class _MobileRequestsViewState extends State<MobileRequestsView> {
                       padding: const EdgeInsets.symmetric(
                           horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
+                        color: statusColor.withValues(alpha: 0.1),
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Text(
