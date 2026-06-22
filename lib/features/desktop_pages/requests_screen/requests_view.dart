@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:academic_affairs_management/core/theme/desktop_theme.dart';
 import 'package:academic_affairs_management/core/widgets/shared_desktop_app_bar.dart';
+import 'package:academic_affairs_management/core/services/app_session.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'request_model.dart';
@@ -24,6 +25,7 @@ class _RequestsViewState extends State<RequestsView>
   void initState() {
     super.initState();
     _tabController = TabController(length: 2, vsync: this);
+    _viewModel.loadColleges();
   }
 
   @override
@@ -35,6 +37,34 @@ class _RequestsViewState extends State<RequestsView>
 
   String _formatDate(DateTime date) {
     return '${date.year}-${date.month.toString().padLeft(2, '0')}-${date.day.toString().padLeft(2, '0')} ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  String _getCurrentStepOwner(RequestModel req) {
+    if (req.status == 'مقبول') return 'تم الاعتماد النهائي';
+    if (req.status == 'مرفوض') {
+      final rejectorRole = req.extraData?['rejected_by_role'] ?? 'الجهة المستقبلة';
+      return 'تم الرفض من قبل $rejectorRole';
+    }
+    if (req.status == 'تم الرد') return 'تم الرد من قبل عميد الكلية';
+    
+    final int step = req.extraData?['current_step_order'] != null
+        ? (req.extraData!['current_step_order'] is int
+            ? req.extraData!['current_step_order'] as int
+            : int.tryParse(req.extraData!['current_step_order'].toString()) ?? 1)
+        : 1;
+
+    switch (step) {
+      case 1:
+        return 'رئيس القسم العلمي بالكلية';
+      case 2:
+        return 'نائب العميد للشؤون الأكاديمية بالكلية';
+      case 3:
+        return 'عميد الكلية';
+      case 4:
+        return 'نيابة الشؤون الأكاديمية بالجامعة';
+      default:
+        return 'قيد المراجعة';
+    }
   }
 
   Future<void> _openSpecificFile(RequestModel request, int index) async {
@@ -171,8 +201,10 @@ class _RequestsViewState extends State<RequestsView>
     showDialog(
       context: context,
       builder: (context) {
+        List<PlatformFile> replyFiles = [];
         return StatefulBuilder(
           builder: (context, setState) {
+            final isProsecutionType = request.type == 'طلب من النيابة العامة';
             return AlertDialog(
               shape:
                   RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -265,7 +297,6 @@ class _RequestsViewState extends State<RequestsView>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: urls.asMap().entries.map((entry) {
                           int idx = entry.key;
-                          String url = entry.value;
                           return Padding(
                             padding: const EdgeInsets.only(bottom: 8.0),
                             child: OutlinedButton.icon(
@@ -281,8 +312,8 @@ class _RequestsViewState extends State<RequestsView>
                   ],
                   _buildInfoRow('وقت الاستلام:', _formatDate(request.dateSent)),
                   const SizedBox(height: 16),
-                  const Text('سبب الرفض (مطلوب في حالة الرفض فقط):',
-                      style: TextStyle(fontWeight: FontWeight.bold)),
+                  Text(isProsecutionType ? 'نص الرد:' : 'سبب الرفض (مطلوب في حالة الرفض فقط):',
+                      style: const TextStyle(fontWeight: FontWeight.bold)),
                   const SizedBox(height: 8),
                   TextField(
                     controller: reasonController,
@@ -304,93 +335,124 @@ class _RequestsViewState extends State<RequestsView>
               onPressed: () => Navigator.pop(context),
               child: const Text('إلغاء'),
             ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red[600],
-                foregroundColor: Colors.white,
+            if (isProsecutionType)
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue[800],
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.send, size: 18),
+                label: const Text('إرسال الرد'),
+                onPressed: () async {
+                  if (reasonController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('الرجاء كتابة نص الرد أولاً')),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context);
+                  bool success = await _viewModel.respondToRequest(
+                    request.id,
+                    'تم الرد',
+                    rejectionReason: reasonController.text.trim(),
+                    attachedFiles: replyFiles,
+                  );
+                  if (!success && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(_viewModel.errorMessage)),
+                    );
+                  }
+                },
+              )
+            else ...[
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red[600],
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.close, size: 18),
+                label: const Text('رفض الطلب'),
+                onPressed: () async {
+                  if (reasonController.text.trim().isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('الرجاء إدخال سبب الرفض')),
+                    );
+                    return;
+                  }
+                  Navigator.pop(context);
+                  bool success = await _viewModel.respondToRequest(
+                    request.id,
+                    'مرفوض',
+                    rejectionReason: reasonController.text,
+                  );
+                  if (!success && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(_viewModel.errorMessage)),
+                    );
+                  }
+                },
               ),
-              icon: const Icon(Icons.close, size: 18),
-              label: const Text('رفض الطلب'),
-              onPressed: () async {
-                if (reasonController.text.trim().isEmpty) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('الرجاء إدخال سبب الرفض')),
-                  );
-                  return;
-                }
-                Navigator.pop(context);
-                bool success = await _viewModel.respondToRequest(
-                  request.id,
-                  'مرفوض',
-                  rejectionReason: reasonController.text,
-                );
-                if (!success && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(_viewModel.errorMessage)),
-                  );
-                }
-              },
-            ),
-            ElevatedButton.icon(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.green[600],
-                foregroundColor: Colors.white,
-              ),
-              icon: const Icon(Icons.check, size: 18),
-              label: const Text('قبول الطلب'),
-              onPressed: () async {
-                if (request.type == 'تعديل معلومات' && approvedFields.isEmpty && request.extraData != null) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('الرجاء اختيار حقل واحد على الأقل للموافقة، أو اضغط رفض الطلب')),
-                  );
-                  return;
-                }
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green[600],
+                  foregroundColor: Colors.white,
+                ),
+                icon: const Icon(Icons.check, size: 18),
+                label: const Text('قبول الطلب'),
+                onPressed: () async {
+                  if (request.type == 'تعديل معلومات' && approvedFields.isEmpty && request.extraData != null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('الرجاء اختيار حقل واحد على الأقل للموافقة، أو اضغط رفض الطلب')),
+                    );
+                    return;
+                  }
 
-                Navigator.pop(context);
+                  Navigator.pop(context);
 
-                // تجهيز سبب الرفض الجزئي للحقول المرفوضة
-                String finalReason = reasonController.text.trim();
-                if (request.type == 'تعديل معلومات' && request.extraData != null) {
-                  List<String> rejected = [];
-                  request.extraData!.keys.forEach((key) {
-                    if (!ignoredKeys.contains(key) && !approvedFields.contains(key)) {
-                      rejected.add(keyTranslations[key] ?? key);
-                    }
-                  });
-                  if (rejected.isNotEmpty) {
-                    String partialReason = 'تم رفض الحقول التالية: ${rejected.join("، ")}';
-                    if (finalReason.isNotEmpty) {
-                      finalReason = '$partialReason\nملاحظة: $finalReason';
-                    } else {
-                      finalReason = partialReason;
+                  // تجهيز سبب الرفض الجزئي للحقول المرفوضة
+                  String finalReason = reasonController.text.trim();
+                  if (request.type == 'تعديل معلومات' && request.extraData != null) {
+                    List<String> rejected = [];
+                    request.extraData!.keys.forEach((key) {
+                      if (!ignoredKeys.contains(key) && !approvedFields.contains(key)) {
+                        rejected.add(keyTranslations[key] ?? key);
+                      }
+                    });
+                    if (rejected.isNotEmpty) {
+                      String partialReason = 'تم رفض الحقول التالية: ${rejected.join("، ")}';
+                      if (finalReason.isNotEmpty) {
+                        finalReason = '$partialReason\nملاحظة: $finalReason';
+                      } else {
+                        finalReason = partialReason;
+                      }
                     }
                   }
-                }
 
-                // إضافة الحقول المقبولة وتحديد الحالة النهائية (إذا كان التعديل لمعلومات)
-                List<String>? approved;
-                String finalStatus = 'مقبول';
-                if (request.type == 'تعديل معلومات' && request.extraData != null) {
-                  approved = approvedFields;
-                  int updatableCount = request.extraData!.keys.where((k) => !ignoredKeys.contains(k)).length;
-                  if (approved.length < updatableCount) {
-                    finalStatus = 'مقبول جزئياً';
+                  // إضافة الحقول المقبولة وتحديد الحالة النهائية (إذا كان التعديل لمعلومات)
+                  List<String>? approved;
+                  String finalStatus = 'مقبول';
+                  if (request.type == 'تعديل معلومات' && request.extraData != null) {
+                    approved = approvedFields;
+                    int updatableCount = request.extraData!.keys.where((k) => !ignoredKeys.contains(k)).length;
+                    if (approved.length < updatableCount) {
+                      finalStatus = 'مقبول جزئياً';
+                    }
                   }
-                }
 
-                bool success = await _viewModel.respondToRequest(
-                  request.id,
-                  finalStatus,
-                  rejectionReason: finalReason.isNotEmpty ? finalReason : null,
-                  approvedFields: approved,
-                );
-                if (!success && mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text(_viewModel.errorMessage)),
+                  bool success = await _viewModel.respondToRequest(
+                    request.id,
+                    finalStatus,
+                    rejectionReason: finalReason.isNotEmpty ? finalReason : null,
+                    approvedFields: approved,
                   );
-                }
-              },
-            ),
+                  if (!success && mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(_viewModel.errorMessage)),
+                    );
+                  }
+                },
+              ),
+            ],
           ],
         );
         });
@@ -399,10 +461,17 @@ class _RequestsViewState extends State<RequestsView>
   }
 
   void _showNewRequestDialog() {
+    final isProsecution = AppSession().isAdminOrDeanship;
     final titleController = TextEditingController();
     final descriptionController = TextEditingController();
+    
+    // For normal user:
     String selectedDestination = 'نيابة الشؤون الأكاديمية';
     String selectedType = 'طلب اجازة مرضية';
+    
+    // For prosecution:
+    String? selectedCollege;
+    
     List<PlatformFile> selectedFiles = [];
 
     final List<String> requestTypes = [
@@ -417,10 +486,27 @@ class _RequestsViewState extends State<RequestsView>
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(builder: (statefulContext, setDialogState) {
+          final listColleges = _viewModel.colleges.isNotEmpty 
+              ? _viewModel.colleges 
+              : [
+                  'كلية الهندسة',
+                  'كلية الحاسبات',
+                  'كلية العلوم',
+                  'كلية الطب',
+                  'كلية طب الأسنان',
+                  'كلية الصيدلة',
+                  'كلية العلوم الإدارية',
+                  'كلية الآداب',
+                  'كلية التربية',
+                ];
+          if (isProsecution && selectedCollege == null && listColleges.isNotEmpty) {
+            selectedCollege = listColleges.first;
+          }
+
           return AlertDialog(
             shape:
                 RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            title: const Text('إنشاء طلب جديد'),
+            title: Text(isProsecution ? 'إنشاء طلب جديد (النيابة العامة)' : 'إنشاء طلب جديد'),
             content: SizedBox(
               width: 500,
               child: SingleChildScrollView(
@@ -430,55 +516,74 @@ class _RequestsViewState extends State<RequestsView>
                     TextField(
                       controller: titleController,
                       decoration: InputDecoration(
-                        labelText: 'عنوان الطلب',
+                        labelText: isProsecution ? 'الموضوع / العنوان' : 'عنوان الطلب',
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8)),
                       ),
                     ),
                     const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedDestination,
-                      decoration: InputDecoration(
-                        labelText: 'الجهة الموجه إليها',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                    if (isProsecution) ...[
+                      DropdownButtonFormField<String>(
+                        value: selectedCollege,
+                        decoration: InputDecoration(
+                          labelText: 'الكلية المرسل إليها',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        items: listColleges
+                            .map(
+                                (e) => DropdownMenuItem(value: e, child: Text(e)))
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null)
+                            setDialogState(() => selectedCollege = v);
+                        },
                       ),
-                      items: [
-                        'جميع الكليات',
-                        'كلية الهندسة',
-                        'كلية الحاسبات',
-                        'كلية العلوم',
-                        'نيابة الشؤون الأكاديمية'
-                      ]
-                          .map(
-                              (e) => DropdownMenuItem(value: e, child: Text(e)))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null)
-                          setDialogState(() => selectedDestination = v);
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    DropdownButtonFormField<String>(
-                      value: selectedType,
-                      decoration: InputDecoration(
-                        labelText: 'نوع الطلب',
-                        border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(8)),
+                    ] else ...[
+                      DropdownButtonFormField<String>(
+                        value: selectedDestination,
+                        decoration: InputDecoration(
+                          labelText: 'الجهة الموجه إليها',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        items: [
+                          'جميع الكليات',
+                          'كلية الهندسة',
+                          'كلية الحاسبات',
+                          'كلية العلوم',
+                          'نيابة الشؤون الأكاديمية'
+                        ]
+                            .map(
+                                (e) => DropdownMenuItem(value: e, child: Text(e)))
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null)
+                            setDialogState(() => selectedDestination = v);
+                        },
                       ),
-                      items: requestTypes
-                          .map(
-                              (e) => DropdownMenuItem(value: e, child: Text(e)))
-                          .toList(),
-                      onChanged: (v) {
-                        if (v != null) setDialogState(() => selectedType = v);
-                      },
-                    ),
+                      const SizedBox(height: 12),
+                      DropdownButtonFormField<String>(
+                        value: selectedType,
+                        decoration: InputDecoration(
+                          labelText: 'نوع الطلب',
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                        ),
+                        items: requestTypes
+                            .map(
+                                (e) => DropdownMenuItem(value: e, child: Text(e)))
+                            .toList(),
+                        onChanged: (v) {
+                          if (v != null) setDialogState(() => selectedType = v);
+                        },
+                      ),
+                    ],
                     const SizedBox(height: 12),
                     TextField(
                       controller: descriptionController,
                       decoration: InputDecoration(
-                        labelText: 'تفاصيل أو ملاحظات حول الطلب',
+                        labelText: isProsecution ? 'نص الرسالة / الطلب' : 'تفاصيل أو ملاحظات حول الطلب',
                         hintText: 'اكتب تفاصيل إضافية هنا...',
                         border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8)),
@@ -582,19 +687,20 @@ class _RequestsViewState extends State<RequestsView>
               ElevatedButton(
                 onPressed: () async {
                   if (titleController.text.trim().isEmpty) return;
+                  if (isProsecution && selectedCollege == null) return;
                   Navigator.pop(statefulContext);
 
                   bool success = await _viewModel.sendRequest(
                     title: titleController.text.trim(),
-                    destinationCollege: selectedDestination,
-                    type: selectedType,
+                    destinationCollege: isProsecution ? selectedCollege! : selectedDestination,
+                    type: isProsecution ? 'طلب من النيابة العامة' : selectedType,
                     description: descriptionController.text.trim(),
                     attachedFiles: selectedFiles,
                   );
 
                   if (success && mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('تم إرسال الطلب بنجاح')),
+                      SnackBar(content: Text(isProsecution ? 'تم إرسال الطلب بنجاح إلى عميد الكلية' : 'تم إرسال الطلب بنجاح')),
                     );
                   } else if (mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -756,6 +862,7 @@ class _RequestsViewState extends State<RequestsView>
         if (req.status == 'مقبول') statusColor = Colors.green;
         if (req.status == 'مقبول جزئياً') statusColor = Colors.teal;
         if (req.status == 'مرفوض') statusColor = Colors.red;
+        if (req.status == 'تم الرد') statusColor = Colors.blue;
 
         return Card(
           margin: const EdgeInsets.only(bottom: 12),
@@ -866,6 +973,63 @@ class _RequestsViewState extends State<RequestsView>
                       ),
                     ),
                   ),
+                if (req.status == 'تم الرد' && req.rejectionReason != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: Colors.blue[50],
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.reply,
+                              color: Colors.blue, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'الرد: ${req.rejectionReason}',
+                              style: const TextStyle(color: Colors.blue),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (req.extraData != null && req.extraData!['reply_attachments'] != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: Builder(builder: (context) {
+                        List<String> urls = [];
+                        try {
+                          final val = req.extraData!['reply_attachments'];
+                          if (val is String) {
+                            urls = List<String>.from(jsonDecode(val));
+                          } else if (val is List) {
+                            urls = List<String>.from(val);
+                          }
+                        } catch (_) {}
+                        return Wrap(
+                          spacing: 8,
+                          children: urls.asMap().entries.map((entry) {
+                            int idx = entry.key;
+                            String url = entry.value;
+                            return OutlinedButton.icon(
+                              onPressed: () async {
+                                final uri = Uri.parse(url);
+                                try {
+                                  await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                } catch (_) {}
+                              },
+                              icon: const Icon(Icons.attach_file, size: 14),
+                              label: Text('ملف الرد (${idx + 1})'),
+                            );
+                          }).toList(),
+                        );
+                      }),
+                    ),
+                ],
                 const SizedBox(height: 16),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.end,
@@ -901,7 +1065,7 @@ class _RequestsViewState extends State<RequestsView>
                         );
                       }),
                     const SizedBox(width: 12),
-                    if (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type.contains('اجازة'))
+                    if ((req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type.contains('اجازة')) && req.status == 'مقبول')
                       ElevatedButton.icon(
                         onPressed: () => _exportLocalLeaveRequest(req),
                         icon: const Icon(Icons.file_download, color: Colors.white, size: 16),
@@ -953,7 +1117,9 @@ class _RequestsViewState extends State<RequestsView>
             leading: CircleAvatar(
               backgroundColor: req.status == 'مقبول'
                   ? Colors.green
-                  : (req.status == 'مرفوض' ? Colors.red : Colors.orange),
+                  : (req.status == 'مرفوض'
+                      ? Colors.red
+                      : (req.status == 'تم الرد' ? Colors.blue : Colors.orange)),
               child: const Icon(Icons.outbox, color: Colors.white, size: 20),
             ),
             children: [
@@ -971,6 +1137,10 @@ class _RequestsViewState extends State<RequestsView>
                             : 'لا توجد'),
                     const SizedBox(height: 8),
                     _buildInfoRow('تاريخ الإرسال:', _formatDate(req.dateSent)),
+                    if (req.type != 'طلب من النيابة العامة') ...[
+                      const SizedBox(height: 8),
+                      _buildInfoRow('عند من الطلب الآن:', _getCurrentStepOwner(req)),
+                    ],
                     if (req.dateReplied != null) ...[
                       const SizedBox(height: 8),
                       _buildInfoRow(
@@ -983,6 +1153,43 @@ class _RequestsViewState extends State<RequestsView>
                           style: const TextStyle(
                               color: Colors.red, fontWeight: FontWeight.bold)),
                     ],
+                    if (req.status == 'تم الرد' && req.rejectionReason != null) ...[
+                      const SizedBox(height: 8),
+                      Text('الرد: ${req.rejectionReason}',
+                          style: const TextStyle(
+                              color: Colors.blue, fontWeight: FontWeight.bold)),
+                      if (req.extraData != null && req.extraData!['reply_attachments'] != null) ...[
+                        const SizedBox(height: 8),
+                        Builder(builder: (context) {
+                          List<String> urls = [];
+                          try {
+                            final val = req.extraData!['reply_attachments'];
+                            if (val is String) {
+                              urls = List<String>.from(jsonDecode(val));
+                            } else if (val is List) {
+                              urls = List<String>.from(val);
+                            }
+                          } catch (_) {}
+                          return Wrap(
+                            spacing: 8,
+                            children: urls.asMap().entries.map((entry) {
+                              int idx = entry.key;
+                              String url = entry.value;
+                              return OutlinedButton.icon(
+                                onPressed: () async {
+                                  final uri = Uri.parse(url);
+                                  try {
+                                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                                  } catch (_) {}
+                                },
+                                icon: const Icon(Icons.attach_file, size: 14, color: Colors.blue),
+                                label: Text('ملف الرد (${idx + 1})', style: const TextStyle(color: Colors.blue)),
+                              );
+                            }).toList(),
+                          );
+                        }),
+                      ],
+                    ],
                     if (req.fileUrl != null) ...[
                       const SizedBox(height: 16),
                       Center(
@@ -993,7 +1200,7 @@ class _RequestsViewState extends State<RequestsView>
                         ),
                       ),
                     ],
-                    if (req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type.contains('اجازة')) ...[
+                    if ((req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type.contains('اجازة')) && req.status == 'مقبول') ...[
                       const SizedBox(height: 16),
                       Center(
                         child: ElevatedButton.icon(

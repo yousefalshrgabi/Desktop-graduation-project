@@ -149,19 +149,29 @@ class RequestViewModel extends ChangeNotifier {
         college.contains('نيابة') ||
         college.contains('الأكاديمية'));
 
+    if (req.status == 'مرفوض') {
+      return false;
+    }
+    if (req.status == 'مقبول') {
+      if (!isAcademicAffairs) {
+        return false;
+      }
+    }
+
     if (req.type == 'طلب من النيابة العامة') {
       return isDean &&
           _isSameCollege(req.destinationCollege, _currentUserCollege ?? '');
     }
 
     final bool isLeave =
-        req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة');
+        req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type == 'طلب عام';
     if (isLeave) {
-      // التحقق من الكلية أولاً لغير النيابة الأكاديمية
-      if (!isAcademicAffairs &&
-          !_isSameCollege(req.destinationCollege, _currentUserCollege ?? '')) {
+      final bool matchesCollege = _isSameCollege(req.destinationCollege, _currentUserCollege ?? '') ||
+          (req.status == 'قيد الانتظار' && _isSameCollege(req.senderCollege, _currentUserCollege ?? ''));
+      if (!isAcademicAffairs && !matchesCollege) {
         return false;
       }
+
 
       final int step = req.extraData?['current_step_order'] != null
           ? (req.extraData!['current_step_order'] is int
@@ -712,7 +722,7 @@ class RequestViewModel extends ChangeNotifier {
       }
 
       bool isLeaveRequest =
-          (type == 'استمارة طلب إجازة' || type.contains('إجازة'));
+          (type == 'استمارة طلب إجازة' || type.contains('إجازة') || type == 'طلب عام');
       String statusToUpdate = status;
       String destinationCollegeToUpdate =
           requestData['destinationCollege'] ?? '';
@@ -744,31 +754,65 @@ class RequestViewModel extends ChangeNotifier {
               ? List<dynamic>.from(extraData?['approval_history'])
               : [];
 
-          final alreadyApproved =
-              approvalHistory.any((s) => s is Map && s['step'] == currentStep);
-          if (!alreadyApproved) {
-            approvalHistory.add({
-              'step': currentStep,
-              'approver_role': roleLabel,
-              'approver_name': _currentUserName ?? 'غير معروف',
-              'date': DateTime.now().toIso8601String(),
-            });
+          String getRoleLabelForStep(int s) {
+            switch (s) {
+              case 1:
+                return 'رئيس القسم';
+              case 2:
+                return 'نائب العميد للشؤون الأكاديمية';
+              case 3:
+                return 'عميد الكلية';
+              case 4:
+                return 'نائب رئيس الجامعة للشؤون الأكاديمية';
+              default:
+                return 'مراجع';
+            }
+          }
+
+          int stepToProcess = currentStep;
+          bool keepApproving = true;
+
+          while (keepApproving) {
+            final stepLabel = getRoleLabelForStep(stepToProcess);
+            final alreadyApproved = approvalHistory.any((s) => s is Map && s['step'] == stepToProcess);
+            if (!alreadyApproved) {
+              approvalHistory.add({
+                'step': stepToProcess,
+                'approver_role': stepLabel,
+                'approver_name': _currentUserName ?? 'غير معروف',
+                'date': DateTime.now().toIso8601String(),
+              });
+            }
+
+            if (stepToProcess < 4) {
+              int nextStep = stepToProcess + 1;
+              bool canApproveNext = false;
+              if (nextStep == 2 && hasViceDean) {
+                canApproveNext = true;
+              } else if (nextStep == 3 && hasDean) {
+                canApproveNext = true;
+              } else if (nextStep == 4 && hasAcademicAffairs) {
+                canApproveNext = true;
+              }
+
+              if (canApproveNext) {
+                stepToProcess = nextStep;
+              } else {
+                statusToUpdate = 'قيد الانتظار';
+                updatedExtraData['current_step_order'] = nextStep;
+                if (nextStep == 4) {
+                  destinationCollegeToUpdate = 'نيابة الشؤون الأكاديمية';
+                }
+                keepApproving = false;
+              }
+            } else {
+              statusToUpdate = 'مقبول';
+              updatedExtraData['current_step_order'] = 4;
+              keepApproving = false;
+            }
           }
 
           updatedExtraData['approval_history'] = approvalHistory;
-
-          if (currentStep < 4) {
-            statusToUpdate = 'قيد الانتظار';
-            int nextStep = currentStep + 1;
-            updatedExtraData['current_step_order'] = nextStep;
-
-            if (nextStep == 4) {
-              destinationCollegeToUpdate = 'نيابة الشؤون الأكاديمية';
-            }
-          } else {
-            statusToUpdate = 'مقبول';
-            updatedExtraData['current_step_order'] = 4;
-          }
         } else if (status == 'مرفوض') {
           statusToUpdate = 'مرفوض';
           updatedExtraData['rejected_by_role'] = roleLabel;
@@ -1842,7 +1886,19 @@ class RequestViewModel extends ChangeNotifier {
         }
       } else {
         final String dest = req.destinationCollege.trim();
-        if (dest == 'نيابة الشؤون الأكاديمية' ||
+        if (req.type == 'طلب من النيابة العامة') {
+          for (var doc in snapshot.docs) {
+            final data = doc.data();
+            final userRole = data['role']?.toString() ?? '';
+            final userFac = data['faculty']?.toString() ??
+                data['college']?.toString() ??
+                '';
+
+            if (_isSameCollege(userFac, dest) && _checkIsDean(userRole)) {
+              userIds.add(doc.id);
+            }
+          }
+        } else if (dest == 'نيابة الشؤون الأكاديمية' ||
             dest == 'جميع الكليات' ||
             dest.toLowerCase().contains('نيابة') ||
             dest.toLowerCase().contains('academic')) {
@@ -1949,7 +2005,7 @@ class RequestViewModel extends ChangeNotifier {
       // 2. إذا كان الطلب قيد الانتظار، نرسل للمستلمين المحددين
       if (status == 'قيد الانتظار') {
         final bool isLeave =
-            req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة');
+            req.type == 'استمارة طلب إجازة' || req.type.contains('إجازة') || req.type == 'طلب عام';
         final int step = req.extraData?['current_step_order'] != null
             ? (req.extraData!['current_step_order'] is int
                 ? req.extraData!['current_step_order'] as int

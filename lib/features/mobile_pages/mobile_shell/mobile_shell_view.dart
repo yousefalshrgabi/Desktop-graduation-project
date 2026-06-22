@@ -511,15 +511,19 @@ class _MobileShellState extends State<MobileShell> {
                                       .update({'isRead': true});
                                   if (context.mounted) {
                                     Navigator.pop(context); // إغلاق اللوحة السفلية
-                                    Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) => NotificationDetailsView(
-                                          notificationId: docs[index].id,
-                                          notificationData: data,
+                                    if (data['type'] == 'request') {
+                                      _viewModel.changeTab(2); // الانتقال إلى تبويب الطلبات (فهرس 2)
+                                    } else {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (_) => NotificationDetailsView(
+                                            notificationId: docs[index].id,
+                                            notificationData: data,
+                                          ),
                                         ),
-                                      ),
-                                    );
+                                      );
+                                    }
                                   }
                                 },
                               ),

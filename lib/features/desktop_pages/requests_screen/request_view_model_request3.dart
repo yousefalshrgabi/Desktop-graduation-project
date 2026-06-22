@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -219,10 +219,19 @@ class RequestViewModel extends ChangeNotifier {
         college.contains('نيابة') ||
         college.contains('الأكاديمية'));
 
+    if (req.status == 'مرفوض') {
+      return false;
+    }
+    if (req.status == 'مقبول') {
+      if (!isAcademicAffairs) {
+        return false;
+      }
+    }
+
     // للطلبات غير النيابة العامة، نتحقق من تطابق الكلية أولاً لغير النيابة الأكاديمية
     if (!isAcademicAffairs) {
       final bool matchesCollege = _isSameCollege(req.destinationCollege, _currentUserCollege ?? '') ||
-                                  _isSameCollege(req.senderCollege, _currentUserCollege ?? '');
+                                  (req.status == 'قيد الانتظار' && _isSameCollege(req.senderCollege, _currentUserCollege ?? ''));
       if (!matchesCollege) {
         return false;
       }
@@ -833,31 +842,65 @@ class RequestViewModel extends ChangeNotifier {
               ? List<dynamic>.from(extraData?['approval_history'])
               : [];
 
-          final alreadyApproved =
-              approvalHistory.any((s) => s is Map && s['step'] == currentStep);
-          if (!alreadyApproved) {
-            approvalHistory.add({
-              'step': currentStep,
-              'approver_role': roleLabel,
-              'approver_name': _currentUserName ?? 'غير معروف',
-              'date': DateTime.now().toIso8601String(),
-            });
+          String getRoleLabelForStep(int s) {
+            switch (s) {
+              case 1:
+                return 'رئيس القسم';
+              case 2:
+                return 'نائب العميد للشؤون الأكاديمية';
+              case 3:
+                return 'عميد الكلية';
+              case 4:
+                return 'نائب رئيس الجامعة للشؤون الأكاديمية';
+              default:
+                return 'مراجع';
+            }
+          }
+
+          int stepToProcess = currentStep;
+          bool keepApproving = true;
+
+          while (keepApproving) {
+            final stepLabel = getRoleLabelForStep(stepToProcess);
+            final alreadyApproved = approvalHistory.any((s) => s is Map && s['step'] == stepToProcess);
+            if (!alreadyApproved) {
+              approvalHistory.add({
+                'step': stepToProcess,
+                'approver_role': stepLabel,
+                'approver_name': _currentUserName ?? 'غير معروف',
+                'date': DateTime.now().toIso8601String(),
+              });
+            }
+
+            if (stepToProcess < 4) {
+              int nextStep = stepToProcess + 1;
+              bool canApproveNext = false;
+              if (nextStep == 2 && hasViceDean) {
+                canApproveNext = true;
+              } else if (nextStep == 3 && hasDean) {
+                canApproveNext = true;
+              } else if (nextStep == 4 && hasAcademicAffairs) {
+                canApproveNext = true;
+              }
+
+              if (canApproveNext) {
+                stepToProcess = nextStep;
+              } else {
+                statusToUpdate = 'قيد الانتظار';
+                updatedExtraData['current_step_order'] = nextStep;
+                if (nextStep == 4) {
+                  destinationCollegeToUpdate = 'نيابة الشؤون الأكاديمية';
+                }
+                keepApproving = false;
+              }
+            } else {
+              statusToUpdate = 'مقبول';
+              updatedExtraData['current_step_order'] = 4;
+              keepApproving = false;
+            }
           }
 
           updatedExtraData['approval_history'] = approvalHistory;
-
-          if (currentStep < 4) {
-            statusToUpdate = 'قيد الانتظار';
-            int nextStep = currentStep + 1;
-            updatedExtraData['current_step_order'] = nextStep;
-
-            if (nextStep == 4) {
-              destinationCollegeToUpdate = 'نيابة الشؤون الأكاديمية';
-            }
-          } else {
-            statusToUpdate = 'مقبول';
-            updatedExtraData['current_step_order'] = 4;
-          }
         } else if (status == 'مرفوض') {
           statusToUpdate = 'مرفوض';
           updatedExtraData['rejected_by_role'] = roleLabel;
